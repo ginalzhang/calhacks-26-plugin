@@ -99,17 +99,87 @@ def test_every_plugin_request_example_over_tcp(served):
         s.close()
 
 
-def test_bad_json_and_unknown_cmd_get_error_replies(served):
+def _closed(rf) -> bool:
+    try:
+        return rf.readline() == b""
+    except (ConnectionError, OSError):
+        return True
+
+
+def test_unknown_cmd_keeps_connection_open(served):
     bridge, _, host, port, _ = served
     with FakeGui(bridge):
         s, rf = connect(host, port)
-        s.sendall(b"this is not json\n\n")
-        r = json.loads(rf.readline())
-        assert r["ok"] is False and r["error"] == "bad_args"
         r = roundtrip(s, rf, {"id": "u1", "cmd": "nope"})
         assert r == {"id": "u1", "ok": False, "error": "unknown_cmd", "cmd": "nope"}
-        r = roundtrip(s, rf, {"id": "p1", "cmd": "ping"})  # connection survives errors
-        assert r == {"id": "p1", "ok": True}
+        assert roundtrip(s, rf, {"id": "p1", "cmd": "ping"}) == {"id": "p1", "ok": True}
+        s.close()
+
+
+@pytest.mark.parametrize("first", [b"this is not json", b"[1, 2]", b'"str"', b"42", b"{bad json"])
+def test_first_non_object_line_closes_connection(served, first):
+    bridge, fake, host, port, _ = served
+    with FakeGui(bridge):
+        s, rf = connect(host, port)
+        s.sendall(first + b'\n{"id":"x","cmd":"action","action":"edit_undo"}\n')
+        r = json.loads(rf.readline())
+        assert r["ok"] is False and r["error"] == "bad_args" and "closing" in r["message"]
+        assert _closed(rf)
+        assert fake.actions["edit_undo"].triggers == 0
+        s.close()
+
+
+def test_http_post_body_is_never_executed(served):
+    """A web page's no-cors POST to 127.0.0.1:8766 (review R10)."""
+    bridge, fake, host, port, _ = served
+    body = b'\n{"id":"x","cmd":"action","action":"edit_undo"}\n{"id":"y","cmd":"color","hex":"#ff0000"}\n'
+    req = (b"POST / HTTP/1.1\r\nHost: 127.0.0.1:8766\r\nContent-Type: text/plain\r\n"
+           b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body)
+    with FakeGui(bridge):
+        s, rf = connect(host, port)
+        s.sendall(req)
+        assert json.loads(rf.readline())["error"] == "bad_args"
+        assert _closed(rf)
+        time.sleep(0.1)
+        assert fake.actions["edit_undo"].triggers == 0 and fake.color == "#000000"
+        assert bridge.handled == 0
+        s.close()
+
+
+def test_line_over_1_mib_closes_connection(served):
+    bridge, fake, host, port, _ = served
+    with FakeGui(bridge):
+        s, rf = connect(host, port)
+        big = b'{"id":"big","cmd":"ping","pad":"' + b"x" * (1 << 20) + b'"}\n'
+        try:
+            s.sendall(big + b'{"id":"after","cmd":"ping"}\n')
+        except (ConnectionError, OSError):
+            pass
+        r = json.loads(rf.readline())
+        assert r["ok"] is False and "1 MiB" in r["message"]
+        assert _closed(rf)
+        assert bridge.handled == 0
+        s.close()
+
+
+def test_stop_closes_open_client_connections():
+    bridge = Bridge(lambda c: {"id": c["id"], "ok": True}, port=0, log=lambda m: None)
+    host, port = bridge.start()
+    with FakeGui(bridge):
+        s, rf = connect(host, port)
+        assert roundtrip(s, rf, {"id": "a", "cmd": "ping"})["ok"]
+        deadline = time.time() + 2
+        while bridge.connections != 1 and time.time() < deadline:
+            time.sleep(0.01)
+        assert bridge.connections == 1
+        bridge.stop()
+        assert _closed(rf)
+        deadline = time.time() + 2
+        while bridge.connections and time.time() < deadline:
+            time.sleep(0.01)
+        assert bridge.connections == 0
+        with pytest.raises(OSError):
+            socket.create_connection((host, port), timeout=1).recv(1)
         s.close()
 
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import queue
+import socket
 import socketserver
 import threading
 from concurrent.futures import Future, TimeoutError as FutureTimeout
@@ -39,23 +40,47 @@ class _Server(socketserver.ThreadingTCPServer):
 
 
 class _Handler(socketserver.StreamRequestHandler):
-    def handle(self) -> None:  # one connection; requests handled in order
+    """One connection; requests handled in order.
+
+    Safety (review R10): the first line that is not a JSON object (e.g. the request line of an
+    HTTP POST a web page sends to 127.0.0.1:8766) or a line over 1 MiB gets one error reply and
+    the connection is closed, so nothing after it (an HTTP body) is ever executed.
+    """
+
+    def handle(self) -> None:
         bridge: Bridge = self.server.bridge  # type: ignore[attr-defined]
-        bridge._conn_delta(+1)
+        bridge._track(self.request, True)
         try:
             while True:
-                raw = self.rfile.readline(MAX_LINE)
+                raw = self.rfile.readline(MAX_LINE + 1)
                 if not raw:
+                    return
+                if len(raw) > MAX_LINE:
+                    self.wfile.write(_encode({"id": "", "ok": False, "error": "bad_args",
+                                              "message": "line over 1 MiB; closing"}))
                     return
                 line = raw.strip()
                 if not line:
                     continue
-                reply = bridge.process_line(line)
-                self.wfile.write(_encode(reply))
-        except (ConnectionError, OSError):
+                cmd = parse_line(line)
+                if cmd is None:
+                    self.wfile.write(_encode({"id": "", "ok": False, "error": "bad_args",
+                                              "message": "not a JSON object; closing"}))
+                    return
+                self.wfile.write(_encode(bridge.process(cmd)))
+        except (ConnectionError, OSError, ValueError):
             return
         finally:
-            bridge._conn_delta(-1)
+            bridge._track(self.request, False)
+
+
+def parse_line(line: bytes) -> Optional[dict]:
+    """A JSON object, or None for anything else (invalid JSON, arrays, strings, numbers)."""
+    try:
+        cmd = json.loads(line.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return cmd if isinstance(cmd, dict) else None
 
 
 class Bridge:
@@ -76,6 +101,7 @@ class Bridge:
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         self.connections = 0
+        self._socks: "set[socket.socket]" = set()
         self.handled = 0
 
     # -- server side (any thread) -------------------------------------------------
@@ -91,12 +117,24 @@ class Bridge:
         return self.host, self.port
 
     def stop(self) -> None:
+        """Stop accepting and close every open client connection (review H4)."""
         srv, self.server = self.server, None
         if srv is not None:
             try:
                 srv.shutdown()
                 srv.server_close()
             except Exception:
+                pass
+        with self._lock:
+            socks = list(self._socks)
+        for sock in socks:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
                 pass
 
     def submit(self, cmd: dict) -> Future:
@@ -105,11 +143,13 @@ class Bridge:
         return fut
 
     def process_line(self, line: bytes) -> dict:
-        try:
-            cmd = json.loads(line.decode("utf-8"))
-        except (ValueError, UnicodeDecodeError):
-            return {"id": "", "ok": False, "error": "bad_args", "message": "invalid JSON line"}
-        rid = cmd.get("id", "") if isinstance(cmd, dict) else ""
+        cmd = parse_line(line)
+        if cmd is None:
+            return {"id": "", "ok": False, "error": "bad_args", "message": "not a JSON object"}
+        return self.process(cmd)
+
+    def process(self, cmd: dict) -> dict:
+        rid = cmd.get("id", "")
         fut = self.submit(cmd)
         try:
             return fut.result(timeout=self.reply_timeout)
@@ -119,9 +159,14 @@ class Bridge:
         except Exception as e:
             return {"id": rid, "ok": False, "error": "internal", "message": str(e)}
 
-    def _conn_delta(self, d: int) -> None:
+    def _track(self, sock: socket.socket, add: bool) -> None:
         with self._lock:
-            self.connections += d
+            if add:
+                self._socks.add(sock)
+            else:
+                self._socks.discard(sock)
+            self.connections = len(self._socks)
+
 
     # -- GUI thread ---------------------------------------------------------------
     def drain(self, max_items: int = 64) -> int:

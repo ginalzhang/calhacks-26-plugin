@@ -26,6 +26,19 @@ SMOOTHING_ACTIONS = {
     "stabilizer": "set_stabilizer_brush_smoothing",
 }
 ERASE_ACTION = "erase_action"
+
+# `action {action}` runs only these ids (review R10): the §7 ids verified in Krita 5.3.4's bundled
+# krita.action / kritamenu.action, plus the ids the browser looks up by text via list_actions
+# (merge / remove / clear layer, layer visibility), all verified in the same bundle.
+ALLOWED_ACTIONS = frozenset({
+    "edit_undo", "edit_redo", "file_save", "zoom_to_fit", "zoom_to_100pct", "view_zoom_in",
+    "view_zoom_out", "rotate_canvas_left", "rotate_canvas_right", "reset_canvas_rotation",
+    "mirror_canvas", "erase_action", "eraser_preset_action", "increase_brush_size",
+    "decrease_brush_size", "increase_opacity", "decrease_opacity", "add_new_paint_layer",
+    "view_show_canvas_only",
+    "merge_layer", "remove_layer", "clear", "toggle_layer_visibility",
+    *SMOOTHING_ACTIONS.values(),
+})
 BRUSH_TOOL_ACTION = "KritaShape/KisToolBrush"
 
 SIZE_MIN, SIZE_MAX = 1.0, 1000.0
@@ -321,6 +334,8 @@ def _h_action(c: dict, k: Adapter) -> dict:
     name = c.get("action")
     if not isinstance(name, str) or not name:
         raise CmdError("bad_args", message="action must be a Krita action id")
+    if name not in ALLOWED_ACTIONS:
+        raise CmdError("action_not_allowed", action=name)
     status = k.trigger_action(name)
     if status == "unknown":
         raise CmdError("unknown_action", action=name)

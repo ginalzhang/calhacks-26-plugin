@@ -39,9 +39,10 @@ def test_action_triggers_and_reports_checked_state():
 
 
 def test_action_unknown_and_disabled():
-    r, _ = run("action", action="definitely_not_an_action")
-    assert r["ok"] is False and r["error"] == "unknown_action"
     f = FakeAdapter()
+    del f.actions["edit_redo"]  # allowed id, but missing from this Krita
+    r, _ = run("action", f, action="edit_redo")
+    assert r["ok"] is False and r["error"] == "unknown_action"
     f.actions["file_save"].enabled = False
     r, _ = run("action", f, action="file_save")
     assert r["error"] == "action_disabled"
@@ -425,3 +426,26 @@ def test_dispatch_is_pure_no_qt_import():
     assert not mods & {"PyQt5", "PyQt6", "krita", "sip"}
     tree = ast.parse((PYKRITA / "steady" / "bridge.py").read_text())
     assert not any(isinstance(n, (ast.Import, ast.ImportFrom)) and "PyQt" in ast.dump(n) for n in ast.walk(tree))
+
+
+@pytest.mark.parametrize("name", ["definitely_not_an_action", "file_close", "flatten_image", "file_quit",
+                                  "KritaShape/KisToolBrush", "show_brush_editor", "options_configure"])
+def test_action_not_on_allowlist_is_refused(name):
+    f = FakeAdapter()
+    for a in ("file_close", "flatten_image", "file_quit", "options_configure"):
+        from krita_fakes import FakeAction
+        f.actions[a] = FakeAction(a)
+    r, _ = run("action", f, action=name)
+    assert r == {"id": "req-1", "ok": False, "error": "action_not_allowed", "action": name}
+    assert all(a.triggers == 0 for a in f.actions.values())
+
+
+def test_allowlist_covers_action_table_and_lookups():
+    """Every plugin `action` id in src/actions.ts plus the runtime lookups is allowed."""
+    from steady.dispatch import ALLOWED_ACTIONS, SMOOTHING_ACTIONS
+
+    src = (PYKRITA.parents[1] / "src" / "actions.ts").read_text()
+    used = set(re.findall(r'cmd: "action", action: "([^"]+)"', src))
+    assert used and used <= ALLOWED_ACTIONS
+    assert {"merge_layer", "remove_layer", "clear", "toggle_layer_visibility"} <= ALLOWED_ACTIONS
+    assert set(SMOOTHING_ACTIONS.values()) <= ALLOWED_ACTIONS

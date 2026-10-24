@@ -91,7 +91,9 @@ Request: `{id, cmd, ...}` (the `krita` message minus `t` and `fallback_keys`). R
 | `list_widgets` (P4) | `max?` | `widgets: [{n, label, rect}]` visible clickable widgets in reading order, global screen points |
 | `ping` | — | — |
 
-Common errors: `no_view` (no document open), `unknown_cmd`, `bad_args`, `internal`, `unknown_action`, `action_disabled`, `no_preset`, `no_layer`, `no_window`, `timeout`; `canvas_rect` with no document answers `no_canvas_rect`.
+The plugin closes the connection after replying `bad_args` to the first line that is not a JSON object or exceeds 1 MiB (so an HTTP request from a web page never executes).
+
+Common errors: `no_view` (no document open), `unknown_cmd`, `bad_args`, `internal`, `unknown_action`, `action_not_allowed` (id not on the plugin allowlist), `action_disabled`, `no_preset`, `no_layer`, `no_window`, `timeout`; `canvas_rect` with no document answers `no_canvas_rect`.
 
 Replies may carry extra fields that the helper passes through unchanged in `krita_reply`: `checked` (state of a checkable action such as `erase_action`, drives the Eraser tile's `aria-pressed`), `eraser_cleared`, `widget_class` (canvas_rect), `smoothing_changed` (**any** reply may carry it: smoothing switches to None on the first command that has a view; the Worker shows the one-time notice whenever it sees `smoothing_changed: true`), `smoothing_pending`, `warning`.
 
