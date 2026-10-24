@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --fg: #f3f4f6;
+  --muted: #c4c8d0;
+  --accent: #ffd166;
+  --focus: #ffd166;
+  --danger: #ff6b6b;
+  --ok: #7ee0a1;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 18px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
