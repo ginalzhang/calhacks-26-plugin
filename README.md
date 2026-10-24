@@ -87,14 +87,29 @@ Three processes on one Mac:
 
 ```
 iPhone camera ──► Chrome page (Next.js)
-                    Worker: MediaPipe hand landmarks → One Euro filter → active box → dwell → lazy brush
+                    Worker: hand landmarks (MediaPipe, or the Colour cap tracker) → One Euro filter
+                            → active box → dwell → stroke modes → lazy brush
                     │  ws://127.0.0.1:8765 (Origin http://localhost:3000 only)
                     ▼
                   Python helper: Quartz pointer events · 300 ms watchdog · global F-keys · Krita window rect
+                                 · dwell ring overlay that follows the pointer over Krita
                     │  tcp 127.0.0.1:8766
                     ▼
                   Krita plugin: brush, colour, size, opacity, layers, actions, canvas rect
 ```
+
+Tracking runs in a Web Worker, not on the page's render loop, so it keeps going when Krita covers Chrome
+(the dedicated Chrome from `npm run demo-chrome` also disables background throttling). The MediaPipe model
+and wasm are served from Steady's own `/public/mediapipe/`, so tracking needs no network
+(*TODO: confirm once the self-hosted assets land and are tested offline*).
+
+**Two ways to track the hand.**
+- **Hand landmarks (default):** MediaPipe's hand model; the pointer follows the index knuckle by default
+  (fingertip, middle knuckle, wrist, or any of the 21 points are settings on the Setup page).
+- **Colour cap:** for a hand in a glove, splint, compression glove or thumb brace, where a hand detector
+  fails: stick a small bright-coloured sticker (or cap) on a knuckle or the back of the glove, choose
+  "Colour cap" on the Setup page, and Steady follows that colour blob instead. Everything downstream is the
+  same. *TODO: not yet tested with a real glove (see NEEDS-HUMAN.md).*
 
 **Pipeline (filter before gain).** The index-knuckle landmark (default; it moves only with the wrist and
 forearm and is unaffected by curled fingers or long nails) is filtered in camera pixels by a One Euro filter
@@ -107,6 +122,26 @@ Steady switches Krita's own brush smoothing to None once per session, because tw
 auto-lowers, Latch included. Hatch mode is the single named exception.* Holding still for 800 ms lowers the
 pen; holding still more tightly for 1.2 s lifts it; a slow deliberate stroke never lifts it; a resting hand
 toggles at most once and never leaves ink.
+
+**Stroke modes (opt-in).** Holding still to lower and lift is right for a resting hand but slow for
+hatching. **Hatch** keeps the pen down and inks only forward passes; return passes are skipped. Because ink
+in Krita cannot be taken back, the pointer stream runs ~120 ms behind in Hatch mode so Steady knows a pass
+has ended before Krita hears about it; the status line reads "Hatch: forward passes only". **Dots** stamps
+one click per dwell (stippling). **Dash** inks only while the hand moves; **Repeat** stamps a copy of the
+last stroke at the cursor. Every lift source still lifts in every mode, and a still hand never adds ink.
+Pair Hatch with Krita's parallel ruler assistant for straight parallel lines.
+
+**Smoothing presets.** **Sketch** (Steadiness 25), **Ink mode** (70) and **Shade** (10, small dead zone:
+artists shading with fast back-and-forth strokes find heavy smoothing confusing). Everything is still a
+slider, because ability changes hour to hour.
+
+**The dwell ring.** A small ring follows the pointer and fills while you hold still; it is filled while
+drawing, hollow while hovering, grey where a dwell would do nothing, and a "?" when tracking is lost
+(shape, not only colour). Over Krita it is a tiny click-through window drawn by the helper, never a
+full-screen overlay (that would make macOS treat Chrome as hidden and stall tracking). If the overlay fails
+it switches itself off and the earcons and side panel carry the feedback. F9 hides it.
+*TODO: the overlay has not been verified on a real Mac; see NEEDS-HUMAN.md (brush outline must still show
+through the ring).*
 
 **Fail-safes.**
 - The mouse button is never left held: the helper releases it if no message arrives for 300 ms, on tracking
@@ -130,8 +165,15 @@ toggles at most once and never leaves ink.
   `flush_done`.
 - **Access-token flow:** `/api/cartesia-token` mints a short-lived token server-side; the API key never
   reaches the browser. Re-minted at 45 min, never mid-utterance.
-- **Sonic 3.6 TTS** for the few confirmations that can't be seen at a glance ("Saved", "New layer") —
-  *TODO: only if P2b landed; delete this line otherwise.*
+- **Sonic 3.6 TTS** (`sonic-3.6`, raw PCM 24 kHz, streamed) for the few confirmations that can't be seen
+  at a glance ("Saved", "New layer", "Didn't catch that; I heard …"), at most a few words, never on pen
+  toggles, never while the mic is open (playback is cancelled on push-to-talk), off in quiet mode.
+  *TODO: confirm it is live with a real key before submitting; delete this bullet if TTS did not land.*
+
+**Fallback when Cartesia is unavailable:** Chrome's built-in Web Speech recognition. *Chrome sends that
+audio to Google's servers*, so it is used only as a fallback, only while the mic is open, and the status bar
+says so whenever it is active. Tiles, typed commands and the pedal never need either.
+*TODO: delete this paragraph if the Web Speech fallback did not ship.*
 
 ### Limitations (voice)
 - Accuracy on dysarthric or accented speech has **not been measured**.
@@ -182,6 +224,10 @@ filter (±4 px at rest, up to ±8 px when moving fast); anything recorded with i
 ## Privacy
 
 Camera frames never leave this computer; the camera sees the desk, so papers on it are visible to the app, and processing is local only. Microphone audio goes to Cartesia only while the mic is open. When the local grammar can't match a command, its text (never audio) plus the current tool, preset, size, opacity, colour, Steadiness and your last three actions go to our server and on to Anthropic. The helper and the Krita plugin listen on `127.0.0.1` only and send nothing off the machine.
+
+*Speech fallback:* if Cartesia is unavailable and the Web Speech fallback is in use, Chrome sends the
+microphone audio to Google while the mic is open; the status bar shows "Speech via Google" whenever it is
+active. *TODO: confirm the exact status wording with the shipped build; delete if the fallback did not ship.*
 
 ## Pressure
 

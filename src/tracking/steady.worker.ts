@@ -10,9 +10,10 @@
  * px, so the pointer can leave the canvas and hover the side panel's tiles); "krita" = Quartz
  * screen points.
  */
-import { HOTKEY_TO_ACTION } from "../actions";
+import { ACTIONS_BY_ID, DEFAULT_KEYS, HOTKEY_TO_ACTION } from "../actions";
 import { createCalibrator } from "../pipeline/calibration";
-import { createPipeline } from "../pipeline/pipeline";
+import { createPipeline, modeState, panState } from "../pipeline/pipeline";
+import { kritaMessageFor } from "../desktop/krita";
 import {
   DEFAULT_SETTINGS,
   type Calibration,
@@ -40,6 +41,9 @@ import {
 import type { LandmarkFrame, LandmarkSource } from "./LandmarkSource";
 import { ReplaySource } from "./ReplaySource";
 import type { MediaPipeSource } from "./MediaPipeSource";
+import type { ColorCapSource } from "./ColorCapSource";
+
+type CameraSource = MediaPipeSource | ColorCapSource;
 import { SENT_CHANNEL, type SentRecord } from "./sentChannel";
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -56,7 +60,10 @@ let pipeline: Pipeline | null = null;
 let calibrator: Calibrator | null = null;
 let calibratorSteps: Array<1 | 2 | 3> = [];
 let source: LandmarkSource | null = null;
-let mediapipe: MediaPipeSource | null = null;
+/** Camera-fed source (HandLandmarker or the colour-cap sticker tracker); replay has none. */
+let mediapipe: CameraSource | null = null;
+let cameraKind: "hand" | "colorcap" = "hand";
+let sourceKind: "camera" | "replay" = "camera";
 let helper: HelperClient | null = null;
 let helperState: HelperConnState = "closed";
 let helperHello: Extract<HelperToWorker, { t: "hello" }> | null = null;
@@ -136,13 +143,28 @@ function inside(r: Rect | null, x: number, y: number) {
 
 /** Forward pipeline pen events: to the helper for the Krita target; the page draws the practice canvas itself. */
 function forward(events: PenEvent[]) {
+  afterPipelineCall();
   if (target !== "krita" || !helperOpen()) return;
+  // Pan (P3): this batch's down/up use the MIDDLE button (filter bypassed in the pipeline).
+  const pan = pipeline ? panState(pipeline).batchIsPan : false;
   for (const e of events) {
     if (e.type === "move") sendHelper({ t: "move", x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 10) / 10 });
-    else if (e.type === "down") sendHelper({ t: "down" });
-    else if (e.type === "up") sendHelper({ t: "up", reason: e.reason });
+    else if (e.type === "down") sendHelper(pan ? { t: "middle_down" } : { t: "down" });
+    else if (e.type === "up") sendHelper(pan ? { t: "middle_up" } : { t: "up", reason: e.reason });
     else if (e.type === "click")
       sendHelper({ t: "click", x: Math.round(e.x), y: Math.round(e.y), reactivate_krita: inside(windowRect, e.x, e.y) });
+  }
+}
+
+/** Pick (P3): one batch carries the sampling click; then return to the brush. */
+function afterPipelineCall() {
+  if (!pipeline) return;
+  const ms = modeState(pipeline);
+  if (!ms?.batchPickSampled) return;
+  setStatus("Colour picked. Back to the brush.");
+  if (target === "krita" && helperOpen()) {
+    const built = kritaMessageFor(ACTIONS_BY_ID.brush, { pluginConnected: kritaConnected, lookups: {} });
+    if ("msg" in built) sendHelper(built.msg as Outgoing);
   }
 }
 
@@ -175,6 +197,10 @@ function handleOutput(out: PipelineOutput, frame: LandmarkFrame | null) {
   if (calibrator && frame) {
     const hand = frame.hands[0];
     lastCalibProgress = calibrator.feed(out.t, out.raw, out.filtered, hand && hand.score >= 0.6 ? hand.handedness : null);
+    if (calibrator.step && calibrator.step !== lastCalibStep) {
+      lastCalibStep = calibrator.step;
+      setStatus(`Step ${calibrator.step} of ${calibratorSteps.length}: ${calibrator.prompt}`);
+    }
     const res = calibrator.result();
     if (res) {
       calibrator = null;
@@ -254,6 +280,7 @@ function mirror(): MirrorState {
   };
 }
 let lastCalibProgress = 0;
+let lastCalibStep: number | null = null;
 
 setInterval(() => post({ type: "state", state: mirror() }), 33);
 
@@ -270,28 +297,6 @@ setInterval(() => {
 }, 50);
 
 // ----------------------------------------------------------------------------- actions
-const WORKER_ACTIONS = new Set([
-  "pen_toggle",
-  "pen_down",
-  "pen_up",
-  "pause",
-  "latch",
-  "recenter",
-  "steadier",
-  "looser",
-  "dots",
-  "hatch",
-  "hatch_lr",
-  "hatch_down",
-  "hatch_alternate",
-  "stop_hatching",
-  "brush",
-  "other_hand",
-  "recalibrate",
-  "next_judge",
-  "ptt",
-  "mic",
-]);
 
 function runAction(id: string, variant?: string, arg?: number | null) {
   if (!pipeline) return;
@@ -339,6 +344,7 @@ function startCalibration(steps: Array<1 | 2 | 3>) {
   pipeline?.setSettings({ inputs: { ...settings.inputs, dwell: false } });
   calibrator = createCalibrator({ steps: allowed, targetWidth: targetRect.w, prior: calibration, now: Date.now() });
   lastCalibProgress = 0;
+  lastCalibStep = null;
   setStatus(calibrator.prompt || "Calibrating.");
 }
 
@@ -355,6 +361,28 @@ function switchTarget(next: Target) {
   }
 }
 
+const ACTION_TO_HOTKEY: Record<string, string> = {
+  pen_toggle: "pen",
+  pause: "pause",
+  mic: "ptt_down",
+  undo: "undo",
+  redo: "redo",
+  recenter: "recenter",
+  other_hand: "other_hand",
+  latch: "latch",
+};
+
+/** §4 remapped keys → the helper (the single key source while connected). */
+function sendKeymap() {
+  const merged: Record<string, string> = { ...DEFAULT_KEYS, ...settings.keymap };
+  const map: Record<string, string> = {};
+  for (const [key, action] of Object.entries(merged)) {
+    const hk = ACTION_TO_HOTKEY[action];
+    if (hk) map[key.toLowerCase()] = hk;
+  }
+  sendHelper({ t: "keymap", map } as Outgoing);
+}
+
 // ----------------------------------------------------------------------------- helper socket
 function connectHelper(url: string) {
   helper = createHelperClient({
@@ -365,6 +393,7 @@ function connectHelper(url: string) {
       if (s === "open") {
         pipeline?.setHelperConnected(true);
         if (windowRect) sendHelper({ t: "chrome_rect", rect: windowRect });
+        sendKeymap();
         if (pipeline?.snapshot().paused) sendHelper({ t: "pause" });
         if (pendingTarget) {
           const want = pendingTarget;
@@ -470,28 +499,56 @@ function initKrita() {
 
 // ----------------------------------------------------------------------------- sources
 async function startSource(kind: "camera" | "replay", replayUrl?: string) {
+  sourceKind = kind;
   try {
     if (kind === "replay") {
       source = new ReplaySource(replayUrl ?? "/replay/dev-circle.json");
       post({ type: "ready", delegate: "replay" });
       await source.start(onFrame);
     } else {
-      const mod = await import("./MediaPipeSource");
-      mediapipe = new mod.MediaPipeSource({
-        onDelegate: (d) => post({ type: "ready", delegate: d }),
-        onWarning: (text) => setStatus(text),
-      });
-      source = mediapipe;
-      await mediapipe.start(onFrame);
-      if (pendingReadable) {
-        mediapipe.attach(pendingReadable);
-        pendingReadable = null;
-      }
+      await startCameraSource(cameraKind);
     }
   } catch (err) {
     post({ type: "error", text: `Tracking could not start: ${String((err as Error)?.message ?? err)}` });
   }
 }
+
+/** Hand (MediaPipe) or Colour cap (sticker, P3). The page sends a fresh camera stream after a switch. */
+async function startCameraSource(kind: "hand" | "colorcap") {
+  mediapipe?.stop();
+  mediapipe = null;
+  source = null;
+  const events = {
+    onDelegate: (d: "GPU" | "CPU") => post({ type: "ready", delegate: d }),
+    onWarning: (text: string) => setStatus(text),
+  };
+  let src: CameraSource;
+  if (kind === "colorcap") {
+    const { ColorCapSource } = await import("./ColorCapSource");
+    src = new ColorCapSource(events, { handedness: calibration?.handedness ?? "Right" });
+  } else {
+    const mod = await import("./MediaPipeSource");
+    src = new mod.MediaPipeSource(events);
+  }
+  mediapipe = src;
+  source = src;
+  await src.start(onFrame);
+  if (pendingReadable && mediapipe === src) {
+    src.attach(pendingReadable);
+    pendingReadable = null;
+  }
+}
+
+async function pickStickerColour() {
+  if (cameraKind !== "colorcap" || !mediapipe || mediapipe.kind !== "colorcap") {
+    setStatus("Pick sticker colour works with the Colour cap source (Setup page).");
+    return;
+  }
+  setStatus("Hold the sticker in the middle of the camera view.");
+  const r = await mediapipe.pickColourFromCentre();
+  setStatus(r.message);
+}
+
 let pendingReadable: ReadableStream<VideoFrame> | null = null;
 
 // ----------------------------------------------------------------------------- messages
@@ -514,7 +571,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       break;
     }
     case "stream":
-      if (mediapipe && source) mediapipe.attach(m.readable as ReadableStream<VideoFrame>);
+      if (mediapipe && source === mediapipe) mediapipe.attach(m.readable as ReadableStream<VideoFrame>);
       else pendingReadable = m.readable as ReadableStream<VideoFrame>;
       break;
     case "bitmap":
@@ -523,6 +580,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       break;
     case "settings":
       settings = { ...settings, ...m.settings, inputs: { ...settings.inputs, ...(m.settings.inputs ?? {}) } };
+      if (m.settings.keymap) sendKeymap();
       pipeline?.setSettings(
         calibrator && m.settings.inputs ? { ...m.settings, inputs: { ...settings.inputs, dwell: false } } : m.settings,
       );
@@ -556,10 +614,20 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       switchTarget(m.target);
       break;
     case "action":
-      if (m.action === "recalibrate" || m.action === "next_judge") {
+      if (m.action === "set_source") {
+        const want = m.variant === "colorcap" ? "colorcap" : "hand";
+        if (want !== cameraKind) {
+          cameraKind = want;
+          if (sourceKind === "camera") void startCameraSource(want).catch((err) => post({ type: "error", text: String(err) }));
+          setStatus(want === "colorcap" ? "Tracking a coloured sticker." : "Tracking your hand.");
+        }
+      } else if (m.action === "pick_sticker_colour") {
+        void pickStickerColour();
+      } else if (m.action === "recalibrate" || m.action === "next_judge") {
         runAction(m.action);
         startCalibration(CALIBRATION_STEPS);
-      } else if (WORKER_ACTIONS.has(m.action)) {
+      } else {
+        // The page only posts pipeline actions; the pipeline ignores ids it does not know.
         runAction(m.action, m.variant, m.arg ?? null);
       }
       break;

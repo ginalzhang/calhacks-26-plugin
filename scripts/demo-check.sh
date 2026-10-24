@@ -47,6 +47,17 @@ fi
 [ -n "${STEADY_PORT:-}" ] && export STEADY_PORT
 
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/steady-demo-check.XXXXXX")
+# Isolation from concurrent Playwright runs in this checkout: private artifacts dir and a private fake
+# helper (fresh free ports; playwright.config.ts starts it and stops it afterwards).
+export PW_OUTPUT_DIR="$OUT/pw-artifacts"
+if [ -z "${FAKE_WS_PORT:-}" ]; then
+  read -r FAKE_WS_PORT FAKE_HTTP_PORT < <(python3 -c 'import socket
+ps=[]
+for _ in range(2):
+    s=socket.socket(); s.bind(("127.0.0.1",0)); ps.append(s)
+print(*[s.getsockname()[1] for s in ps])')
+  export FAKE_WS_PORT FAKE_HTTP_PORT
+fi
 LOG="$OUT/log.txt"
 echo "demo-check $N  ($(date '+%Y-%m-%d %H:%M %Z'))  tags: $GREP"
 echo "results: $OUT"
@@ -163,13 +174,27 @@ const DOD = {
     ["Real mic + keys: Cartesia Ink 2 hears \"blue\", \"bigger\", \"undo that\"; Claude moment works", "human"],
   ],
   P2b: [
-    ["Every @P2b Vitest (Hatch, Dots, aliases, quiet)", [allOf("vitest", "P2b")]],
+    ["Hatch tile toggles Hatch; status \"Hatch: forward passes only\"", [pw(/Hatch tile toggles Hatch/)]],
+    ["Hatch/Dots pipeline (forward passes only, look-ahead buffer, stationary hand never inks)", [vt(/hatch|dots?\b/i)]],
+    ["Quiet mode turns the mic (and TTS, earcons) off", [pw(/quiet mode turns the Mic off/)]],
+    ["Aliases: \"alias fluffy\" stored; a colliding alias is refused (\"That word is taken\")", [pw(/alias fluffy/), vt(/alias/i)]],
+    ["Destructive confirm: alertdialog, focus on Cancel, Esc cancels, typed \"yes\" confirms", [pw(/Delete layer: alertdialog/)]],
+    ["Break nudge after 20 min, non-blocking, \"Later\" dismisses", [pw(/break nudge/)]],
+    ["Every @P2b Vitest", [allOf("vitest", "P2b")]],
     ["Every @P2b Playwright", [allOf("playwright", "P2b")]],
     ["Real Krita: Hatch over the parallel ruler inks forward passes only", "human"],
+    ["Real Mac: Sonic TTS speaks \"Saved\"/\"New layer\" and never while the mic is open", "human"],
+    ["Real mic: \"call this brush fluffy\", then \"fluffy\" selects that preset in Krita", "human"],
   ],
   P3: [
-    ["Every @P3 Vitest / Playwright", [allOf("vitest", "P3"), allOf("playwright", "P3")]],
+    ["Sketch / Ink mode / Shade tiles set Steadiness 25 / 70 / 10", [pw(/Sketch \/ Ink mode \/ Shade/)]],
+    ["Dash / Repeat / pan / pick pipeline", [vt(/dash|repeat|pan\b|pick/i)]],
+    ["Every @P3 Vitest", [allOf("vitest", "P3")]],
+    ["Every @P3 Playwright", [allOf("playwright", "P3")]],
+    ["Every @P3 pytest (ring overlay, middle-button pan, keymap)", [allOf("pytest", "*")]],
     ["Real Mac: ring overlay visible over Krita; Krita's brush outline still shows through it", "human"],
+    ["Real hand in a glove/brace: Colour cap sticker is tracked and paints", "human"],
+    ["Real Mac: self-hosted MediaPipe assets load with the network off", "human"],
   ],
 };
 

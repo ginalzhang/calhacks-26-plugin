@@ -71,37 +71,18 @@ body {
   padding: 8px;
   gap: 8px;
 }
-@media (max-width: 639px) {
-  .app {
-    flex-direction: column;
-  }
-  .panel {
-    flex: 0 0 auto;
-    position: relative;
-    width: 100%;
-    max-width: 320px;
-  }
+/* Narrow windows (the 320 px strip beside Krita): the practice area sits to the right and the document
+   scrolls sideways; vertically only the page container scrolls, so the header stays pinned. */
+.main {
+  min-width: 480px;
 }
 
-/* Short viewports (e.g. 200 % zoom): the document scrolls; the status lines stay pinned. */
+/* Short viewports (e.g. 200 % zoom): the header stays pinned (it scrolls inside itself if it must) and
+   only the page container scrolls. */
 @media (max-height: 699px) {
-  .app,
-  .panel,
-  .main {
-    height: auto;
-    min-height: 100vh;
-  }
-  .panel {
-    position: relative;
-  }
-  .page {
-    overflow: visible;
-  }
-  .panel-header .pinned {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    background: var(--panel);
+  .panel-header {
+    max-height: 60vh;
+    overflow-y: auto;
   }
 }
 
@@ -208,6 +189,10 @@ body {
 .tile-label {
   max-width: 100%;
 }
+.tile-sub {
+  font-weight: 400;
+  color: inherit;
+}
 .tile:hover:not(:disabled) {
   border-color: #c9cfda;
 }
@@ -253,10 +238,13 @@ body {
   height: 100%;
 }
 .mic-cell > div > button {
-  height: 100%;
+  height: 64px;
+  max-height: 64px;
+  min-height: 64px;
   width: 100%;
   min-width: 0;
   padding: 2px;
+  overflow: hidden;
 }
 .mic-cell [role="alert"] {
   position: absolute;
@@ -325,6 +313,10 @@ body {
   color: var(--fg);
   padding: 0 8px;
   min-width: 0;
+}
+.note {
+  margin: 0;
+  line-height: 24px;
 }
 .hint,
 .caption {
@@ -473,6 +465,27 @@ body {
   height: 100vh;
   pointer-events: none;
   z-index: 50;
+}
+
+/* ---------------------------------------------------------------- break nudge (non-blocking) */
+.nudge {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 30;
+  background: #1e2a44;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+  align-items: center;
+}
+.nudge p {
+  margin: 0;
+  line-height: 1.3;
 }
 
 /* ---------------------------------------------------------------- dialog */

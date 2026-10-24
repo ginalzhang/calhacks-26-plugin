@@ -238,6 +238,28 @@ export async function inkedPixels(page: Page): Promise<number> {
   });
 }
 
+/** The typed-command box (role textbox named "Command"; lives on the Paint page). */
+export async function typedBox(page: Page): Promise<Locator> {
+  const box = page.getByRole("textbox", { name: /command|type/i }).first();
+  if (!(await box.isVisible().catch(() => false))) await openPanelPage(page, "Paint").catch(() => undefined);
+  if (!(await box.isVisible().catch(() => false))) {
+    throw new Error('MISSING UI: no visible typed-command box (role textbox, accessible name containing "command" or "type").');
+  }
+  return box;
+}
+
+/** Type a command into the typed box and submit it with Enter (the real keyboard path). */
+export async function typeCommand(page: Page, text: string): Promise<void> {
+  const box = await typedBox(page);
+  await box.fill(text);
+  await box.press("Enter");
+}
+
+/** Text of the status and alert regions. */
+export async function statusText(page: Page): Promise<string> {
+  return (await page.locator('[role="status"], [role="alert"]').allInnerTexts()).join(" | ");
+}
+
 // ---------------------------------------------------------------------------
 // Fake helper HTTP control
 // ---------------------------------------------------------------------------

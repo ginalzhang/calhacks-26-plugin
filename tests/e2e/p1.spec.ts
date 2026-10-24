@@ -34,7 +34,6 @@ import {
   type HelperMsg,
 } from "./helpers";
 
-const KRITA_CANVAS = { x: 400, y: 120, w: 900, h: 700 };
 
 test.describe("P1 without a helper", () => {
   test("@P1 Demo page shows metrics", async ({ page }) => {
@@ -73,7 +72,7 @@ test.describe("P1 with the fake helper", () => {
   test.beforeEach(async () => {
     test.skip(!(await fakeHelper.available()), "fake helper not reachable (scripts/fake_helper.py; started by playwright.config.ts)");
     await fakeHelper.reset();
-    await fakeHelper.config({ krita: true, canvas_rect: KRITA_CANVAS });
+    await fakeHelper.config({ krita: true });
   });
 
   test("@P1 page sends move/down/up in order and up on simulated tracking loss", async ({ page }, testInfo) => {

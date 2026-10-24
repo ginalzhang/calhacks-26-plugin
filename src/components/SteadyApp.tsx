@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACTIONS, ACTIONS_BY_ID, COLOUR_HEX, DEFAULT_KEYS, type Action, type PageId } from "../actions";
 import { HELPER_URL } from "../desktop/protocol";
+import { CAMERA_W, STORAGE_KEYS } from "../pipeline/types";
 import type {
   Calibration,
   CommandContext,
@@ -20,6 +21,8 @@ import type {
 import { feedWorker, defaultMirrorFor, listCameras, openCamera, pickDefaultCamera, type CameraInfo } from "../tracking/camera";
 import { WorkerBridge, type SendMsg } from "../tracking/workerBridge";
 import { buildLookups, kritaMessageFor } from "../desktop/krita";
+import { validateAlias } from "../pipeline/grammar";
+import { mirrorCalibration } from "../pipeline/calibration";
 import {
   MicTile,
   markLastClaudeRejected,
@@ -30,6 +33,9 @@ import {
   resolveText,
   summariseClaudeLog,
   tts,
+  speakConfirmation,
+  isAliasTaken,
+  type ConfirmationKind,
 } from "../voice";
 import { ActionTile, tileAvailable } from "./ActionTile";
 import { ConfirmDialog, type DialogSpec } from "./ConfirmDialog";
@@ -41,11 +47,13 @@ import {
   SimplePage,
   SteadyPage,
   TimingPage,
+  ViewPage,
   type DemoMetrics,
   type PageCtx,
 } from "./Pages";
 import {
   lastCalibration,
+  loadCalibrations,
   loadCameraPrefs,
   loadKritaCanvas,
   loadLastCamera,
@@ -62,6 +70,7 @@ import {
 import { PointerOverlay, screenToViewport } from "./PointerOverlay";
 import { PracticeCanvas, type PracticeCanvasHandle } from "./PracticeCanvas";
 import { playEarcon } from "./earcons";
+import { EXPOSURE_LOCKED, lockExposure, unlockExposure } from "../tracking/exposure";
 import { StrokeStore } from "./strokes";
 import { Tile } from "./Tile";
 
@@ -104,9 +113,44 @@ const WORKER_ACTIONS = new Set([
   "stop_hatching",
   "brush",
   "other_hand",
+  "smoothing_sketch",
+  "smoothing_ink",
+  "smoothing_shade",
+  "dash",
+  "repeat",
+  "pan",
+  "pick",
+  "line",
+  "pick_sticker_colour",
 ]);
 
 const STEADIER_DEBOUNCE_MS = 1000;
+const BREAK_EVERY_MS = 20 * 60 * 1000;
+
+const TRACK_SOURCE_KEY = "steady.trackSource.v1";
+function loadTrackSource(): "hand" | "colorcap" {
+  try {
+    return localStorage.getItem(TRACK_SOURCE_KEY) === "colorcap" ? "colorcap" : "hand";
+  } catch {
+    return "hand";
+  }
+}
+
+function loadAliases(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.aliases) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+function saveAliases(a: Record<string, string>) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.aliases, JSON.stringify(a));
+  } catch {
+    /* ignore */
+  }
+}
+
 
 interface Params {
   demo: boolean;
@@ -179,10 +223,11 @@ export default function SteadyApp() {
   const metricsBase = useRef(0); // claude log length at the last Next judge
 
   const canvasRef = useRef<PracticeCanvasHandle | null>(null);
+  const pageRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const feedStopRef = useRef<(() => void) | null>(null);
-  const lastSteadierRef = useRef(0);
+  const lastSteadierRef = useRef(-Infinity);
   const lastActionsRef = useRef<string[]>([]);
   const kritaCtxRef = useRef<{
     tool: string | null;
@@ -221,9 +266,53 @@ export default function SteadyApp() {
     else setStatus(text);
   }, []);
 
+  /** TTS (E): only what can't be seen; never on pen toggles; tts itself is silent while the mic is open or in quiet mode. */
+  const speak = useCallback((kind: ConfirmationKind, heard?: string) => {
+    if (settingsRef.current.quiet || !settingsRef.current.tts) return;
+    void speakConfirmation(kind, heard).catch(() => undefined);
+  }, []);
+
+  // Break nudge (P2b): every 20 min of session, deferred until the pen is up; off by default in Demo mode.
+  const sessionStartRef = useRef(Date.now());
+  const nextNudgeAtRef = useRef(Date.now() + BREAK_EVERY_MS);
+  const [nudge, setNudge] = useState<string | null>(null);
+  const nudgeRef = useRef<string | null>(null);
+  nudgeRef.current = nudge;
+  const hideNudge = useCallback((snooze: boolean) => {
+    setNudge(null);
+    nudgeRef.current = null;
+    nextNudgeAtRef.current = Date.now() + BREAK_EVERY_MS;
+    if (snooze) setStatus("Break reminder: later.");
+  }, []);
+  const aliasesRef = useRef<Record<string, string>>({});
+  const [trackSource, setTrackSourceState] = useState<"hand" | "colorcap">(() => loadTrackSource());
+  const trackSourceRef = useRef(trackSource);
+  const [exposureLocked, setExposureLocked] = useState(false);
+  const exposureLockedRef = useRef(false);
+  /** Exposure lock (P3) on the ORIGINAL camera track (the Worker gets a clone). */
+  const setExposureLock = useCallback(async (on: boolean) => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) {
+      if (on) setStatus("Exposure lock needs a camera.");
+      return;
+    }
+    if (on) {
+      const r = await lockExposure(track);
+      exposureLockedRef.current = r === EXPOSURE_LOCKED;
+      setExposureLocked(exposureLockedRef.current);
+      setStatus(r);
+    } else {
+      exposureLockedRef.current = false;
+      setExposureLocked(false);
+      setStatus(await unlockExposure(track));
+    }
+  }, []);
+  const lastLocalSteadyRef = useRef(0);
+
   // ---------------------------------------------------------------------------- settings
   const update = useCallback((patch: Partial<SteadySettings>) => {
     const next = { ...settingsRef.current, ...patch };
+    if ("steadiness" in patch) lastLocalSteadyRef.current = performance.now();
     settingsRef.current = next;
     setSettings(next);
     saveSettings(next);
@@ -280,6 +369,7 @@ export default function SteadyApp() {
             localStorage.setItem("steady.skin.v1", JSON.stringify(color));
             setSkinHex(color);
             say("Skin colour saved.");
+            speak("skin_saved");
           }
         }
         if (a.id.startsWith("colour_")) kritaCtxRef.current.color = COLOUR_HEX[a.id.slice(7)] ?? null;
@@ -287,9 +377,46 @@ export default function SteadyApp() {
         if (a.id === "size" && arg != null) kritaCtxRef.current.size = arg;
         if (a.id === "opacity" && arg != null) kritaCtxRef.current.opacity = arg;
         if (a.id !== "undo" && a.id !== "redo") setLastUndo(a.label);
+        // Spoken only for what can't be seen at a glance (§8).
+        if (a.id === "save") speak("saved");
+        if (a.id === "new_layer") speak("new_layer");
+        if (a.id === "save") say("Saved.");
       }
     },
-    [say],
+    [say, speak],
+  );
+
+  /** Store the current Krita preset under `word` (aliases, P2b). */
+  const nameBrush = useCallback(
+    async (wordIn: string) => {
+      const word = wordIn.trim().toLowerCase();
+      if (!word || /\s/.test(word)) {
+        say("Use one word for the brush name.");
+        return;
+      }
+      if (validateAlias(word) === "taken") {
+        say("That word is taken.");
+        speak("word_taken");
+        return;
+      }
+      const bridge = bridgeRef.current;
+      if (!bridge || mirrorRef.current?.helper !== "open" || !mirrorRef.current?.kritaConnected) {
+        say("Naming a brush needs the Krita plugin.");
+        return;
+      }
+      const r = await bridge.request({ t: "krita", cmd: "get_state" } as SendMsg);
+      const preset = r.t === "krita_reply" && r.ok ? (r as Record<string, unknown>).preset : null;
+      if (typeof preset !== "string" || !preset) {
+        say("Krita did not say which brush is active.");
+        return;
+      }
+      const all = { ...loadAliases(), [word]: preset };
+      saveAliases(all);
+      aliasesRef.current = all;
+      say(`Say ${word} to pick ${preset}.`);
+      speak("brush_named");
+    },
+    [say, speak],
   );
 
   // ---------------------------------------------------------------------------- dispatcher
@@ -300,8 +427,21 @@ export default function SteadyApp() {
 
   const dispatch = useCallback(
     (id: string, opts: { variant?: string; arg?: number | null; source?: InputSource; el?: HTMLElement | null } = {}) => {
-      const a = ACTIONS_BY_ID[id];
       const bridge = bridgeRef.current;
+      // The user's next action dismisses the break nudge and still executes (rule 5).
+      if (nudgeRef.current && id !== "later") hideNudge(false);
+      if (id === "alias") {
+        // Grammar-only id: a user alias → choose the stored preset by name.
+        if (opts.variant && bridge) {
+          void bridge.request({ t: "krita", cmd: "preset", name: opts.variant } as SendMsg).then((r) => {
+            if (r.t === "krita_reply" && !r.ok) say(r.error === "plugin_down" ? "That needs the Krita plugin." : `Krita: ${r.error}`);
+            else if (r.t === "timeout") say("Krita did not answer.");
+            else setLastUndo(opts.variant ?? null);
+          });
+        }
+        return;
+      }
+      const a = ACTIONS_BY_ID[id];
       if (!a || !bridge) return;
       const source = opts.source ?? "tile";
       const m = mirrorRef.current;
@@ -349,7 +489,7 @@ export default function SteadyApp() {
         case "steadier":
         case "looser": {
           const t = performance.now();
-          if (source !== "tile" && t - lastSteadierRef.current < STEADIER_DEBOUNCE_MS) return;
+          if ((source === "voice" || source === "claude") && t - lastSteadierRef.current < STEADIER_DEBOUNCE_MS) return;
           lastSteadierRef.current = t;
           const v = Math.max(0, Math.min(100, settingsRef.current.steadiness + (id === "steadier" ? 10 : -10)));
           update({ steadiness: v });
@@ -373,7 +513,11 @@ export default function SteadyApp() {
           say("Ready for the next judge. Rest your hand and hold still.");
           return;
         case "recalibrate":
+          if (exposureLockedRef.current) void setExposureLock(false);
           startCalibration();
+          return;
+        case "lock_exposure":
+          void setExposureLock(!exposureLockedRef.current);
           return;
         case "clear_practice": {
           const run = () => {
@@ -390,13 +534,45 @@ export default function SteadyApp() {
           });
           return;
         }
-        case "quiet":
-          update({ quiet: !settingsRef.current.quiet });
+        case "quiet": {
+          const on = !settingsRef.current.quiet;
+          update({ quiet: on });
+          say(on ? "Quiet mode on: mic, spoken replies and click sounds off." : "Quiet mode off.");
           return;
+        }
         case "mic":
           say("Use the Mic tile, or hold F10.");
           return;
         case "later":
+          hideNudge(true);
+          return;
+        case "other_hand": {
+          bridge.post({ type: "action", action: "other_hand", source });
+          const stored = loadCalibrations();
+          const current = lastCalibration();
+          const cur = current?.handedness ?? "Right";
+          const other = cur === "Right" ? "Left" : "Right";
+          const mine = stored[other];
+          if (mine) {
+            bridge.post({ type: "use_calibration", calibration: mine });
+            say(`Using your ${other.toLowerCase()} hand setup.`);
+          } else {
+            if (current) bridge.post({ type: "use_calibration", calibration: mirrorCalibration(current, CAMERA_W) });
+            bridge.post({ type: "calibrate", steps: [1, 2] });
+            say(`${other} hand: rest it and hold still.`);
+          }
+          return;
+        }
+        case "name_brush":
+          if (opts.variant) void nameBrush(opts.variant);
+          else
+            setDialog({
+              kind: "name",
+              title: "Name this brush",
+              body: "One word. Say or type it later to pick this brush.",
+              onName: (w) => void nameBrush(w),
+              returnFocus: opts.el ?? null,
+            });
           return;
         default:
           break;
@@ -415,7 +591,7 @@ export default function SteadyApp() {
       }
       if (a.krita && (a.scope === "krita" || target === "krita")) void kritaDispatch(a, opts.arg);
     },
-    [kritaDispatch, say, startCalibration, strokes, update],
+    [kritaDispatch, say, startCalibration, strokes, update, nameBrush, hideNudge],
   );
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
@@ -448,6 +624,25 @@ export default function SteadyApp() {
       } else if (r.kind === "noop") {
         say(`Heard: ${r.heard}`);
       } else {
+        // Voice fallbacks the MicTile cannot know about (MicTileProps has no aliases): user aliases and
+        // "call this brush <word>".
+        const heard = r.heard.trim().toLowerCase();
+        if (isAliasTaken(r)) {
+          say("That word is taken.");
+          speak("word_taken");
+          return;
+        }
+        const naming = /^call this brush\s+(\S+)$/.exec(heard);
+        if (r.kind === "none" && naming && !dialogRef.current) {
+          dispatchRef.current("name_brush", { variant: naming[1], source });
+          return;
+        }
+        if (r.kind === "none" && aliasesRef.current[heard] && !dialogRef.current) {
+          say(`Heard: ${r.heard}`);
+          dispatchRef.current("alias", { variant: aliasesRef.current[heard], source });
+          return;
+        }
+        if (r.kind === "none") speak("didnt_catch", r.heard);
         const ids = r.kind === "clarify" ? r.options : r.closest;
         const opts = ids
           .map((id) => ACTIONS_BY_ID[id])
@@ -472,7 +667,7 @@ export default function SteadyApp() {
         else if (r.kind === "clarify") resolveClarify(false);
       }
     },
-    [say],
+    [say, speak],
   );
 
   const submitTyped = useCallback(
@@ -484,7 +679,13 @@ export default function SteadyApp() {
         return;
       }
       say(`Heard: ${text}`);
+      const alias = /^(?:alias|call this brush)\s+(\S+)$/i.exec(text.trim());
+      if (alias && !dlg) {
+        dispatchRef.current("name_brush", { variant: alias[1], source: "typed" });
+        return;
+      }
       const r = await resolveText(text, {
+        aliases: aliasesRef.current,
         mode: "typed",
         dialogOpen: !!dlg,
         context: getContext(),
@@ -532,6 +733,8 @@ export default function SteadyApp() {
         case "calibration":
           saveCalibration(m.calibration);
           setHasLastSetup(true);
+          // §2/P3: lock exposure on the original camera track once calibrated.
+          if (params.source === "camera") void setExposureLock(true);
           update({ steadiness: m.calibration.suggestedSteadiness, gainOverride: null });
           break;
         case "ready":
@@ -610,6 +813,7 @@ export default function SteadyApp() {
       demo: params.demo,
     });
     if (params.target === "krita") bridge.post({ type: "set_target", target: "krita" });
+    if (trackSourceRef.current === "colorcap") bridge.post({ type: "action", action: "set_source", variant: "colorcap", source: "system" });
     const kc = loadKritaCanvas();
     if (kc) bridge.post({ type: "canvas_rect", target: "krita", rect: kc });
 
@@ -649,6 +853,46 @@ export default function SteadyApp() {
     };
   }, [params, strokes, update, say]);
 
+  // Aliases from storage.
+  useEffect(() => {
+    aliasesRef.current = loadAliases();
+  }, []);
+
+  // Break nudge timer (P2b; not in Demo mode). Shown only while the pen is up.
+  useEffect(() => {
+    if (params.demo || !tileAvailable("later")) return;
+    const iv = setInterval(() => {
+      if (nudgeRef.current || Date.now() < nextNudgeAtRef.current) return;
+      if (mirrorRef.current?.pen === "DRAWING") return; // deferred until the pen is up
+      const mins = Math.round((Date.now() - sessionStartRef.current) / 60000);
+      const text = `You've been drawing for ${mins} minutes. Time for a short break?`;
+      setNudge(text);
+      setStatus(text);
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [params.demo]);
+
+  // Stroke-mode status (Hatch shows its look-ahead lag while on).
+  const modeNow = mirror?.mode ?? "normal";
+  useEffect(() => {
+    if (modeNow === "hatch" || modeNow === "hatch_alternate")
+      setStatus(`Hatch: forward passes only (lag ${settingsRef.current.hatchLagMs} ms).`);
+    else if (modeNow === "dots") setStatus("Dots: each hold stamps one dot.");
+    else if (modeNow === "dash") setStatus("Dash: ink only while moving.");
+  }, [modeNow]);
+
+  // The pipeline may change Steadiness itself (smoothing presets): adopt it unless the user just moved it.
+  useEffect(() => {
+    if (!mirror) return;
+    if (performance.now() - lastLocalSteadyRef.current < 1500) return;
+    if (mirror.steadiness !== settingsRef.current.steadiness) {
+      const next = { ...settingsRef.current, steadiness: mirror.steadiness };
+      settingsRef.current = next;
+      setSettings(next);
+      saveSettings(next);
+    }
+  }, [mirror]);
+
   // Claude pre-warm once at app start (E).
   useEffect(() => {
     void prewarmClaude().catch(() => undefined);
@@ -687,6 +931,7 @@ export default function SteadyApp() {
       const bridge = bridgeRef.current;
       if (!bridge) return;
       feedStopRef.current?.();
+      if (exposureLockedRef.current) void setExposureLock(false);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await openCamera(deviceId);
@@ -761,6 +1006,22 @@ export default function SteadyApp() {
     return () => clearInterval(iv);
   }, [params.source]);
 
+  const setTrackSource = useCallback(
+    (k: "hand" | "colorcap") => {
+      trackSourceRef.current = k;
+      setTrackSourceState(k);
+      try {
+        localStorage.setItem(TRACK_SOURCE_KEY, k);
+      } catch {
+        /* ignore */
+      }
+      bridgeRef.current?.post({ type: "action", action: "set_source", variant: k, source: "tile" });
+      // The new source needs a fresh camera stream.
+      if (params.source === "camera") void startCamera(settingsRef.current.cameraDeviceId);
+    },
+    [params.source, startCamera],
+  );
+
   const chooseCamera = useCallback((id: string) => void startCamera(id), [startCamera]);
   const nextCamera = useCallback(() => {
     if (cameras.length < 2) return;
@@ -780,6 +1041,21 @@ export default function SteadyApp() {
     cornerRef.current = { pts: [], hist: [] };
     setMarking("Hold still on the top-left corner of Krita's canvas.");
   }, []);
+
+  // A page that scrolls (200 % zoom) must be keyboard-scrollable: focusable only while it overflows.
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return;
+    const check = () => {
+      if (el.scrollHeight > el.clientHeight + 1) el.setAttribute("tabindex", "0");
+      else el.removeAttribute("tabindex");
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    for (const c of Array.from(el.children)) ro.observe(c);
+    return () => ro.disconnect();
+  }, [page]);
 
   // ---------------------------------------------------------------------------- keys (§4)
   useEffect(() => {
@@ -851,6 +1127,9 @@ export default function SteadyApp() {
     submitTyped,
     skinHex,
     eraserOn,
+    trackSource,
+    setTrackSource,
+    exposureLocked,
     metrics,
     strokes,
     getMirror,
@@ -910,6 +1189,7 @@ export default function SteadyApp() {
                     dialogOpen={!!dialog}
                     micSilenceMs={settings.micSilenceMs}
                     micCapMs={settings.micCapMs}
+                    allowWebSpeech={settings.webSpeechFallback}
                   />
                 </div>
               ) : (
@@ -924,15 +1204,22 @@ export default function SteadyApp() {
             )}
           </div>
         </header>
-        <section className="page" aria-label={`${pageLabel} page`} data-page={page} data-testid="page">
+        <section ref={pageRef} className="page" aria-label={`${pageLabel} page`} data-page={page} data-testid="page">
           {page === "steady" && <SteadyPage ctx={ctx} />}
           {page === "setup" && <SetupPage ctx={ctx} />}
           {page === "timing" && <TimingPage ctx={ctx} />}
           {page === "demo" && params.demo && <DemoPage ctx={ctx} />}
           {page === "paint" && <PaintPage ctx={ctx} />}
           {page === "colour" && <ColourPage ctx={ctx} />}
-          {(page === "view" || page === "layers") && <SimplePage page={page} ctx={ctx} />}
+          {page === "view" && <ViewPage ctx={ctx} />}
+          {page === "layers" && <SimplePage page={page} ctx={ctx} />}
         </section>
+        {nudge && (
+          <div className="nudge" role="status">
+            <p>{nudge}</p>
+            <ActionTile id="later" run={run} />
+          </div>
+        )}
         {dialog && (
           <ConfirmDialog
             spec={dialog}

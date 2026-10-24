@@ -10,10 +10,7 @@
  */
 import type { HandObservation, LandmarkFrame, LandmarkSource } from "./LandmarkSource";
 
-export const TASKS_VISION_VERSION = "1.1.1";
-export const WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
-export const HAND_MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+import { resolveAssets } from "./assets";
 
 type Delegate = "GPU" | "CPU";
 // Loaded lazily so ReplaySource never pulls in MediaPipe.
@@ -32,6 +29,7 @@ export class MediaPipeSource implements LandmarkSource {
   private fileset: Awaited<ReturnType<Vision["FilesetResolver"]["forVisionTasks"]>> | null = null;
   private landmarker: Landmarker | null = null;
   private delegate: Delegate = "GPU";
+  private modelUrl = "";
   private onFrame: ((f: LandmarkFrame) => void) | null = null;
   private lastTs = -Infinity;
   private stamps: number[] = [];
@@ -51,12 +49,15 @@ export class MediaPipeSource implements LandmarkSource {
   async start(onFrame: (frame: LandmarkFrame) => void): Promise<void> {
     this.onFrame = onFrame;
     this.vision = await import("@mediapipe/tasks-vision");
+    // Self-hosted under /mediapipe/ when present (npm run assets), else jsDelivr + Google storage.
+    const assets = await resolveAssets(fetch, self.location.origin);
+    this.modelUrl = assets.modelUrl;
     // The bundler may emit this Worker as a classic script (importScripts works: classic loader) or
     // as a true module Worker (importScripts throws: the ES-module loader is needed). Try both.
     let lastErr: unknown = null;
     for (const useModule of [false, true]) {
       try {
-        this.fileset = await this.vision.FilesetResolver.forVisionTasks(WASM_BASE, useModule);
+        this.fileset = await this.vision.FilesetResolver.forVisionTasks(assets.wasmBase, useModule);
         await this.create("GPU");
         return;
       } catch (err) {
@@ -70,7 +71,7 @@ export class MediaPipeSource implements LandmarkSource {
     if (!this.vision || !this.fileset) return;
     const { HandLandmarker } = this.vision;
     const base = {
-      baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
+      baseOptions: { modelAssetPath: this.modelUrl, delegate },
       runningMode: "VIDEO" as const,
       numHands: 1,
       minHandDetectionConfidence: 0.4,

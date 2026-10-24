@@ -10,6 +10,7 @@
  *                  http://localhost:3000 if free, else http://localhost:3100 (started here)
  *   FAKE_WS_PORT / FAKE_HTTP_PORT  fake helper ports (default 18765/18767; 28765/28767 when the
  *                  app is not on :3000; the fake helper is then started with `--origin <BASE_URL origin>`)
+ *   PW_OUTPUT_DIR  artifacts dir (default test-results; demo-check.sh uses a private one)
  *   AXE_GATE=1     axe violations fail the test (set by the lead at the 22:00 freeze); otherwise logged
  *   NO_WEBSERVER=1 do not start anything (servers already running)
  *
@@ -99,6 +100,8 @@ if (!process.env.NO_WEBSERVER) {
 
 export default defineConfig({
   testDir: "tests/e2e",
+  // Other agents run Playwright in this checkout concurrently; demo-check.sh gives each run its own dir.
+  outputDir: process.env.PW_OUTPUT_DIR ?? "test-results",
   // Replay fixtures play in real time; the fake helper is a single shared recorder → run serially.
   fullyParallel: false,
   workers: 1,

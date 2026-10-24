@@ -103,6 +103,10 @@ export interface SteadySettings {
   cameraDeviceId: string | null;
   simulateTremor: boolean;
   hatchLagMs: number;
+  /** Landmark source: MediaPipe hand, or the P3 colour-cap sticker. */
+  trackingSource: "hand" | "colorcap";
+  /** Saved sticker HSV range (ColorCapSource), or null for the default neon green. */
+  stickerRange: { hMin: number; hMax: number; sMin: number; vMin: number; sMax?: number; vMax?: number } | null;
   /** Dash mode pause that ends a mark (slider 100–600). */
   dashPauseMs: number;
   micSilenceMs: number; // 1000–8000, default 2000
@@ -132,6 +136,8 @@ export const DEFAULT_SETTINGS: SteadySettings = {
   simulateTremor: false,
   hatchLagMs: HATCH_LAG_DEFAULT_MS,
   dashPauseMs: 200,
+  trackingSource: "hand",
+  stickerRange: null,
   micSilenceMs: 2000,
   micCapMs: 15000,
   quiet: false,
@@ -439,4 +445,6 @@ export interface MicTileProps {
   micCapMs: number;
   /** Settings.webSpeechFallback: only then may the Mic tile fall back to Chrome's Web Speech API. */
   allowWebSpeech?: boolean;
+  /** User aliases (word → preset name) so the grammar matches them before Claude. */
+  aliases?: Record<string, string>;
 }

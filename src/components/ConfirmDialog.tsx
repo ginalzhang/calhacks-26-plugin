@@ -4,16 +4,18 @@
  * invoking tile on close, the confirm tile is labelled "Confirm", Esc cancels. Also used for clarify
  * prompts (numbered option tiles "One/Two/Three" + Cancel).
  */
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export interface DialogSpec {
-  kind: "confirm" | "choose";
+  kind: "confirm" | "choose" | "name";
   title: string;
   body?: string;
   /** confirm: run on Confirm. */
   onConfirm?: () => void;
   /** choose: option tiles. */
   options?: Array<{ label: string; run: () => void }>;
+  /** name: called with the typed word on Save. */
+  onName?: (word: string) => void;
   /** Run when the dialog closes without a choice (Cancel, Esc, voice "no"). */
   onCancel?: () => void;
   returnFocus?: HTMLElement | null;
@@ -26,10 +28,13 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
   const bodyId = useId();
   const ref = useRef<HTMLDivElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [word, setWord] = useState("");
 
   useEffect(() => {
     const returnTo = spec.returnFocus ?? (document.activeElement as HTMLElement | null);
-    cancelRef.current?.focus();
+    if (spec.kind === "name") inputRef.current?.focus();
+    else cancelRef.current?.focus();
     return () => {
       if (returnTo && document.contains(returnTo)) returnTo.focus();
     };
@@ -43,7 +48,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
       return;
     }
     if (e.key !== "Tab" || !ref.current) return;
-    const items = Array.from(ref.current.querySelectorAll<HTMLElement>("button:not([disabled])"));
+    const items = Array.from(ref.current.querySelectorAll<HTMLElement>("button:not([disabled]), input"));
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
@@ -60,7 +65,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
     <div className="dialog-backdrop">
       <div
         ref={ref}
-        role="alertdialog"
+        role={spec.kind === "name" ? "dialog" : "alertdialog"}
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={spec.body ? bodyId : undefined}
@@ -74,6 +79,28 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
           <p id={bodyId} className="dialog-body">
             {spec.body}
           </p>
+        )}
+        {spec.kind === "name" && (
+          <form
+            className="field"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!word.trim()) return;
+              onClose("done");
+              spec.onName?.(word.trim());
+            }}
+          >
+            <label htmlFor={`${titleId}-word`}>Brush name</label>
+            <input
+              id={`${titleId}-word`}
+              ref={inputRef}
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+            />
+          </form>
         )}
         <div className="tile-grid">
           {spec.kind === "choose" &&
@@ -102,6 +129,19 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
           >
             <span className="tile-label">Cancel</span>
           </button>
+          {spec.kind === "name" && (
+            <button
+              type="button"
+              className="tile tile-primary span-2"
+              disabled={!word.trim()}
+              onClick={() => {
+                onClose("done");
+                spec.onName?.(word.trim());
+              }}
+            >
+              <span className="tile-label">Save name</span>
+            </button>
+          )}
           {spec.kind === "confirm" && (
             <button
               type="button"

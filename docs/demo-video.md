@@ -21,3 +21,25 @@ filming the hand on the desk from the side. Caption every shot that uses Simulat
 
 Checklist before export: no API keys or `.env` on screen; the Simulated-tremor caption is on every tremor
 shot; nothing claims a medical benefit; length ≤ 2:00.
+
+---
+
+## Fallback video (record at 22:00 first, before the full script)
+
+Needs **only Chrome and the camera**: no helper, no Krita, no API keys. This is the guaranteed demo
+(P0 + the Demo panel). Open `npm run demo-chrome` (it opens `?demo=1`) with the window at a normal width so
+the practice canvas sits beside the side panel. Rest the forearm on a rolled towel; iPhone wired, looking
+down at the desk. Record with `⌘ ⇧ 5`. Total ≤ 1:30.
+
+| Time | Shot | Caption |
+|---|---|---|
+| 0:00 | B-roll: hand sets a stylus down and rests open on the desk. | "No stylus. No grip." |
+| 0:08 | Setup page: **Recalibrate**. Hold still (3 s), draw an easy circle (4 s), move right then away (3 s). | "15-second calibration" |
+| 0:22 | Practice canvas: hold still (ring fills, cursor turns solid), write a short word, hold still to lift. | "Hold still to lower, hold still to lift" |
+| 0:40 | Demo page: **Simulate tremor** on. Hold, draw a line: the faded raw trace scribbles, the stroke is cleaner; point at Deviation. | **"Simulated tremor"** |
+| 0:55 | Tap **Steadiness up** twice (or **Steadier**); draw the same line; Deviation drops. Then **Steadiness down** to show the trade-off. | **"Simulated tremor"** · "Steadiness is a slider: ability changes hour to hour" |
+| 1:10 | Press the pedal / F7: the line disappears (Undo). Cover the camera mid-stroke: the stroke ends cleanly, "Tracking lost", then "Tracking back. Pen is up." | "Lose the hand → the pen lifts" |
+| 1:22 | **Next judge** clears the canvas and metrics. Team card. | "Built at Cal Hacks 13.0" |
+
+Rules: the "Simulated tremor" caption stays on every tremor shot; never call the simulated shake a real
+user's tremor; no medical claims.

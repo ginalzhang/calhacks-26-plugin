@@ -5,7 +5,7 @@
  *
  * The typed box is found by role textbox with an accessible name containing "command" or "type".
  */
-import { test, type Page } from "@playwright/test";
+import { test } from "@playwright/test";
 import {
   expect,
   fakeHelper,
@@ -15,24 +15,10 @@ import {
   state,
   steadinessSlider,
   strokeCount,
+  typeCommand,
+  typedBox,
   waitForHelperOpen,
 } from "./helpers";
-
-async function typedBox(page: Page) {
-  const box = page.getByRole("textbox", { name: /command|type/i }).first();
-  // The typed box lives on the Paint page (or the header); open Paint if it isn't visible.
-  if (!(await box.isVisible().catch(() => false))) await openPanelPage(page, "Paint").catch(() => undefined);
-  if (!(await box.isVisible().catch(() => false))) {
-    throw new Error('MISSING UI: no visible typed-command box (role textbox, accessible name containing "command" or "type").');
-  }
-  return box;
-}
-
-async function typeCommand(page: Page, text: string) {
-  const box = await typedBox(page);
-  await box.fill(text);
-  await box.press("Enter");
-}
 
 test.describe("P2a typed box", () => {
   test("@P2a typed \"steadier\" moves the Steadiness slider +10", async ({ page }) => {
