@@ -2,8 +2,7 @@
  * P4: hand presets (§2, exact names and values), Head mode config and the eyebrow pen-up
  * detector. Pure.
  *
- * Extra settings keys the pipeline reads beyond the SteadySettings contract (all optional;
- * pass them through setSettings, they are ignored by older code):
+ * SteadySettings keys used here:
  *   dwellRadius   r_in floor for dwell (target units)          — Hard to hold still: 60
  *   tileHoverPx   tiles count as hovered within this many px  — page-side (B); pipeline ignores
  *   lockLandmark  landmark index used by the hand lock (0 = wrist; Head mode: 1 = nose tip)
@@ -11,12 +10,8 @@
  */
 import { DEFAULT_SETTINGS, DWELL_DOWN_DEFAULT_MS, DWELL_UP_FACTOR, type SteadySettings } from "./types";
 
-export interface ExtraSettings {
-  dwellRadius?: number | null;
-  tileHoverPx?: number | null;
-  lockLandmark?: number;
-  dashPauseMs?: number;
-}
+/** P4 keys (now part of SteadySettings). */
+export type ExtraSettings = Pick<SteadySettings, "dwellRadius" | "tileHoverPx" | "lockLandmark"> & { dashPauseMs?: number };
 
 export type PresetSettings = Partial<SteadySettings> & ExtraSettings & { tip?: string };
 
@@ -95,7 +90,7 @@ export const BROW_HOLD_MS = 150;
  * Eyebrow raise → pen-up, from FaceLandmarker's `browInnerUp` blendshape (0..1). Hysteresis:
  * a raise counts once `browInnerUp > 0.5` has held for 150 ms; it re-arms only after the value
  * drops below 0.3. `update()` returns true exactly once per raise; the caller then runs the
- * pipeline action "eyebrow_raise", which can only LIFT (never lowers: pen-state law).
+ * pipeline action "eyebrow_raise", which can only LIFT (reason "eyebrow") (never lowers: pen-state law).
  */
 export class EyebrowLift {
   private aboveSince: number | null = null;

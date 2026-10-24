@@ -7,10 +7,10 @@
  * belong to the camera, nor Simulate tremor, which is a demo control).
  */
 import type { Calibration, SteadySettings } from "./types";
-import { DEFAULT_SETTINGS } from "./types";
+import { DEFAULT_SETTINGS, STORAGE_KEYS } from "./types";
 import type { ExtraSettings } from "./presets";
 
-export const PROFILES_STORAGE_KEY = "steady.profiles.v1";
+export const PROFILES_STORAGE_KEY = STORAGE_KEYS.profiles;
 
 export type ProfileSettings = Partial<
   Pick<

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createCalibrator } from "./calibration";
 import { keyterms, parseCommand } from "./grammar";
 import { modeState } from "./pipeline";
 import { Driver, TEST_CAL } from "./pipelineDriver";
@@ -279,6 +280,31 @@ describe("eyebrow pen-up", () => {
     d.hold(C, 200);
     const ev = d.action("eyebrow_raise");
     expect(ev.map((x) => x.type)).toEqual(["up"]);
+    expect(ev[0].type === "up" && ev[0].reason).toBe("eyebrow");
     expect(d.pl.snapshot().pen).toBe("HOVER");
+  });
+});
+
+describe("re-baseline reference from calibration", () => {
+  it("@P4 the calibrator records handScale; the pipeline uses calibration.handScale as the reference", () => {
+    const cal = createCalibrator({ steps: [1], targetWidth: 800 });
+    for (let t = 0; t <= 3100; t += 33) {
+      cal.recordHand(scaledHand({ x: 320, y: 240 }, 100).landmarks, 640, 480);
+      cal.feed(t, { x: 320, y: 240 }, { x: 320, y: 240 }, "Right");
+    }
+    const hs = cal.result()!.handScale!;
+    expect(hs).toBeCloseTo(handScale(scaledHand({ x: 320, y: 240 }, 100).landmarks, 640, 480), 6);
+    // A pipeline calibrated at scale 100 sees a 130 hand from the start: a forced re-baseline gives 1.3.
+    const d = new Driver({
+      phase: "P4",
+      calibration: { ...TEST_CAL, handScale: hs },
+      settings: { inputs: { camera: true, voice: true, dwell: false, keys: true } },
+    });
+    d.action("rebaseline");
+    for (let i = 0; i < 90; i++) {
+      d.pl.step(frame(d.t, [scaledHand(d.cam(C), 130)]));
+      d.t += 1000 / 30;
+    }
+    expect(modeState(d.pl)!.boxScale).toBeCloseTo(1.3, 1);
   });
 });

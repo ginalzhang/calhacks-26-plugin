@@ -73,7 +73,7 @@ import {
 const TRAIL_MS = 3000;
 const DEVIATION_HALF_WINDOW_MS = 100;
 const STEADIER_DEBOUNCE_MS = 1000;
-const USER_LIFTS: LiftReason[] = ["dwell", "pen_key", "voice"];
+const USER_LIFTS: LiftReason[] = ["dwell", "pen_key", "voice", "eyebrow"];
 
 export interface PipelineOptions {
   /** Build phase for phase-gated behaviour (dwell-click in Krita's window from P2a). Default BUILD_PHASE. */
@@ -673,7 +673,7 @@ class SteadyPipeline implements Pipeline {
       }
       case "eyebrow_raise":
         // Eyebrow pen-up (P4): can only lift, never lower.
-        this.lift(t, "pen_key", events);
+        this.lift(t, "eyebrow", events);
         break;
       case "head_mode": {
         this.lift(t, "mode_change", events);
@@ -751,11 +751,11 @@ class SteadyPipeline implements Pipeline {
   }
 
   private extra(): ExtraSettings {
-    return this.settings as unknown as ExtraSettings;
+    return this.settings;
   }
 
   private dashPauseMs(): number {
-    const v = (this.settings as Partial<{ dashPauseMs: number }>).dashPauseMs;
+    const v = this.settings.dashPauseMs;
     return typeof v === "number" && v > 0 ? v : DASH_PAUSE_DEFAULT_MS;
   }
 
@@ -791,7 +791,9 @@ class SteadyPipeline implements Pipeline {
     if (!full) return;
     const now = median(this.scaleSamples.map((p) => p.x));
     if (this.refScale === null) {
-      this.refScale = now;
+      // Hand mode: the calibration's own hand scale is the reference when it has one.
+      const cal = this.calibration?.handScale;
+      this.refScale = !this.isHeadMode() && typeof cal === "number" && cal > 0 ? cal : now;
       this.lastRebaselineT = t;
       return;
     }

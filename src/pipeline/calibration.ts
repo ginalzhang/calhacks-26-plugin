@@ -10,7 +10,9 @@
  * suggestedSteadiness = clamp(round(8 × max(rest, kinetic)), 10, 90).
  * Each step's clock starts at its first frame with a filtered point.
  */
+import type { NormalizedLandmark } from "../tracking/LandmarkSource";
 import { calibratedGain, defaultBox } from "./mapping";
+import { handScale as measureHandScale, median } from "./rebaseline";
 import { suggestedSteadiness } from "./steadiness";
 import { ACTIVE_BOX_PAD, CAMERA_H, CAMERA_W, type Calibration, type Calibrator, type Rect, type TimedPoint, type Vec2 } from "./types";
 
@@ -104,6 +106,7 @@ export class StepCalibrator implements Calibrator {
   private pts: Record<1 | 2 | 3, TimedPoint[]> = { 1: [], 2: [], 3: [] };
   private hands: Record<"Left" | "Right", number> = { Left: 0, Right: 0 };
   private done: Calibration | null = null;
+  private scales: number[] = [];
   private opts: CalibratorOptions;
 
   constructor(opts: CalibratorOptions) {
@@ -143,6 +146,17 @@ export class StepCalibrator implements Calibrator {
     return this.done;
   }
 
+  /**
+   * Re-baseline reference (P4): feed the frame's landmarks during calibration (B's Worker:
+   * `calibrator.recordHand(hand.landmarks, frame.width, frame.height)` next to `feed`). The
+   * median hand scale (bounding-box diagonal, camera px) is stored as `Calibration.handScale`.
+   */
+  recordHand(landmarks: NormalizedLandmark[], width: number, height: number): void {
+    if (this.done) return;
+    const s = measureHandScale(landmarks, width, height);
+    if (s > 0) this.scales.push(s);
+  }
+
   private finish(): void {
     const prior = this.opts.prior ?? null;
     const ran = new Set(this.steps);
@@ -178,11 +192,12 @@ export class StepCalibrator implements Calibrator {
       flipX,
       flipY,
       suggestedSteadiness: suggestedSteadiness(rest, kinetic),
+      ...(this.scales.length ? { handScale: median(this.scales) } : prior?.handScale ? { handScale: prior.handScale } : {}),
       createdAt: this.opts.now ?? 0,
     };
   }
 }
 
-export function createCalibrator(opts: CalibratorOptions): Calibrator {
+export function createCalibrator(opts: CalibratorOptions): StepCalibrator {
   return new StepCalibrator(opts);
 }
