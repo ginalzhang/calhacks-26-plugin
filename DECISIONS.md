@@ -233,3 +233,45 @@ totals (tags ≤ P0): 62 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
 
 demo-check P0: PASS
 ```
+
+### P1 gate — 2026-10-24 15:00 PDT
+```
+================ definition of done ================
+PASS        step: typecheck
+PASS        step: vitest
+PASS        step: pytest
+PASS        step: playwright
+
+--- P0 ---
+PASS        Pointer cursor on Steady's practice canvas (ReplaySource)  — 1 test(s)
+PASS        Hold still to start drawing (pen-down dwell)  — 19 test(s)
+PASS        Draws a stroke (a word shape) on the practice canvas  — 1 test(s)
+PASS        Hold still to stop (pen-up dwell; slow stroke never lifts)  — 7 test(s)
+PASS        A resting hand toggles the pen at most once  — 1 test(s)
+PASS        The Undo key undoes  — 1 test(s)
+PASS        Steadiness slider and its ± tiles change the result  — 5 test(s)
+PASS        Calibration steps 1–2 complete  — 1 test(s)
+PASS        Each P0 page fits 320×900 at 100 % (Steady, Setup, Timing)  — 3 test(s)
+PASS        axe report produced at 100 % and 200 % (hard gate only with AXE_GATE=1)  — 2 test(s)
+PASS        Pipeline acceptance targets + every @P0 Vitest  — 52 test(s)
+NEEDS HUMAN Real webcam: within 60 s of npm run dev a resting hand moves the cursor (knuckle landmark)  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real webcam: a person writes a legible word and the Steadiness change is visible  — see NEEDS-HUMAN.md
+
+--- P1 ---
+PASS        Demo page: Simulate tremor, metrics, Next judge  — 2 test(s)
+PASS        Worker sends move/down/up to the helper in order (stroke reaches the helper)  — 1 test(s)
+PASS        Covering the camera mid-stroke ends the stroke with no scribble (score-0.5 replay)  — 8 test(s)
+PASS        Helper releases the button (watchdog 300 ms, socket close, exception) — fake mouse  — 7 test(s)
+PASS        F9 releases everything; helper is the single key source (page ignores F-keys)  — 30 test(s)
+PASS        Resume tile reachable by dwell (click inside Chrome's rect, no self-trigger)  — 1 test(s)
+PASS        Every @P1 Vitest (mapping, clamp, rect gating, hand lock, protocol round-trip)  — 143 test(s)
+PASS        Every @P1 pytest (helper §5)  — 180 test(s)
+NEEDS HUMAN Real Krita: the same resting hand paints a stroke in Krita via the helper  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Krita: covering the camera mid-stroke ends the Krita stroke cleanly  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: F9 pauses and the Resume tile works by dwell with Krita focused  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: Chrome strip beside Krita keeps the fps counter running while Krita is focused  — see NEEDS-HUMAN.md
+
+totals (tags ≤ P1): 392 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
+
+demo-check P1: PASS
+```
