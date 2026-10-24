@@ -1107,4 +1107,4 @@ export function tilePhaseOf(a: Action): Phase {
  * Current build phase: tiles/rows whose phase is later render disabled (tiles) or are
  * excluded from the grammar. The lead bumps this at each merge.
  */
-export const BUILD_PHASE: Phase = "P0";
+export const BUILD_PHASE: Phase = "P1";

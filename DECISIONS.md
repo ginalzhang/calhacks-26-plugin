@@ -205,3 +205,31 @@ demo-check P1: FAIL (2 item(s))
 ```
   Only FAIL: Demo page — "Simulate tremor"/"Next judge" tiles render disabled because BUILD_PHASE is P0 (their tilePhase is P1); passes once the lead bumps BUILD_PHASE to P1. P2a run separately: typed "blue" → krita color message PASS, keys inert in typed box PASS, P2a pages fit PASS; typed "steadier" FAIL (status shows "Heard: steadier" but Steadiness stays 50: the grammar excludes P2a rows at BUILD_PHASE P0).
   axe: 0 violations at 100 %. At 200 % (160×450 CSS px) axe itself is clean but F's pinned-header check fails on every page: after scrolling to the bottom the page tabs leave the viewport. **B:** make the panel header `position: sticky; top: 0` (or scroll only the page container) so the header stays pinned at 200 % (§0 rule 6). Not gated until AXE_GATE=1.
+
+### P0 gate — 2026-10-24 14:57 PDT
+```
+================ definition of done ================
+PASS        step: typecheck
+PASS        step: vitest
+PASS        step: pytest
+PASS        step: playwright
+
+--- P0 ---
+PASS        Pointer cursor on Steady's practice canvas (ReplaySource)  — 1 test(s)
+PASS        Hold still to start drawing (pen-down dwell)  — 11 test(s)
+PASS        Draws a stroke (a word shape) on the practice canvas  — 1 test(s)
+PASS        Hold still to stop (pen-up dwell; slow stroke never lifts)  — 7 test(s)
+PASS        A resting hand toggles the pen at most once  — 1 test(s)
+PASS        The Undo key undoes  — 1 test(s)
+PASS        Steadiness slider and its ± tiles change the result  — 5 test(s)
+PASS        Calibration steps 1–2 complete  — 1 test(s)
+PASS        Each P0 page fits 320×900 at 100 % (Steady, Setup, Timing)  — 3 test(s)
+PASS        axe report produced at 100 % and 200 % (hard gate only with AXE_GATE=1)  — 2 test(s)
+PASS        Pipeline acceptance targets + every @P0 Vitest  — 52 test(s)
+NEEDS HUMAN Real webcam: within 60 s of npm run dev a resting hand moves the cursor (knuckle landmark)  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real webcam: a person writes a legible word and the Steadiness change is visible  — see NEEDS-HUMAN.md
+
+totals (tags ≤ P0): 62 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
+
+demo-check P0: PASS
+```
