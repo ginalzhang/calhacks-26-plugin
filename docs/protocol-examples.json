@@ -1,0 +1,68 @@
+{
+  "_comment": "One example per message. Loaded by Vitest (src/desktop/protocol.ts schemas) and pytest (helper + plugin). Change together with protocol.ts and PROTOCOL.md.",
+  "worker_to_helper": {
+    "move": { "t": "move", "id": "0b6a1f0e-0001-4000-8000-000000000001", "x": 812.5, "y": 433.0 },
+    "down": { "t": "down", "id": "0b6a1f0e-0002-4000-8000-000000000002" },
+    "up": { "t": "up", "id": "0b6a1f0e-0003-4000-8000-000000000003", "reason": "dwell" },
+    "click": { "t": "click", "id": "0b6a1f0e-0004-4000-8000-000000000004", "x": 1460, "y": 220, "reactivate_krita": true },
+    "middle_down": { "t": "middle_down", "id": "0b6a1f0e-0005-4000-8000-000000000005" },
+    "middle_up": { "t": "middle_up", "id": "0b6a1f0e-0006-4000-8000-000000000006" },
+    "keys": { "t": "keys", "id": "0b6a1f0e-0007-4000-8000-000000000007", "combo": "cmd+z" },
+    "krita": { "t": "krita", "id": "0b6a1f0e-0008-4000-8000-000000000008", "cmd": "color", "hex": "#1d4ed8" },
+    "krita_with_fallback": { "t": "krita", "id": "0b6a1f0e-0009-4000-8000-000000000009", "cmd": "action", "action": "edit_undo", "fallback_keys": "cmd+z" },
+    "ring": { "t": "ring", "id": "0b6a1f0e-000a-4000-8000-00000000000a", "state": "hover", "progress": 0.4, "x": 812, "y": 433 },
+    "ping": { "t": "ping", "id": "0b6a1f0e-000b-4000-8000-00000000000b" },
+    "pause": { "t": "pause", "id": "0b6a1f0e-000c-4000-8000-00000000000c" },
+    "resume": { "t": "resume", "id": "0b6a1f0e-000d-4000-8000-00000000000d" },
+    "chrome_rect": { "t": "chrome_rect", "id": "0b6a1f0e-000e-4000-8000-00000000000e", "rect": { "x": 1400, "y": 25, "w": 320, "h": 1000 } }
+  },
+  "helper_to_worker": {
+    "hello": {
+      "t": "hello", "id": "1c7b2a1f-0001-4000-8000-000000000001", "version": "0.1.0",
+      "screen": { "w": 1728, "h": 1117, "scale": 2 },
+      "accessibility": true, "input_monitoring": true,
+      "krita": true, "krita_running": true,
+      "krita_window_rect": { "x": 0, "y": 25, "w": 1400, "h": 1060 },
+      "paused": false
+    },
+    "krita_window_rect": { "t": "krita_window_rect", "id": "1c7b2a1f-0002-4000-8000-000000000002", "rect": { "x": 0, "y": 25, "w": 1400, "h": 1060 }, "frontmost": true },
+    "hotkey": { "t": "hotkey", "id": "1c7b2a1f-0003-4000-8000-000000000003", "key": "pen" },
+    "krita_reply": { "t": "krita_reply", "id": "0b6a1f0e-0008-4000-8000-000000000008", "ok": true, "via": "plugin" },
+    "krita_reply_error": { "t": "krita_reply", "id": "0b6a1f0e-0009-4000-8000-000000000009", "ok": false, "error": "plugin_down" },
+    "error": { "t": "error", "id": "1c7b2a1f-0004-4000-8000-000000000004", "code": "permission", "which": "accessibility", "message": "Enable Accessibility for Terminal in System Settings › Privacy & Security › Accessibility" },
+    "krita_state": { "t": "krita_state", "id": "1c7b2a1f-0005-4000-8000-000000000005", "connected": true },
+    "pong": { "t": "pong", "id": "0b6a1f0e-000b-4000-8000-00000000000b" },
+    "ack": { "t": "ack", "id": "0b6a1f0e-0007-4000-8000-000000000007", "ok": true }
+  },
+  "plugin_request": {
+    "action": { "id": "2d8c3b20-0001-4000-8000-000000000001", "cmd": "action", "action": "edit_undo" },
+    "color": { "id": "2d8c3b20-0002-4000-8000-000000000002", "cmd": "color", "hex": "#1d4ed8" },
+    "color_adjust": { "id": "2d8c3b20-0003-4000-8000-000000000003", "cmd": "color_adjust", "dv": 0.1 },
+    "size_value": { "id": "2d8c3b20-0004-4000-8000-000000000004", "cmd": "size", "value": 20 },
+    "size_delta": { "id": "2d8c3b20-0005-4000-8000-000000000005", "cmd": "size", "delta": -5 },
+    "opacity": { "id": "2d8c3b20-0006-4000-8000-000000000006", "cmd": "opacity", "value": 50 },
+    "preset": { "id": "2d8c3b20-0007-4000-8000-000000000007", "cmd": "preset", "name": "airbrush" },
+    "new_layer": { "id": "2d8c3b20-0008-4000-8000-000000000008", "cmd": "new_layer", "name": "Steady 1" },
+    "layer_nav": { "id": "2d8c3b20-0009-4000-8000-000000000009", "cmd": "layer_nav", "dir": "up" },
+    "layer_visible": { "id": "2d8c3b20-000a-4000-8000-00000000000a", "cmd": "layer_visible", "visible": false },
+    "canvas_rect": { "id": "2d8c3b20-000b-4000-8000-00000000000b", "cmd": "canvas_rect" },
+    "window_rect": { "id": "2d8c3b20-000c-4000-8000-00000000000c", "cmd": "window_rect" },
+    "list_actions": { "id": "2d8c3b20-000d-4000-8000-00000000000d", "cmd": "list_actions" },
+    "list_presets": { "id": "2d8c3b20-000e-4000-8000-00000000000e", "cmd": "list_presets" },
+    "smoothing": { "id": "2d8c3b20-000f-4000-8000-00000000000f", "cmd": "smoothing", "mode": "none" },
+    "clear_shortcuts": { "id": "2d8c3b20-0010-4000-8000-000000000010", "cmd": "clear_shortcuts", "keys": ["f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10"] },
+    "session_init": { "id": "2d8c3b20-0011-4000-8000-000000000011", "cmd": "session_init", "keys": ["f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10"] },
+    "get_state": { "id": "2d8c3b20-0012-4000-8000-000000000012", "cmd": "get_state" },
+    "ping": { "id": "2d8c3b20-0013-4000-8000-000000000013", "cmd": "ping" }
+  },
+  "plugin_reply": {
+    "ok": { "id": "2d8c3b20-0001-4000-8000-000000000001", "ok": true },
+    "error": { "id": "2d8c3b20-0002-4000-8000-000000000002", "ok": false, "error": "bad_hex" },
+    "canvas_rect": { "id": "2d8c3b20-000b-4000-8000-00000000000b", "ok": true, "rect": { "x": 64, "y": 120, "w": 1180, "h": 860 } },
+    "canvas_rect_missing": { "id": "2d8c3b20-000b-4000-8000-00000000000b", "ok": false, "error": "no_canvas_rect" },
+    "list_actions": { "id": "2d8c3b20-000d-4000-8000-00000000000d", "ok": true, "actions": [{ "id": "merge_layer", "text": "Merge with Layer Below" }] },
+    "list_presets": { "id": "2d8c3b20-000e-4000-8000-00000000000e", "ok": true, "presets": ["b) Basic-5 Size", "c) Pencil-2", "d) Ink-2 Fineliner", "f) Airbrush Soft", "a) Eraser Circle"] },
+    "session_init": { "id": "2d8c3b20-0011-4000-8000-000000000011", "ok": true, "smoothing_changed": true, "cleared": [{ "key": "f5", "action": "show_brush_editor" }], "krita_version": "5.3.4" },
+    "get_state": { "id": "2d8c3b20-0012-4000-8000-000000000012", "ok": true, "preset": "b) Basic-5 Size", "size": 40, "opacity": 100, "color": "#1d4ed8", "eraser": false, "layer": "Paint Layer 1" }
+  }
+}
