@@ -14,6 +14,7 @@
  */
 import type { HandObservation, LandmarkFrame } from "../tracking/LandmarkSource";
 import type { HelperConnState, HelperToWorker, Rect, WorkerToHelper } from "../desktop/protocol";
+import type { Phase } from "../actions";
 
 export type { Rect } from "../desktop/protocol";
 
@@ -311,3 +312,116 @@ export interface SteadyTestHooks {
 }
 
 export type { HandObservation, LandmarkFrame };
+
+// ---------------------------------------------------------------------------
+// Pipeline API (A implements in src/pipeline/pipeline.ts; B's Worker drives it)
+// ---------------------------------------------------------------------------
+
+export interface PipelineConfig {
+  settings: SteadySettings;
+  calibration: Calibration | null;
+  target: Target;
+  rects: PipelineRects;
+  /** When the helper is connected, tiles are activated only by the helper's real click (§3). */
+  helperConnected: boolean;
+  /** Seed for Simulate tremor (deterministic tests). */
+  seed?: number;
+}
+
+export interface Pipeline {
+  /** Process one landmark frame (t = frame.t). */
+  step(frame: LandmarkFrame): PipelineOutput;
+  /** Advance time with no frame (drives the 300 ms loss timer). */
+  tick(t: number): PipelineOutput;
+  /** Steady-internal actions: pen_toggle, pen_down, pen_up, pause, latch, recenter, steadier, looser, hatch*, dots, ptt (lift). Returns pen events to forward. */
+  action(id: string, t: number, opts?: { variant?: string; arg?: number | null }): PenEvent[];
+  setSettings(s: Partial<SteadySettings>): void;
+  setCalibration(c: Calibration | null): void;
+  setRects(r: Partial<PipelineRects>): void;
+  setTarget(target: Target): PenEvent[];
+  setHelperConnected(connected: boolean): void;
+  /** Read-only view for the mirror. */
+  snapshot(): {
+    pen: PenState;
+    paused: boolean;
+    latch: boolean;
+    mode: StrokeMode;
+    steadiness: number;
+    gain: number;
+    deviationPx: number | null;
+    rawTrail: Vec2[];
+    lastStrokeMs: number | null;
+  };
+}
+
+/** Calibration steps 1–3 (A implements src/pipeline/calibration.ts; B drives it from the Worker). */
+export interface Calibrator {
+  /** Feed one frame's raw (camera px, post mirror/rotate) and One Euro output; returns progress 0..1 of the current step. */
+  feed(t: number, raw: Vec2 | null, filtered: Vec2 | null, handedness: "Left" | "Right" | null): number;
+  readonly step: 1 | 2 | 3 | null;
+  readonly prompt: string;
+  /** Non-null once all requested steps finished. */
+  result(): Calibration | null;
+}
+
+// ---------------------------------------------------------------------------
+// Grammar API (A implements src/pipeline/grammar.ts from actions.ts; E and B consume)
+// ---------------------------------------------------------------------------
+
+export interface ParsedCommand {
+  action: string; // action id
+  variant?: string;
+  arg?: number | null;
+}
+
+export type ParseResult =
+  | { kind: "match"; commands: ParsedCommand[]; fuzzy: boolean }
+  | { kind: "nomatch"; closest: string[] /* up to 2 action ids */ };
+
+export interface ParseOptions {
+  mode: "voice" | "typed";
+  /** While a dialog or clarify prompt is open: exact match only. */
+  dialogOpen?: boolean;
+  /** User aliases: word → preset name (P2b). */
+  aliases?: Record<string, string>;
+  /** Rows whose phase is later than this are excluded. Default BUILD_PHASE. */
+  phase?: Phase;
+}
+
+// ---------------------------------------------------------------------------
+// Voice / command resolution API (E implements in src/voice/**; B renders and calls)
+// ---------------------------------------------------------------------------
+
+/** Exactly the privacy-rule (§0 rule 9) context list. */
+export interface CommandContext {
+  tool: string | null;
+  preset: string | null;
+  size: number | null;
+  opacity: number | null;
+  color: string | null;
+  steadiness: number;
+  lastActions: string[]; // last 3 action ids
+}
+
+export type Resolution =
+  | { kind: "commands"; commands: ParsedCommand[]; heard: string; via: "grammar" | "claude" }
+  | { kind: "clarify"; options: string[]; heard: string }
+  | { kind: "noop"; heard: string }
+  | { kind: "none"; heard: string; closest: string[]; reason: "nomatch" | "timeout" | "invalid" | "offline" | "key_missing" };
+
+/** Props of E's <MicTile> (src/voice/MicTile.tsx), rendered by B in the pinned header. */
+export interface MicTileProps {
+  /** Execute resolved commands (B's dispatcher). */
+  onResolution: (r: Resolution) => void;
+  getContext: () => CommandContext;
+  quiet: boolean;
+  disabled: boolean;
+  /** Push-to-talk held (F10 down from helper hotkey or page key). */
+  pttHeld: boolean;
+  /** Called when the mic opens (B lifts the pen: "push-to-talk start lifts the pen"). */
+  onMicOpen: () => void;
+  onStatus: (text: string, level: "status" | "alert") => void;
+  dialogOpen: boolean;
+  micSilenceMs: number;
+  micCapMs: number;
+}
