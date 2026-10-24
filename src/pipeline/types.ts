@@ -244,7 +244,7 @@ export interface MirrorState {
   helperHello: Extract<HelperToWorker, { t: "hello" }> | null;
   kritaConnected: boolean;
   kritaWindowRect: Rect | null;
-  /** Live RMS deviation of raw vs smoothed path over the last 3 s (camera px → reported in target units). */
+  /** RMS distance of the drawn (post-lazy-brush) path from its own ±100 ms moving average over the last 3 s, target units: the shake that SURVIVES smoothing, so it drops as Steadiness rises. */
   deviationPx: number | null;
   lastStrokeMs: number | null;
   simulateTremor: boolean;
@@ -301,6 +301,10 @@ type DistributiveOmitId<T> = T extends unknown ? Omit<T, "id"> : never;
 /** Playwright / debugging hooks. B installs these on window.__steady in every build. */
 export interface SteadyTestHooks {
   state(): MirrorState | null;
+  /** Force the pointer target (tests: Krita target against the fake helper). Also settable with ?target=krita. */
+  setTarget(target: Target): void;
+  /** Last window rect the page reported to the Worker (screen points), or null. */
+  windowRect(): Rect | null;
   /** Number of committed strokes on the practice canvas. */
   strokeCount(): number;
   /** Run an action exactly as a tile press would. */
@@ -328,6 +332,7 @@ export interface PipelineConfig {
   seed?: number;
 }
 
+/** createPipeline(config: PipelineConfig, opts?: { phase?: Phase }) — phase gates e.g. Krita-window dwell-click (P2a); default BUILD_PHASE. */
 export interface Pipeline {
   /** Process one landmark frame (t = frame.t). */
   step(frame: LandmarkFrame): PipelineOutput;
@@ -369,8 +374,10 @@ export interface Calibrator {
 // ---------------------------------------------------------------------------
 
 export interface ParsedCommand {
-  action: string; // action id
+  /** Action id. Grammar-only id "alias" (P2b): variant = the stored preset name for a user alias. */
+  action: string;
   variant?: string;
+  /** Numeric argument (size/opacity), or the repeat count for coalesced undo/redo ("undo that undo that" → arg 2). */
   arg?: number | null;
 }
 
