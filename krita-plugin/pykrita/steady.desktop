@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=steady
+X-Python-2-Compatible=false
+Name=Steady
+Comment=Hands-free painting: lets the Steady helper (camera pointer + voice) change brush, colour, size, opacity and layers. Listens on 127.0.0.1:8766 only. Tested on Krita 5.3.

@@ -84,7 +84,9 @@ Request: `{id, cmd, ...}` (the `krita` message minus `t` and `fallback_keys`). R
 | `get_state` | — | `preset, size, opacity, color, eraser, layer` |
 | `ping` | — | — |
 
-Common errors: `no_view` (no document open), `unknown_cmd`, `bad_args`, `internal`.
+Common errors: `no_view` (no document open), `unknown_cmd`, `bad_args`, `internal`, `unknown_action`, `action_disabled`, `no_preset`, `no_layer`, `no_window`, `timeout`; `canvas_rect` with no document answers `no_canvas_rect`.
+
+Replies may carry extra fields that the helper passes through unchanged in `krita_reply`: `checked` (state of a checkable action such as `erase_action`, drives the Eraser tile's `aria-pressed`), `eraser_cleared`, `widget_class` (canvas_rect), `smoothing_changed` (**any** reply may carry it: smoothing switches to None on the first command that has a view; the Worker shows the one-time notice whenever it sees `smoothing_changed: true`), `smoothing_pending`, `warning`.
 
 ## Fake helper (tests)
 `scripts/fake_helper.py --ws-port 18765 --http-port 18767` speaks the helper side of this protocol without

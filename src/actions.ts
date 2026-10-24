@@ -784,7 +784,7 @@ export const ACTIONS: Action[] = [
     fuzzyAllowed: false,
     modeChanging: true,
     page: "layers",
-    krita: { lookupText: "delete layer", keys: "shift+delete" },
+    krita: { lookupText: "remove layer", keys: "shift+delete" },
   },
   {
     id: "clear_layer",
@@ -798,7 +798,7 @@ export const ACTIONS: Action[] = [
     fuzzyAllowed: false,
     modeChanging: true,
     page: "layers",
-    krita: { lookupText: "clear", keys: "delete" },
+    krita: { lookupText: "clear", keys: "backspace" },
   },
   {
     id: "save",
