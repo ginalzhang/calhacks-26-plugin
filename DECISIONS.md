@@ -438,3 +438,4 @@ totals (tags ≤ P3): 674 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
 
 demo-check P3: PASS
 ```
+- 15:44 lead: strict axe gate (AXE_GATE=1) PASS at 100 %/200 %. P4 contracts added: Worker→helper `numbers`, plugin `list_widgets`, 12 P4 action rows (4 hand presets with exact §2 names, use/save profile, show/hide numbers, click <n>, head mode, eyebrow lift, app profile). Python suites fail on the new examples until C/D implement them (round 3). Launching round 3 (P4) + integration agent H + safety reviewer R.

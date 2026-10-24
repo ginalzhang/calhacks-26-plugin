@@ -88,6 +88,11 @@ export const KritaCommandSchema = z.discriminatedUnion("cmd", [
    * Reply {smoothing_changed: boolean, cleared: [{key, action}], krita_version: string}.
    */
   z.object({ cmd: z.literal("session_init"), keys: z.array(KeyComboSchema) }),
+  /**
+   * P4 numbered overlay: clickable Krita widgets (toolbox/toolbar buttons, docker tabs, palette swatches) that are
+   * visible on screen. Reply {widgets: [{n, label, rect}]}, n = 1.. in reading order, rect in global screen points.
+   */
+  z.object({ cmd: z.literal("list_widgets"), max: z.number().optional() }),
   /** Reply {preset, size, opacity, color, eraser, layer}. Used for Claude context and "save skin". */
   z.object({ cmd: z.literal("get_state") }),
   z.object({ cmd: z.literal("ping") }),
@@ -134,6 +139,14 @@ export const PingMsg = z.object({ t: z.literal("ping"), id: Id });
 /** Pause: release the button; refuse `down`; honour `click` only inside chrome_rect. */
 export const PauseMsg = z.object({ t: z.literal("pause"), id: Id });
 export const ResumeMsg = z.object({ t: z.literal("resume"), id: Id });
+/** P4: draw (items) or hide (null) numbered badges over Krita widgets in the helper's overlay. Reply `ack`. */
+export const NumbersMsg = z.object({
+  t: z.literal("numbers"),
+  id: Id,
+  items: z
+    .array(z.object({ n: z.number(), label: z.string(), rect: RectSchema }))
+    .nullable(),
+});
 /** Chrome's own window rect (screen points), sent on connect, on change and before pause. */
 export const ChromeRectMsg = z.object({ t: z.literal("chrome_rect"), id: Id, rect: RectSchema });
 
@@ -145,6 +158,7 @@ export const KeymapMsg = z.object({
 });
 
 export const WorkerToHelperSchema = z.union([
+  NumbersMsg,
   KeymapMsg,
   MoveMsg,
   DownMsg,

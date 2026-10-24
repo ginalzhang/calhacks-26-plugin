@@ -39,6 +39,7 @@ While paused the helper refuses `down` (error `paused`) and honours `click` only
 | `ping` | — | reply `pong` (same id). Feeds the watchdog and the round-trip metric. |
 | `pause` / `resume` | — | see pen-state law. Reply `ack`. |
 | `chrome_rect` | `rect` | Chrome window rect for pause clamping and click gating. |
+| `numbers` (P4) | `items: [{n,label,rect}] \| null` | Draw numbered badges over Krita widgets in the overlay (null hides). Reply `ack`. |
 | `keymap` | `map: {combo: hotkeyName}` | Remapped global keys (Settings). Replaces the default F3–F10 map; `ptt_down` names the push-to-talk key (release sends `ptt_up`). Sent on connect and on change. Reply `ack`. |
 
 ## helper → Worker
@@ -85,6 +86,7 @@ Request: `{id, cmd, ...}` (the `krita` message minus `t` and `fallback_keys`). R
 | `clear_shortcuts` | `keys` | `cleared: [{key, action}]` |
 | `session_init` | `keys` | `smoothing_changed, cleared, krita_version` (smoothing → None once per Krita process; never re-applied) |
 | `get_state` | — | `preset, size, opacity, color, eraser, layer` |
+| `list_widgets` (P4) | `max?` | `widgets: [{n, label, rect}]` visible clickable widgets in reading order, global screen points |
 | `ping` | — | — |
 
 Common errors: `no_view` (no document open), `unknown_cmd`, `bad_args`, `internal`, `unknown_action`, `action_disabled`, `no_preset`, `no_layer`, `no_window`, `timeout`; `canvas_rect` with no document answers `no_canvas_rect`.

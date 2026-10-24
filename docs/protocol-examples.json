@@ -92,6 +92,37 @@
         "f9": "pause",
         "f10": "ptt_down"
       }
+    },
+    "numbers": {
+      "t": "numbers",
+      "id": "0b6a1f0e-0010-4000-8000-000000000010",
+      "items": [
+        {
+          "n": 1,
+          "label": "Freehand Brush Tool",
+          "rect": {
+            "x": 12,
+            "y": 140,
+            "w": 32,
+            "h": 32
+          }
+        },
+        {
+          "n": 2,
+          "label": "Eraser",
+          "rect": {
+            "x": 12,
+            "y": 176,
+            "w": 32,
+            "h": 32
+          }
+        }
+      ]
+    },
+    "numbers_hide": {
+      "t": "numbers",
+      "id": "0b6a1f0e-0011-4000-8000-000000000011",
+      "items": null
     }
   },
   "helper_to_worker": {
@@ -279,6 +310,11 @@
     "ping": {
       "id": "2d8c3b20-0013-4000-8000-000000000013",
       "cmd": "ping"
+    },
+    "list_widgets": {
+      "id": "2d8c3b20-0014-4000-8000-000000000014",
+      "cmd": "list_widgets",
+      "max": 40
     }
   },
   "plugin_reply": {
@@ -348,6 +384,22 @@
       "color": "#1d4ed8",
       "eraser": false,
       "layer": "Paint Layer 1"
+    },
+    "list_widgets": {
+      "id": "2d8c3b20-0014-4000-8000-000000000014",
+      "ok": true,
+      "widgets": [
+        {
+          "n": 1,
+          "label": "Freehand Brush Tool",
+          "rect": {
+            "x": 12,
+            "y": 140,
+            "w": 32,
+            "h": 32
+          }
+        }
+      ]
     }
   }
 }

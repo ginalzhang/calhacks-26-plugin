@@ -52,7 +52,7 @@ describe("protocol-examples.json round-trips through protocol.ts", () => {
   it("@P1 every message type and krita cmd has an example", () => {
     const wt = new Set(Object.values(EX.worker_to_helper).map((m) => (m as { t: string }).t));
     expect([...wt].sort()).toEqual(
-      ["chrome_rect", "click", "down", "keymap", "keys", "krita", "middle_down", "middle_up", "move", "pause", "ping", "resume", "ring", "up"].sort(),
+      ["chrome_rect", "click", "down", "keymap", "keys", "krita", "middle_down", "numbers", "middle_up", "move", "pause", "ping", "resume", "ring", "up"].sort(),
     );
     const ht = new Set(Object.values(EX.helper_to_worker).map((m) => (m as { t: string }).t));
     expect([...ht].sort()).toEqual(["ack", "error", "hello", "hotkey", "krita_reply", "krita_state", "krita_window_rect", "pong", "warning"].sort());
