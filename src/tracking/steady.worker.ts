@@ -154,8 +154,8 @@ function clickAllowed(x: number, y: number): boolean {
 /** Lift the Worker's pen without the 80 ms user-lift guard (refused down, helper release). */
 function forceLift(): boolean {
   if (!pipeline || pipeline.snapshot().pen !== "DRAWING") return false;
-  // "ptt" lifts immediately for any reason that isn't the user's own dwell/key/voice.
-  const events = pipeline.action("ptt", Math.max(now(), last?.t ?? 0));
+  // A's force_lift: lifts immediately (no 80 ms user-lift guard), reason "socket".
+  const events = pipeline.action("force_lift", Math.max(now(), last?.t ?? 0), { variant: "socket" });
   forwardRaw(events);
   post({ type: "frame", out: { ...(last ?? emptyOutput()), events, pen: pipeline.snapshot().pen } });
   return true;
