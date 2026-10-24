@@ -55,14 +55,20 @@ test.describe("P2b without a helper", () => {
   });
 
   test("@P2b break nudge appears after 20 min with the pen up, shows session time, and 'Later' dismisses it", async ({ page }) => {
+    // Playwright's clock (page-side Date/timers; the replay Worker is unaffected) instead of waiting 20 min.
+    // A window.__steady.advanceSessionClock(ms) hook is used instead when the page provides one.
+    await page.clock.install();
     await openSteady(page, { replay: "rest-still", helper: "off" }); // not ?demo=1: the nudge is off in Demo mode
     const hasHook = await page.evaluate(
       () => typeof (window as unknown as { __steady?: { advanceSessionClock?: unknown } }).__steady?.advanceSessionClock === "function",
     );
-    expect(hasHook, "MISSING HOOK: window.__steady.advanceSessionClock(ms) (requested in DECISIONS.md) so tests need not wait 20 min").toBe(true);
-    await page.evaluate(() =>
-      (window as unknown as { __steady: { advanceSessionClock: (ms: number) => void } }).__steady.advanceSessionClock(20 * 60 * 1000 + 1000),
-    );
+    if (hasHook) {
+      await page.evaluate(() =>
+        (window as unknown as { __steady: { advanceSessionClock: (ms: number) => void } }).__steady.advanceSessionClock(20 * 60 * 1000 + 1000),
+      );
+    } else {
+      await page.clock.fastForward(20 * 60 * 1000 + 1000);
+    }
     const later = tile(page, "Later");
     await expect(later).toBeVisible({ timeout: 5_000 });
     // Non-blocking: no modal, the rest of the panel still works, and it shows elapsed session time.

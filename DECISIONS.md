@@ -340,3 +340,24 @@ demo-check P2a: PASS
 ```
 - 15:25 lead: BUILD_PHASE → P2b. Added settings.trackingSource, settings.stickerRange, MicTileProps.aliases (B requests).
 - 15:26 B: tracking source and sticker range now live in `SteadySettings.trackingSource` / `stickerRange` (page-local `set_source` action and `steady.trackSource.v1` removed). The Worker switches source on a `settings` change and reports a picked range on `BroadcastChannel("steady-worker-events")` (WorkerToPage has no message for it); the page saves it into settings. `aliases` is passed to `<MicTile>`; E's MicTile does not forward it to resolveText yet, so B's page-side alias match after a voice no-match stays as the fallback.
+- (F, 15:36) Hook request `advanceSessionClock` withdrawn: the break-nudge test uses Playwright's `page.clock.install()` + `fastForward(20 min)` (page-side Date/timers; the replay Worker is unaffected) and uses the hook only if one appears. Playwright artifacts and the fake helper are now per-run in demo-check.sh (private `PW_OUTPUT_DIR` and free ports), so concurrent runs can't reset each other's fake helper or delete each other's traces.
+- (F) 2026-10-24 15:39 PDT — `scripts/demo-check.sh P2a`: **PASS** (564 passed, 0 failed, 0 skipped; axe 0 violations at 100 % and 200 %, header pinned). `scripts/demo-check.sh P2b` (BUILD_PHASE P2b): **PASS** (606 passed, 0 failed, 0 skipped). P2b section:
+```
+--- P2b ---
+PASS        Hatch tile toggles Hatch; status "Hatch: forward passes only"  — 1 test(s)
+PASS        Hatch/Dots pipeline (forward passes only, look-ahead buffer, stationary hand never inks)  — 8 test(s)
+PASS        Quiet mode turns the mic (and TTS, earcons) off  — 1 test(s)
+PASS        Aliases: "alias fluffy" stored; a colliding alias is refused ("That word is taken")  — 13 test(s)
+PASS        Destructive confirm: alertdialog, focus on Cancel, Esc cancels, typed "yes" confirms  — 1 test(s)
+PASS        Break nudge after 20 min, non-blocking, "Later" dismisses  — 1 test(s)
+PASS        Every @P2b Vitest  — 26 test(s)
+PASS        Every @P2b Playwright  — 5 test(s)
+NEEDS HUMAN Real Krita: Hatch over the parallel ruler inks forward passes only  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: Sonic TTS speaks "Saved"/"New layer" and never while the mic is open  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real mic: "call this brush fluffy", then "fluffy" selects that preset in Krita  — see NEEDS-HUMAN.md
+
+totals (tags ≤ P2b): 606 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
+
+demo-check P2b: PASS
+```
+  @P3 (not in either gate): Sketch/Ink mode/Shade test fails only because those tiles render disabled at BUILD_PHASE P2b.
