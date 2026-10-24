@@ -106,9 +106,9 @@ export interface SteadySettings {
   simulateTremor: boolean;
   hatchLagMs: number;
   /** P4 hand presets: floor for the dwell radius r_in (target units). */
-  dwellRadius?: number;
+  dwellRadius?: number | null;
   /** P4: tiles count as hovered within this many px of their edge. */
-  tileHoverPx?: number;
+  tileHoverPx?: number | null;
   /** Landmark the hand lock follows (wrist 0; nose 1 in Head mode). */
   lockLandmark?: number;
   /** Landmark source: MediaPipe hand, or the P3 colour-cap sticker. */
