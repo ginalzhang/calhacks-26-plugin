@@ -20,7 +20,7 @@ import {
   openPanelPage,
   openSteady,
   practiceCanvas,
-  screenToClient,
+  screenToClientOnPage,
   serveFixture,
   serveWithLead,
   state,
@@ -43,6 +43,9 @@ test.describe("P1 without a helper", () => {
     await expect(tile(page, "Simulate tremor")).toBeVisible();
     await expect(tile(page, "Simulate tremor")).toHaveAttribute("aria-pressed", /true|false/);
     await expect(tile(page, "Next judge")).toBeVisible();
+    for (const t of ["Simulate tremor", "Next judge"]) {
+      await expect(tile(page, t), `"${t}" tile enabled (its tilePhase P1 must have landed: BUILD_PHASE ≥ P1 in src/actions.ts)`).toBeEnabled({ timeout: 3_000 });
+    }
     const metrics = page.locator('[aria-live="off"]');
     await expect(metrics.first(), 'a metrics region with aria-live="off"').toBeVisible();
     const text = (await metrics.allInnerTexts()).join("\n");
@@ -172,7 +175,7 @@ test.describe("P1 with the fake helper", () => {
     expect(y).toBeGreaterThanOrEqual(w.screenY);
     expect(y).toBeLessThanOrEqual(w.screenY + w.outerHeight);
     // 7. Stand in for the OS click: DOM click at that point.
-    const c = screenToClient(w, x, y);
+    const c = await screenToClientOnPage(page, x, y);
     const hit = await page.evaluate(({ cx, cy }) => {
       const el = document.elementFromPoint(cx, cy);
       const btn = el?.closest("button") ?? null;

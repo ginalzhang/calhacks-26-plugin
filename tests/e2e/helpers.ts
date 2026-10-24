@@ -320,6 +320,27 @@ export async function windowRect(page: Page): Promise<WinRect> {
 }
 
 /** Browser chrome sits above the viewport; side borders split evenly. */
+/** The viewport rect (screen points) the page last reported to the Worker, via window.__steady.windowRect(). */
+export async function reportedRect(page: Page): Promise<{ x: number; y: number; w: number; h: number } | null> {
+  return page.evaluate(() => {
+    const h = (window as unknown as { __steady?: { windowRect?: () => { x: number; y: number; w: number; h: number } | null } }).__steady;
+    return h?.windowRect ? h.windowRect() : null;
+  });
+}
+
+/** Screen points → client CSS px using the Worker's own rect when available (exactly its numbers). */
+export async function screenToClientOnPage(page: Page, sx: number, sy: number): Promise<{ x: number; y: number }> {
+  const r = await reportedRect(page);
+  if (r) return { x: sx - r.x, y: sy - r.y };
+  return screenToClient(await windowRect(page), sx, sy);
+}
+
+export async function clientToScreenOnPage(page: Page, cx: number, cy: number): Promise<{ x: number; y: number }> {
+  const r = await reportedRect(page);
+  if (r) return { x: cx + r.x, y: cy + r.y };
+  return clientToScreen(await windowRect(page), cx, cy);
+}
+
 export function clientToScreen(w: WinRect, cx: number, cy: number): { x: number; y: number } {
   const side = Math.max(0, (w.outerWidth - w.innerWidth) / 2);
   const top = Math.max(0, w.outerHeight - w.innerHeight - side);
@@ -416,7 +437,7 @@ export async function cameraPointForClient(page: Page, m: Mapping, cx: number, c
   let tx: number;
   let ty: number;
   if (m.target === "krita") {
-    const p = clientToScreen(await windowRect(page), cx, cy);
+    const p = await clientToScreenOnPage(page, cx, cy);
     tx = p.x;
     ty = p.y;
   } else {

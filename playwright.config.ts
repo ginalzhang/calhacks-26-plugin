@@ -5,11 +5,11 @@
  * or the whole phase gate with scripts/demo-check.sh P1.
  *
  * Env:
+ *   STEADY_PORT    port of this checkout's app (sets BASE_URL=http://localhost:$STEADY_PORT)
  *   BASE_URL       default: this repo's own running `next dev` (found via lsof), else
  *                  http://localhost:3000 if free, else http://localhost:3100 (started here)
  *   FAKE_WS_PORT / FAKE_HTTP_PORT  fake helper ports (default 18765/18767; 28765/28767 when the
- *                  app is not on :3000, because the fake helper only accepts Origin http://localhost:3000
- *                  and is then started here with its allowed Origin patched to BASE_URL's origin)
+ *                  app is not on :3000; the fake helper is then started with `--origin <BASE_URL origin>`)
  *   AXE_GATE=1     axe violations fail the test (set by the lead at the 22:00 freeze); otherwise logged
  *   NO_WEBSERVER=1 do not start anything (servers already running)
  *
@@ -53,6 +53,7 @@ function ownServerPort(): { own: number | null; foreignOn3000: boolean } {
   return { own, foreignOn3000 };
 }
 
+if (!process.env.BASE_URL && process.env.STEADY_PORT) process.env.BASE_URL = `http://localhost:${process.env.STEADY_PORT}`;
 const found = process.env.BASE_URL ? { own: null, foreignOn3000: false } : ownServerPort();
 const BASE_URL =
   process.env.BASE_URL ??
@@ -69,10 +70,9 @@ process.env.FAKE_HTTP_PORT = FAKE_HTTP_PORT;
 
 const python = fs.existsSync(path.join(root, ".venv/bin/python")) ? ".venv/bin/python" : "python3";
 const haveFakeHelper = fs.existsSync(path.join(root, "scripts/fake_helper.py"));
-const fakeHelperCmd = onDefaultOrigin
-  ? `${python} scripts/fake_helper.py --ws-port ${FAKE_WS_PORT} --http-port ${FAKE_HTTP_PORT}`
-  : `${python} -c "import sys; sys.path.insert(0, 'scripts'); import fake_helper as f; f.ALLOWED_ORIGIN = '${appOrigin}'; ` +
-    `sys.exit(f.main(['--ws-port', '${FAKE_WS_PORT}', '--http-port', '${FAKE_HTTP_PORT}']))"`;
+const fakeHelperCmd =
+  `${python} scripts/fake_helper.py --ws-port ${FAKE_WS_PORT} --http-port ${FAKE_HTTP_PORT}` +
+  (onDefaultOrigin ? "" : ` --origin ${appOrigin}`);
 
 type WebServer = NonNullable<Parameters<typeof defineConfig>[0]["webServer"]>;
 const webServer: WebServer = [];

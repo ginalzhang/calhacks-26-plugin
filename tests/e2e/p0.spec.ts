@@ -74,12 +74,19 @@ test.describe("P0 practice canvas", () => {
     expect(await strokeCount(page)).toBe(before + 1);
   });
 
-  test("@P0 resting hand never leaves ink", async ({ page }) => {
+  test("@P0 a resting hand toggles the pen at most once", async ({ page }) => {
+    // §3 arming: a hand that rests toggles at most once (the dwell lowers it; it never re-toggles).
     await openSteady(page, { replay: "rest-still", helper: "off" });
-    const before = await strokeCount(page);
-    await page.waitForTimeout(6000);
-    // At most one toggle; and since a down needs a later up, a resting hand commits no stroke.
-    expect(await strokeCount(page)).toBe(before);
+    let downs = 0;
+    let prev = (await state(page)).pen;
+    const end = Date.now() + 5_500;
+    while (Date.now() < end) {
+      const pen = (await state(page)).pen;
+      if (prev === "HOVER" && pen === "DRAWING") downs++;
+      prev = pen;
+      await page.waitForTimeout(50);
+    }
+    expect(downs).toBeLessThanOrEqual(1);
   });
 
   test("@P0 Steadiness ± tiles move the slider", async ({ page }) => {

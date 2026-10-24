@@ -157,3 +157,51 @@ Every non-obvious choice, with the clock. Newest at the bottom of each section.
 - 14:41 lead resolutions: F target → both `?target=krita` and `SteadyTestHooks.setTarget()`; `SteadyTestHooks.windowRect()` added. A deviation semantics accepted (types.ts comment reworded; F to match README formula). A alias → blessed as grammar-only id `alias` (tile "Name this brush" lands with P2b aliases). A undo count + createPipeline opts documented in types.ts. F/C fake-helper canvas_rect config already done by C.
 - **B → lead (sent log):** `WorkerToPage` has no message for "what the Worker sent to the helper", so `__steady.sentToHelper()` is fed by a `BroadcastChannel("steady-sent-to-helper")` (src/tracking/sentChannel.ts). Optional: add `{type:"sent", msg}` to `WorkerToPage` and B switches.
 - **B → lead (action rows, optional):** non-action tiles exist for settings: "Mirror camera", "Rotate camera", "Next camera", "Next point", "Use last setup", "Draw in Krita", "Mark corners", "Dwell click", "All dwell", "Keys", "Camera". Rule 4 wants voice/typed paths for actions; if wanted, add rows (e.g. `draw_in_krita` / `practice`, `mark_corners`, `use_last_setup`) and B will wire them.
+- (F, 14:55) Contract requests above resolved by lead/B/C: `?target=krita`, `__steady.setTarget()`, `__steady.windowRect()`, fake helper `canvas_rect` config and `--origin`. Tests switch target via the real Setup › "Draw in Krita" tile and convert screen↔client with `__steady.windowRect()` (the viewport rect the Worker uses). README deviation formula changed to the lead's definition (RMS of the drawn path from its own ±100 ms moving average over 3 s).
+- (F) Ports: port 3000 may be held by another workspace's Next server. `playwright.config.ts` reuses THIS checkout's own `next dev` (found via lsof cwd), else uses `STEADY_PORT`/`BASE_URL`, else 3000 if free, else 3100; when not on :3000 the fake helper runs on 28765/28767 with `--origin <app origin>`. `demo-check.sh` applies the same 3000→3100 rule.
+- (F) Practice-canvas Playwright tests run at 1280×900: in the 320 px strip the practice canvas stacks below the fold (the strip is the Krita layout). Page-fit tests stay at 320×900 and assert the page container ([data-page]) only; the document itself scrolls because the camera/canvas stack below the panel.
+- (F) Fixture motion that must NOT dwell is ≥ 150 camera px/s (circling): with r_in = 15 target units and gain 2, anything slower than ~60 camera px/s counts as still within 250 ms and lowers the pen (seen in the first run: a 40 px/s drift re-lowered the pen). Krita-target tests prepend a 6–9 s circling lead-in (`serveWithLead`) so the target switch happens before the fixture's hold.
+
+- (F) 2026-10-24 14:56 PDT — `scripts/demo-check.sh P1` (BUILD_PHASE = P0 at the time; tsc/vitest/pytest PASS; Playwright 1 failure). Output:
+```
+================ definition of done ================
+PASS        step: typecheck
+PASS        step: vitest
+PASS        step: pytest
+FAIL        step: playwright  — exit 1
+
+--- P0 ---
+PASS        Pointer cursor on Steady's practice canvas (ReplaySource)  — 1 test(s)
+PASS        Hold still to start drawing (pen-down dwell)  — 19 test(s)
+PASS        Draws a stroke (a word shape) on the practice canvas  — 1 test(s)
+PASS        Hold still to stop (pen-up dwell; slow stroke never lifts)  — 7 test(s)
+PASS        A resting hand toggles the pen at most once  — 1 test(s)
+PASS        The Undo key undoes  — 1 test(s)
+PASS        Steadiness slider and its ± tiles change the result  — 5 test(s)
+PASS        Calibration steps 1–2 complete  — 1 test(s)
+PASS        Each P0 page fits 320×900 at 100 % (Steady, Setup, Timing)  — 3 test(s)
+PASS        axe report produced at 100 % and 200 % (hard gate only with AXE_GATE=1)  — 2 test(s)
+PASS        Pipeline acceptance targets + every @P0 Vitest  — 52 test(s)
+NEEDS HUMAN Real webcam: within 60 s of npm run dev a resting hand moves the cursor (knuckle landmark)  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real webcam: a person writes a legible word and the Steadiness change is visible  — see NEEDS-HUMAN.md
+
+--- P1 ---
+FAIL        Demo page: Simulate tremor, metrics, Next judge  — playwright:fail:P1 without a helper › @P1 Demo page shows metrics
+PASS        Worker sends move/down/up to the helper in order (stroke reaches the helper)  — 1 test(s)
+PASS        Covering the camera mid-stroke ends the stroke with no scribble (score-0.5 replay)  — 8 test(s)
+PASS        Helper releases the button (watchdog 300 ms, socket close, exception) — fake mouse  — 7 test(s)
+PASS        F9 releases everything; helper is the single key source (page ignores F-keys)  — 30 test(s)
+PASS        Resume tile reachable by dwell (click inside Chrome's rect, no self-trigger)  — 1 test(s)
+PASS        Every @P1 Vitest (mapping, clamp, rect gating, hand lock, protocol round-trip)  — 143 test(s)
+PASS        Every @P1 pytest (helper §5)  — 180 test(s)
+NEEDS HUMAN Real Krita: the same resting hand paints a stroke in Krita via the helper  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Krita: covering the camera mid-stroke ends the Krita stroke cleanly  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: F9 pauses and the Resume tile works by dwell with Krita focused  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: Chrome strip beside Krita keeps the fps counter running while Krita is focused  — see NEEDS-HUMAN.md
+
+totals (tags ≤ P1): 391 passed, 1 failed, 0 skipped (vitest+pytest+playwright)
+
+demo-check P1: FAIL (2 item(s))
+```
+  Only FAIL: Demo page — "Simulate tremor"/"Next judge" tiles render disabled because BUILD_PHASE is P0 (their tilePhase is P1); passes once the lead bumps BUILD_PHASE to P1. P2a run separately: typed "blue" → krita color message PASS, keys inert in typed box PASS, P2a pages fit PASS; typed "steadier" FAIL (status shows "Heard: steadier" but Steadiness stays 50: the grammar excludes P2a rows at BUILD_PHASE P0).
+  axe: 0 violations at 100 %. At 200 % (160×450 CSS px) axe itself is clean but F's pinned-header check fails on every page: after scrolling to the bottom the page tabs leave the viewport. **B:** make the panel header `position: sticky; top: 0` (or scroll only the page container) so the header stays pinned at 200 % (§0 rule 6). Not gated until AXE_GATE=1.

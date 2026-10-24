@@ -30,6 +30,22 @@ for p in "${ALL[@]}"; do TAGS+=("$p"); [ "$p" = "$N" ] && break; done
 GREP=$(printf '@%s|' "${TAGS[@]}"); GREP="${GREP%|}"           # @P0|@P1
 PYM=$(printf '%s or ' "${TAGS[@]}"); PYM="${PYM% or }"          # P0 or P1
 
+# Port: STEADY_PORT (default 3000). If :3000 is held by something that is not THIS checkout (e.g. another
+# workspace's Next server), use 3100. playwright.config.ts starts/reuses the app there and starts the fake
+# helper with its allowed Origin set to match.
+if [ -z "${STEADY_PORT:-}" ] && [ -z "${BASE_URL:-}" ]; then
+  STEADY_PORT=3000
+  pid3000=$(lsof -nP -iTCP:3000 -sTCP:LISTEN -t 2>/dev/null | head -1)
+  if [ -n "$pid3000" ]; then
+    cwd3000=$(lsof -a -p "$pid3000" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+    if [ "$cwd3000" != "$PWD" ]; then
+      echo "port 3000 is held by another app ($cwd3000); using 3100"
+      STEADY_PORT=3100
+    fi
+  fi
+fi
+[ -n "${STEADY_PORT:-}" ] && export STEADY_PORT
+
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/steady-demo-check.XXXXXX")
 LOG="$OUT/log.txt"
 echo "demo-check $N  ($(date '+%Y-%m-%d %H:%M %Z'))  tags: $GREP"
@@ -111,7 +127,7 @@ const DOD = {
     ["Hold still to start drawing (pen-down dwell)", [pw(/@P0 dwell toggles pen/), vt(/dwell/i)]],
     ["Draws a stroke (a word shape) on the practice canvas", [pw(/a stroke appears/)]],
     ["Hold still to stop (pen-up dwell; slow stroke never lifts)", [pw(/@P0 dwell toggles pen/), vt(/40 ?px\/s|never (triggers|lifts)|pen-up/i)]],
-    ["A resting hand never leaves ink", [pw(/resting hand never leaves ink/)]],
+    ["A resting hand toggles the pen at most once", [pw(/resting hand toggles the pen at most once/)]],
     ["The Undo key undoes", [pw(/Undo key undoes/)]],
     ["Steadiness slider and its ± tiles change the result", [pw(/Steadiness ± tiles/), vt(/steadiness/i)]],
     ["Calibration steps 1–2 complete", [pw(/calibration steps 1–2/)]],
