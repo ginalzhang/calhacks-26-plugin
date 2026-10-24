@@ -105,3 +105,8 @@ Nothing here has been run against the real pointer; the helper's tests use a fak
 - [ ] **Offline tracking:** with Wi-Fi off, reload Steady: hand tracking still starts (self-hosted MediaPipe assets).
 - [ ] **Web Speech fallback** (only if shipped): with the Cartesia key removed, the status bar says speech goes via Google while the mic is open.
 - [ ] **Record the fallback video** first at 22:00 (`docs/demo-video.md` › Fallback video: Chrome + camera only).
+
+## Agent G
+1. **Sticker tracking with a real camera** (P3): put a neon-green sticker (or green tape) on the index knuckle of a gloved hand, switch the source to colour-cap, confirm the tracking word reads Tracking (score ≥ 0.75) under normal desk light and that the pointer follows; dim the light and confirm it drops to Weak/Lost rather than jumping. Try "pick colour from centre" with a red or orange sticker. Thresholds were tuned on synthetic images only.
+2. **Exposure lock on the actual cameras**: run `lockExposure(track)` after calibration on the FaceTime camera, Continuity Camera and Desk View; record which report "Exposure locked" vs "This camera can't lock exposure" (Chrome on macOS may not expose `exposureMode` for some/all of them; unverifiable without hardware).
+3. **Self-hosted assets offline**: with Wi-Fi off, load the page and confirm MediaPipe still starts (wasm + model from `/mediapipe/`). Requires B to wire `resolveAssets()` into MediaPipeSource. Re-run `bash scripts/fetch-mediapipe.sh` on any fresh clone if public/mediapipe isn't committed.

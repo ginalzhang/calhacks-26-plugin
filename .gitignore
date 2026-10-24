@@ -16,3 +16,4 @@ playwright-report/
 .context/
 .DS_Store
 .steady-chrome/
+public/mediapipe/

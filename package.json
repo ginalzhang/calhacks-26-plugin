@@ -15,7 +15,8 @@
     "fake-helper": "bash scripts/run-fake-helper.sh",
     "demo-chrome": "bash scripts/demo-chrome.sh",
     "krita-plugin:install": "bash scripts/krita-plugin-install.sh",
-    "pytest": "bash scripts/run-pytest.sh"
+    "pytest": "bash scripts/run-pytest.sh",
+    "assets": "bash scripts/fetch-mediapipe.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",
