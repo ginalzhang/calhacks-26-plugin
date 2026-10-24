@@ -50,6 +50,7 @@ import {
   REARM_AFTER_UP_MS,
   SCORE_ACCEPT,
   STEADIER_STEP,
+  WARMUP_FRAMES,
   type Calibration,
   type DwellView,
   type LiftReason,
@@ -199,7 +200,7 @@ class SteadyPipeline implements Pipeline {
 
   private currentPointer(): Vec2 | null {
     if (this.tracker.phase === "holding") return this.frozen ?? this.lastEmitted;
-    if (this.tracker.phase !== "tracking" || this.tracker.acceptedSinceAcquire <= 10) return null;
+    if (this.tracker.phase !== "tracking" || this.tracker.acceptedSinceAcquire <= WARMUP_FRAMES) return null;
     return this.lazy.pointer;
   }
 
@@ -288,6 +289,7 @@ class SteadyPipeline implements Pipeline {
     if (!accepted || !hand || !choice.wrist) return this.noFrame(t, upd, events, score);
 
     this.lock.accept(choice.wrist);
+    this.frozen = null;
     if (upd.acquired) {
       this.euro.reset();
       this.tremor.reset();

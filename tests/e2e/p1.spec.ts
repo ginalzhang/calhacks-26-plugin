@@ -6,8 +6,8 @@
  * fake helper records it and the test dispatches a DOM click at that point (standing in for the OS
  * click); Resume executes.
  *
- * Target: the Worker only talks to the helper about the pointer when target = "krita". The tests add
- * `?target=krita` (requested in DECISIONS.md) and tell the fake helper to report a Krita canvas rect.
+ * Target: the Worker only talks to the helper about the pointer when target = "krita"; tests switch it
+ * with the Setup page's "Draw in Krita" tile. The fake helper replies a canned Krita canvas rect.
  */
 import { test } from "@playwright/test";
 import {
@@ -22,9 +22,11 @@ import {
   practiceCanvas,
   screenToClient,
   serveFixture,
+  serveWithLead,
   state,
   strokeCount,
   summary,
+  targetKrita,
   tile,
   waitForHelperOpen,
   waitForState,
@@ -32,7 +34,6 @@ import {
   type HelperMsg,
 } from "./helpers";
 
-const KRITA_TARGET = { target: "krita" };
 const KRITA_CANVAS = { x: 400, y: 120, w: 900, h: 700 };
 
 test.describe("P1 without a helper", () => {
@@ -73,13 +74,11 @@ test.describe("P1 with the fake helper", () => {
   });
 
   test("@P1 page sends move/down/up in order and up on simulated tracking loss", async ({ page }, testInfo) => {
-    await openSteady(page, { replay: "tracking-loss-mid-stroke", helper: "fake", extra: KRITA_TARGET });
+    await openSteady(page, { replay: await serveWithLead(page, "tracking-loss-mid-stroke"), helper: "fake" });
     await waitForHelperOpen(page);
     await fakeHelper.send({ t: "krita_state", connected: true });
-    const s0 = await state(page);
-    if (s0.target !== "krita") {
-      note(testInfo, "missing-hook", `state().target is "${s0.target}" with ?target=krita; the Worker needs a way to target Krita in tests`);
-    }
+    const s0 = await targetKrita(page);
+    note(testInfo, "krita-window", JSON.stringify(s0.kritaWindowRect));
     // Lost must be observed (score-0.5 frames for 1 s mid-stroke).
     await waitForState(page, (s) => s.tracking === "Lost", { timeout: 20_000, what: "tracking Lost during the score-0.5 segment" });
     await page.waitForTimeout(3500);
@@ -130,7 +129,12 @@ test.describe("P1 with the fake helper", () => {
   test("@P1 after Pause a dwell on Resume sends click inside Chrome's rect; the click resumes; no self-trigger", async ({ page }, testInfo) => {
     test.setTimeout(150_000);
     // 1. Fit camera px → target units with the probe fixture under the same conditions.
-    const mapping = await fitMapping(page, { helper: "fake" });
+    const toKrita = async (p: typeof page) => {
+      await waitForHelperOpen(p);
+      await fakeHelper.send({ t: "krita_state", connected: true });
+      await targetKrita(p);
+    };
+    const mapping = await fitMapping(page, { helper: "fake" }, toKrita);
     note(testInfo, "mapping", JSON.stringify(mapping));
     // 2. Pause, find the Resume tile, compute the camera point that lands on its centre.
     await fakeHelper.send({ t: "hotkey", key: "pause" });
@@ -141,10 +145,10 @@ test.describe("P1 with the fake helper", () => {
     const cam = await cameraPointForClient(page, mapping, rb.x + rb.width / 2, rb.y + rb.height / 2);
     note(testInfo, "camera-target", JSON.stringify(cam));
     // 3. Reload with a fixture that wanders, then holds still over that point.
-    await serveFixture(page, "dwell-at", dwellAtFixture(cam));
+    await serveFixture(page, "dwell-at", dwellAtFixture(cam, { leadSeconds: 9 }));
     await fakeHelper.reset();
     await openSteady(page, { replay: "dwell-at", helper: "fake" });
-    await waitForHelperOpen(page);
+    await toKrita(page);
     await fakeHelper.send({ t: "hotkey", key: "pause" });
     await waitForState(page, (s) => s.paused, { timeout: 3_000, what: "paused (second load)" });
     const tPause = Date.now();
@@ -181,11 +185,10 @@ test.describe("P1 with the fake helper", () => {
   });
 
   test("@P1 strokes reach the helper, not the practice canvas, when targeting Krita", async ({ page }, testInfo) => {
-    await openSteady(page, { replay: "dwell-stroke-word", helper: "fake", extra: KRITA_TARGET });
+    await openSteady(page, { replay: await serveWithLead(page, "dwell-stroke-word"), helper: "fake" });
     await waitForHelperOpen(page);
     await fakeHelper.send({ t: "krita_state", connected: true });
-    const s = await state(page);
-    test.skip(s.target !== "krita", `target is "${s.target}"; needs ?target=krita support (see DECISIONS.md)`);
+    await targetKrita(page);
     const before = await strokeCount(page);
     await waitForState(page, (x) => x.pen === "DRAWING", { timeout: 20_000, what: "pen down (krita target)" });
     await waitForState(page, (x) => x.pen === "HOVER", { timeout: 25_000, what: "pen up (krita target)" });

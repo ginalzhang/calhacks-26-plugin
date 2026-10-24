@@ -213,7 +213,16 @@ export const PongMsg = z.object({ t: z.literal("pong"), id: Id });
 /** Generic ack for keys/click/pause/resume (echoes id). */
 export const AckMsg = z.object({ t: z.literal("ack"), id: Id, ok: z.boolean(), error: z.string().optional() });
 
+/** Startup/runtime warning for the status line (Dwell Control / Head Pointer / Voice Control on, tablet connected, overlay disabled). */
+export const WarningMsg = z.object({
+  t: z.literal("warning"),
+  id: Id,
+  code: z.string(),
+  message: z.string(),
+});
+
 export const HelperToWorkerSchema = z.union([
+  WarningMsg,
   HelloMsg,
   KritaWindowRectMsg,
   HotkeyMsg,

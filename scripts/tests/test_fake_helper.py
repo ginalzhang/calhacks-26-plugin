@@ -138,3 +138,21 @@ async def test_canned_krita_payloads(fake):
 async def test_health(fake):
     h = await ahttp(fake, "GET", "/health")
     assert h == {"ok": True, "clients": 0}
+
+
+@pytest.mark.asyncio
+async def test_config_canvas_rect_and_payload_overrides(fake):
+    rect = {"x": 10, "y": 20, "w": 300, "h": 400}
+    await ahttp(fake, "POST", "/config", {"canvas_rect": rect, "payloads": {"action": {"checked": True}}})
+    async with connect(url(fake)) as ws:
+        await recv(ws)
+        await ws.send(json.dumps({"t": "krita", "id": "c1", "cmd": "canvas_rect"}))
+        r = await recv(ws)
+        assert r["ok"] is True and r["rect"] == rect and r["id"] == "c1"
+        await ws.send(json.dumps({"t": "krita", "id": "a1", "cmd": "action", "action": "erase_action"}))
+        assert (await recv(ws))["checked"] is True
+        await ahttp(fake, "POST", "/config", {"canvas_rect": None})
+        await ws.send(json.dumps({"t": "krita", "id": "c2", "cmd": "canvas_rect"}))
+        r = await recv(ws)
+        assert r["ok"] is False and r["error"] == "no_canvas_rect"
+        assert validate_helper_msg(r) is None

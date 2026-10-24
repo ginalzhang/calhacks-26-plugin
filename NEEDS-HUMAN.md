@@ -54,3 +54,28 @@ Voice and Claude run on mocks until keys exist; none of the items below was veri
 4. **Quiet speech / headset:** speak softly: does Ink 2 still transcribe (gain normalisation)? Connect a Bluetooth headset mid-session: the next utterance should still transcribe (sample rate re-read).
 5. **Mic revoked:** while the mic is open, revoke the mic in Chrome's site settings: a yellow banner appears and tiles/typed box still work.
 6. **Sonic (P2b):** check that `sonic-3.6` is accepted by the TTS socket (the SDK's model list only names up to sonic-3.5).
+
+## Agent C
+Nothing here has been run against the real pointer; the helper's tests use a fake mouse, fake key poster and fake app/window provider.
+
+1. **Grant permissions to the terminal app you launch the helper from** (Terminal, iTerm, VS Code, …, *not* python):
+   - Accessibility: open `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility` (System Settings › Privacy & Security › Accessibility), turn on your terminal app.
+   - Input Monitoring: open `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent`, turn on your terminal app (it appears after the helper's first start, which calls `CGRequestListenEventAccess`).
+   - Quit and reopen the terminal app afterwards. The helper prints the exact app name it detected at startup ("Launched from: …"); if it names the wrong app, grant that one.
+2. **Turn off** macOS Dwell Control and Head Pointer (System Settings › Accessibility › Pointer Control) and Voice Control (Accessibility › Voice Control). **Unplug any drawing tablet.**
+3. If the F-keys control brightness/volume, turn on System Settings › Keyboard › "Use F1, F2, etc. keys as standard function keys" (or use a pedal/keypad sending F8).
+4. **Real-pointer smoke test** (Krita 5.3 open, Chrome strip with `npm run dev` at http://localhost:3000):
+   1. `npm run helper`. Expect "Steady helper 0.1.0. Launched from: <your terminal>" and no "!!" lines. If you see "POINTER-LESS mode", redo step 1.
+   2. Reload Steady in Chrome; the helper status should read connected; the fps counter keeps running.
+   3. Rest your hand, dwell over Krita's canvas to lower the pen, move: a stroke appears in Krita. Dwell to lift.
+   4. Lower the pen, then press Ctrl-C in the helper's terminal mid-stroke: the stroke must end (button released). Restart the helper.
+   5. Lower the pen, cover the camera: the stroke ends within ~0.3 s with no scribble.
+   6. With Krita frontmost press F9: pen lifts, Krita does NOT open anything; the Pause tile reads Resume; dwell on Resume works. Press F8 in Finder/Safari: nothing in Steady happens and the other app gets the key normally.
+   7. With Krita frontmost, F5/F6 must not open Krita's brush editor/presets (helper consumes them).
+   8. With the Krita plugin disabled, say/type "undo": Krita undoes via the keystroke (`cmd+z`) after Krita is brought to the front. Quit Krita and try again: Steady reports Krita is not running and no keys go anywhere else.
+   9. `kill -9` the helper while the pen is down: if the pointer seems stuck, click the physical mouse once (README).
+   10. Verify Krita's "Clear" fires on Backspace and "Delete layer" on shift+forward-delete via the keystroke fallback (keycodes chosen from the macOS keymap, not verified in Krita).
+
+
+## Agent A
+- With a real webcam and a resting hand: run calibration and check the suggested Steadiness and gain feel right (a slow, arm-sized movement should cross the canvas); hold still 10 s on the canvas and confirm the pen lowers once and leaves no extra ink. All pipeline numbers so far come from synthetic 30 fps signals only.

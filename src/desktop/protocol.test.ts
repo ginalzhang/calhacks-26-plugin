@@ -55,7 +55,7 @@ describe("protocol-examples.json round-trips through protocol.ts", () => {
       ["chrome_rect", "click", "down", "keys", "krita", "middle_down", "middle_up", "move", "pause", "ping", "resume", "ring", "up"].sort(),
     );
     const ht = new Set(Object.values(EX.helper_to_worker).map((m) => (m as { t: string }).t));
-    expect([...ht].sort()).toEqual(["ack", "error", "hello", "hotkey", "krita_reply", "krita_state", "krita_window_rect", "pong"].sort());
+    expect([...ht].sort()).toEqual(["ack", "error", "hello", "hotkey", "krita_reply", "krita_state", "krita_window_rect", "pong", "warning"].sort());
     const cmds = new Set(Object.values(EX.plugin_request).map((m) => (m as { cmd: string }).cmd));
     const schemaCmds = KritaCommandSchema.options.map((o) => o.shape.cmd.value);
     expect([...cmds].sort()).toEqual([...schemaCmds].sort());

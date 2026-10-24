@@ -12,7 +12,10 @@ Speaks the helper side of the protocol WITHOUT touching the pointer or keyboard:
     POST /reset               → clears the record
     POST /send   body = msg   → pushed to every client (id added if missing)
     POST /config body         → {"krita": false} makes later `krita` messages reply
-                                 ok:false error:"plugin_down"; {"hello": {...}} overrides hello fields
+                                 ok:false error:"plugin_down"; {"hello": {...}} overrides hello fields;
+                                 {"canvas_rect": {x,y,w,h}} / {"window_rect": ...} sets the rect those
+                                 cmds reply (null → ok:false no_canvas_rect / no_window);
+                                 {"payloads": {"<cmd>": {...}}} merges extra reply fields per cmd
     GET  /health              → {"ok": true, "clients": n}
 
 Only needs `websockets` (stdlib otherwise). Run: scripts/run-fake-helper.sh or
@@ -115,7 +118,16 @@ class FakeHelper:
                 krita_up = bool(self.config.get("krita", True))
             if not krita_up:
                 return {"t": "krita_reply", "id": rid, "ok": False, "error": "plugin_down"}
-            payload = KRITA_PAYLOADS.get(str(msg.get("cmd")), {})
+            cmd = str(msg.get("cmd"))
+            with self.lock:
+                overrides = dict(self.config.get("payloads") or {})
+                rect_override = self.config.get(cmd, "unset") if cmd in ("canvas_rect", "window_rect") else "unset"
+            if rect_override is None:
+                return {"t": "krita_reply", "id": rid, "ok": False, "via": "plugin", "error": "no_canvas_rect" if cmd == "canvas_rect" else "no_window"}
+            payload = dict(KRITA_PAYLOADS.get(cmd, {}))
+            if isinstance(rect_override, dict):
+                payload["rect"] = rect_override
+            payload.update(overrides.get(cmd) or {})
             return {"t": "krita_reply", **payload, "id": rid, "ok": True, "via": "plugin"}
         return None  # move/down/up/chrome_rect/ring/middle_*: no reply
 

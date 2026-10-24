@@ -14,12 +14,14 @@ export interface DialogSpec {
   onConfirm?: () => void;
   /** choose: option tiles. */
   options?: Array<{ label: string; run: () => void }>;
+  /** Run when the dialog closes without a choice (Cancel, Esc, voice "no"). */
+  onCancel?: () => void;
   returnFocus?: HTMLElement | null;
 }
 
 const NUMBER_WORDS = ["One", "Two", "Three"];
 
-export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: () => void }) {
+export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (how: "cancel" | "done") => void }) {
   const titleId = useId();
   const bodyId = useId();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -37,7 +39,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: ()
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      onClose();
+      onClose("cancel");
       return;
     }
     if (e.key !== "Tab" || !ref.current) return;
@@ -82,7 +84,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: ()
                 className="tile tile-default span-3"
                 data-action={`choice_${["one", "two", "three"][i]}`}
                 onClick={() => {
-                  onClose();
+                  onClose("done");
                   o.run();
                 }}
               >
@@ -91,7 +93,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: ()
                 </span>
               </button>
             ))}
-          <button ref={cancelRef} type="button" className="tile tile-default" data-action="cancel" onClick={onClose}>
+          <button ref={cancelRef} type="button" className="tile tile-default" data-action="cancel" onClick={() => onClose("cancel")}>
             <span className="tile-label">Cancel</span>
           </button>
           {spec.kind === "confirm" && (
@@ -100,7 +102,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: ()
               className="tile tile-danger span-2"
               data-action="yes"
               onClick={() => {
-                onClose();
+                onClose("done");
                 spec.onConfirm?.();
               }}
             >

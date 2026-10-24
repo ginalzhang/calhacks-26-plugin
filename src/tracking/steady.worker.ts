@@ -29,6 +29,7 @@ import {
   type WorkerToPage,
 } from "../pipeline/types";
 import { createHelperClient } from "../desktop/helperClient";
+import { kritaConnectMessages } from "../desktop/krita";
 import {
   PING_EVERY_MS,
   type HelperClient,
@@ -408,28 +409,39 @@ function onHelperMessage(msg: HelperToWorker) {
   post({ type: "helper", msg });
 }
 
-const STEADY_KEYS = ["f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10"];
+let smoothingNoticeShown = false;
+/** Any krita_reply may carry smoothing_changed: true (docs/PROTOCOL.md): show the notice once. */
+function noteKritaReply(r: HelperToWorker) {
+  if (r.t !== "krita_reply") return;
+  if (!smoothingNoticeShown && (r as Record<string, unknown>).smoothing_changed === true) {
+    smoothingNoticeShown = true;
+    setStatus("Krita's brush smoothing set to None — Steady does the smoothing");
+  }
+}
 
 function initKrita() {
   if (!helper) return;
-  helper
-    .request({ t: "krita", cmd: "session_init", keys: STEADY_KEYS }, 3000)
-    .then((r) => {
-      if (r.t === "krita_reply" && r.ok && (r as Record<string, unknown>).smoothing_changed) {
-        setStatus("Steady smooths your strokes, so Krita's brush smoothing is now None.");
-      }
-    })
-    .catch(() => undefined);
-  helper
-    .request({ t: "krita", cmd: "canvas_rect" }, 3000)
-    .then((r) => {
-      const rect = (r as Record<string, unknown>).rect as Rect | undefined;
-      if (r.t === "krita_reply" && r.ok && rect) {
-        kritaCanvasRect = rect;
-        applyRects();
-      }
-    })
-    .catch(() => undefined);
+  for (const msg of kritaConnectMessages()) {
+    const m = msg as Outgoing;
+    helper
+      .request(m, 3000)
+      .then((r) => {
+        noteKritaReply(r);
+        if (r.t !== "krita_reply") return;
+        if (m.t === "krita" && m.cmd === "canvas_rect") {
+          const rect = (r as Record<string, unknown>).rect as Rect | undefined;
+          if (r.ok && rect) {
+            kritaCanvasRect = rect;
+            applyRects();
+          } else if (!kritaCanvasRect) {
+            setStatus("Krita's canvas was not found: use Mark corners on the Setup page.");
+          }
+        }
+        // Forward every connect reply so the page can build its lookup maps.
+        post({ type: "helper", msg: r });
+      })
+      .catch(() => undefined);
+  }
 }
 
 // ----------------------------------------------------------------------------- sources
@@ -549,7 +561,10 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       const t0 = now();
       helper
         .request(msg, 3000)
-        .then((reply) => post({ type: "reply", id: msg.id, msg: reply }))
+        .then((reply) => {
+          noteKritaReply(reply);
+          post({ type: "reply", id: msg.id, msg: reply });
+        })
         .catch(() => post({ type: "reply", id: msg.id, msg: { t: "timeout", id: msg.id } }));
       lastSentAt = t0;
       const rec = { ...(msg as object), id: msg.id, at: t0 } as SentRecord;

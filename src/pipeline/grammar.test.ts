@@ -3,6 +3,7 @@ import { ACTIONS, STOPLIST } from "../actions";
 import {
   closestActions,
   fuzzyEligible,
+  fuzzyPick,
   fuzzyThreshold,
   keyterms,
   levenshtein,
@@ -105,28 +106,15 @@ describe("grammar (§6)", () => {
   });
 
   it("@P2a a fuzzy tie between two actions is no match", () => {
-    // Synthetic check of the tie rule using two equidistant phrases from the table:
-    // "lighter" (7) and "darker" (6) are both distance ≥ 2 from "liker"; find a real tie.
-    const fuzzy = ACTIONS.filter((a) => fuzzyEligible(a) && a.phase === "P2a").flatMap((a) =>
-      a.voicePhrases.filter((p) => p.length >= 5).map((p) => ({ p, id: a.id })),
-    );
-    // Build a string at distance 1 from two different phrases if one exists; otherwise assert
-    // the engine's tie handling on "zoom on" (distance 1 from "zoom in"; 2 from "zoom out").
-    let tieWord: string | null = null;
-    outer: for (const a of fuzzy) {
-      for (const b of fuzzy) {
-        if (a.id === b.id || a.p.length !== b.p.length) continue;
-        let diff = 0;
-        for (let i = 0; i < a.p.length; i++) if (a.p[i] !== b.p[i]) diff++;
-        if (diff === 2 && fuzzyThreshold(a.p) >= 1 && fuzzyThreshold(b.p) >= 1) {
-          const i = [...a.p].findIndex((c, k) => c !== b.p[k]);
-          tieWord = a.p.slice(0, i) + b.p[i] + a.p.slice(i + 1);
-          if (levenshtein(tieWord, a.p) === 1 && levenshtein(tieWord, b.p) === 1) break outer;
-          tieWord = null;
-        }
-      }
-    }
-    if (tieWord) expect(ids(tieWord)).toBeNull();
+    // The shipped table has no real tie (see the next test), so check the rule directly.
+    const cands = [
+      { phrase: "darker", id: "darker" },
+      { phrase: "danker", id: "other" },
+    ];
+    expect(fuzzyPick("dacker", cands)).toBe("tie");
+    expect(fuzzyPick("darkr", cands)).toEqual(cands[0]);
+    expect(fuzzyPick("darker", [cands[0], { phrase: "darker", id: "darker" }])).toEqual(cands[0]); // same action: not a tie
+    expect(fuzzyPick("xyzzy", cands)).toBeNull();
     expect(ids("zoom on")).toEqual(["zoom_in"]);
   });
 

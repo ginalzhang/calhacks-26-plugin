@@ -9,6 +9,8 @@
  *   - fake helper HTTP control on 127.0.0.1:18767 (docs/PROTOCOL.md)
  */
 import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 import type { Calibration, MirrorState, SteadyTestHooks } from "../../src/pipeline/types";
 
 /** Set by playwright.config.ts (28765/28767 when the app is not on http://localhost:3000). */
@@ -268,6 +270,15 @@ export async function waitForHelperOpen(page: Page, timeout = 15_000): Promise<M
   return waitForState(page, (s) => s.helper === "open", { timeout, what: "helper === 'open' (fake helper connected)" });
 }
 
+/** Switch the Worker's target to Krita via the Setup page's "Draw in Krita" tile (needs the helper open). */
+export async function targetKrita(page: Page): Promise<MirrorState> {
+  await openPanelPage(page, "Setup");
+  const t = tile(page, "Draw in Krita");
+  await expect(t, 'Setup page tile "Draw in Krita"').toBeEnabled({ timeout: 10_000 });
+  if ((await t.getAttribute("aria-pressed")) !== "true") await t.click();
+  return waitForState(page, (s) => s.target === "krita", { timeout: 5_000, what: "target === 'krita'" });
+}
+
 // ---------------------------------------------------------------------------
 // Window geometry: screen points ↔ client CSS px (100 % zoom)
 // ---------------------------------------------------------------------------
@@ -323,8 +334,14 @@ const PROBE = { A: { x: 260, y: 200 }, B: { x: 380, y: 200 }, C: { x: 380, y: 28
  * Loads replay "probe" with the given options and fits camera px → target units from the
  * pointer plateaus at stations A, B, C (lazy-brush lag corrected along the approach direction).
  */
-export async function fitMapping(page: Page, o: Omit<OpenOpts, "replay">): Promise<Mapping> {
-  await openSteady(page, { ...o, replay: "probe" });
+export async function fitMapping(
+  page: Page,
+  o: Omit<OpenOpts, "replay">,
+  prepare?: (page: Page) => Promise<unknown>,
+): Promise<Mapping> {
+  const replay = prepare ? await serveWithLead(page, "probe", 8) : "probe";
+  await openSteady(page, { ...o, replay });
+  if (prepare) await prepare(page);
   const plateaus: Array<{ x: number; y: number }> = [];
   let run: Array<{ x: number; y: number }> = [];
   let target: MirrorState["target"] = "canvas";
@@ -428,6 +445,30 @@ export function dwellAtFixture(at: { x: number; y: number }, { leadSeconds = 6, 
   for (let i = 1; i <= glide; i++) push(from.x + ((at.x - from.x) * i) / glide, from.y + ((at.y - from.y) * i) / glide);
   for (let i = 0; i < holdSeconds * fps; i++) push(at.x, at.y);
   return { format: "compact", name, fps, width: 640, height: 480, landmark: 5, handedness: "Right", loop: false, points: pts };
+}
+
+/**
+ * A committed fixture with `seconds` of slow wandering (never still) prepended, so a test has time to
+ * flip settings (e.g. "Draw in Krita") before the interesting part starts. Served as `<name>-lead`.
+ */
+export async function serveWithLead(page: Page, name: string, seconds = 6): Promise<string> {
+  const file = path.join(__dirname, "../fixtures/replay", `${name}.json`);
+  const f = JSON.parse(fs.readFileSync(file, "utf8")) as { points: Array<[number, number, number, number] | null> };
+  const first = f.points.find((p) => p !== null) ?? [0, 320, 240, 0.95];
+  const fps = 30;
+  const n = Math.round(seconds * fps);
+  const lead: Array<[number, number, number, number]> = [];
+  for (let i = 0; i < n; i++) {
+    // ease from a wandering offset back onto the fixture's first point (≤ ~30 px/s, never still)
+    const s = i / fps;
+    const k = 1 - i / n;
+    lead.push([Math.round((i * 1000) / fps), +(first[1] + k * 40 * Math.sin(2 * Math.PI * 0.2 * s)).toFixed(2), +(first[2] + k * 25 * Math.cos(2 * Math.PI * 0.15 * s)).toFixed(2), 0.95]);
+  }
+  const shift = Math.round((n * 1000) / fps);
+  const points = [...lead, ...f.points.map((p) => (p === null ? null : ([p[0] + shift, p[1], p[2], p[3]] as [number, number, number, number])))];
+  const out = `${name}-lead`;
+  await serveFixture(page, out, { ...f, name: out, points });
+  return out;
 }
 
 export async function serveFixture(page: Page, name: string, body: unknown): Promise<void> {

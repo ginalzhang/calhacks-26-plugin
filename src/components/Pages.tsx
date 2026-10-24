@@ -41,6 +41,7 @@ export interface PageCtx {
   // paint
   submitTyped: (text: string) => Promise<void>;
   skinHex: string | null;
+  eraserOn: boolean;
   // demo
   metrics: DemoMetrics;
   strokes: StrokeStore;
@@ -333,7 +334,7 @@ export function PaintPage({ ctx }: { ctx: PageCtx }) {
   return (
     <>
       <TypedBox ctx={ctx} />
-      <TileGrid page="paint" ctx={ctx} />
+      <TileGrid page="paint" ctx={ctx} pressedOf={(id) => (id === "eraser" ? ctx.eraserOn : false)} />
     </>
   );
 }

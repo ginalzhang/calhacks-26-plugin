@@ -45,11 +45,12 @@ While paused the helper refuses `down` (error `paused`) and honours `click` only
 | `hello` | `version, screen{w,h,scale}, accessibility, input_monitoring, krita, krita_running, krita_window_rect, paused` | on connect |
 | `krita_window_rect` | `rect \| null, frontmost` | every 1 s while Krita runs |
 | `hotkey` | `key: pen\|pause\|ptt_down\|ptt_up\|undo\|redo\|recenter\|other_hand\|latch` | global key pressed (consumed only while Krita or Chrome is frontmost) |
-| `krita_reply` | `ok, error?, via?, ...payload` | reply to `krita` |
+| `krita_reply` | `ok, error?, via?, ...payload` | reply to `krita`; helper-side errors `plugin_down`, `timeout`, `internal: …` |
 | `error` | `code, which?, message?` | permission missing (`which: accessibility\|input_monitoring`), bad message, refused action |
 | `krita_state` | `connected` | plugin socket up/down |
 | `pong` | — | reply to `ping` |
-| `ack` | `ok, error?` | reply to `keys`, `click`, `pause`, `resume` |
+| `ack` | `ok, error?` | reply to `keys`, `click`, `pause`, `resume`. `keys` errors: `krita_not_running`, `krita_not_frontmost` (posted nothing), `bad_combo`, `permission` |
+| `warning` | `code, message` | once after `hello` per active warning: `dwell_control`, `head_pointer`, `voice_control`, `tablet`, `overlay_disabled`; shown in Steady's status line |
 
 The **Worker** handles `hotkey` `pen`, `pause`, `latch`, `recenter`, `ptt_down` (lifts the pen) itself and
 also forwards every helper message to the page (`{type:"helper", msg}`) for UI, undo/redo and the mic.

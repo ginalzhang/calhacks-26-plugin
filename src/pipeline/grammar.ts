@@ -159,25 +159,33 @@ interface Segment {
   fuzzy: boolean;
 }
 
+/**
+ * Fuzzy pick of one window among candidate phrases: the closest phrase within its threshold;
+ * two different actions at the same best distance = "tie" (no match).
+ */
+export function fuzzyPick<E extends { phrase: string; id: string }>(window: string, candidates: E[]): E | "tie" | null {
+  let best = Infinity;
+  let hits: E[] = [];
+  for (const e of candidates) {
+    const d = levenshtein(window, e.phrase);
+    if (d > fuzzyThreshold(e.phrase)) continue;
+    if (d < best) {
+      best = d;
+      hits = [e];
+    } else if (d === best) hits.push(e);
+  }
+  if (hits.length === 0) return null;
+  return new Set(hits.map((h) => h.id)).size > 1 ? "tie" : hits[0];
+}
+
 function fuzzyAt(tokens: string[], i: number, table: PhraseEntry[], maxWords: number): { entry: PhraseEntry; k: number } | "tie" | null {
+  const cands = table.filter((e) => e.fuzzy).map((e) => ({ phrase: e.phrase, id: e.action.id, e }));
   for (let k = Math.min(maxWords, tokens.length - i); k >= 1; k--) {
     const window = tokens.slice(i, i + k).join(" ");
     if (window.length < 3) continue;
-    let best = Infinity;
-    let hits: PhraseEntry[] = [];
-    for (const e of table) {
-      if (!e.fuzzy) continue;
-      const d = levenshtein(window, e.phrase);
-      if (d > fuzzyThreshold(e.phrase)) continue;
-      if (d < best) {
-        best = d;
-        hits = [e];
-      } else if (d === best) hits.push(e);
-    }
-    if (hits.length === 0) continue;
-    const ids = new Set(hits.map((h) => h.action.id));
-    if (ids.size > 1) return "tie";
-    return { entry: hits[0], k };
+    const r = fuzzyPick(window, cands);
+    if (r === "tie") return "tie";
+    if (r) return { entry: r.e, k };
   }
   return null;
 }
