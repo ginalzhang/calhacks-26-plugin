@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { setCalibrating } from "./pipeline";
+import { forceLift, setCalibrating } from "./pipeline";
 import { Driver, TEST_CAL } from "./pipelineDriver";
 import { clickZone } from "./dwell";
 
@@ -92,5 +92,25 @@ describe("R4: pen-down presses exactly where the down is reported", () => {
     const i = ev.findIndex((e) => e.type === "down");
     expect(i).toBeGreaterThan(0);
     expect(ev[i - 1]).toEqual({ type: "move", x: ev[i].x, y: ev[i].y });
+  });
+});
+
+describe("force_lift", () => {
+  it("@P1 force_lift lifts immediately with the given reason, even < 80 ms after down", () => {
+    const d = new Driver();
+    d.hold(C, 600);
+    d.action("pen_toggle");
+    const ev = d.action("force_lift", { variant: "socket" });
+    expect(ev).toHaveLength(1);
+    expect(ev[0].type === "up" && ev[0].reason).toBe("socket");
+    expect(d.pl.snapshot().pen).toBe("HOVER");
+    d.hold(C, 100);
+    d.action("pen_toggle");
+    const ev2 = forceLift(d.pl, "pen_key", d.t); // a user reason, still not guarded
+    expect(ev2[0].type === "up" && ev2[0].reason).toBe("pen_key");
+    expect(forceLift(d.pl, "socket", d.t)).toEqual([]); // already up: nothing
+    d.action("pen_toggle");
+    const ev3 = d.action("force_lift", { variant: "bogus" });
+    expect(ev3[0].type === "up" && ev3[0].reason).toBe("socket"); // unknown reason → "socket"
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Public entry points of the pointer pipeline (agent A). Pure modules: no DOM, no React.
  */
-export { createPipeline, modeState, panState, setCalibrating, SMOOTHING_PRESETS, type ModeState, type PipelineOptions } from "./pipeline";
+export { createPipeline, modeState, panState, setCalibrating, forceLift, SMOOTHING_PRESETS, type ModeState, type PipelineOptions } from "./pipeline";
 export { createCalibrator, mirrorCalibration, STEP_MS, STEP_PROMPTS, type CalibratorOptions } from "./calibration";
 export {
   parseCommand,

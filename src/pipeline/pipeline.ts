@@ -74,6 +74,10 @@ const TRAIL_MS = 3000;
 const DEVIATION_HALF_WINDOW_MS = 100;
 const STEADIER_DEBOUNCE_MS = 1000;
 const USER_LIFTS: LiftReason[] = ["dwell", "pen_key", "voice", "eyebrow"];
+const FORCE_LIFT_REASONS: LiftReason[] = [
+  "dwell", "pen_key", "voice", "pause", "tracking_lost", "left_canvas", "ptt",
+  "hatch_pass", "dash", "mode_change", "socket", "eyebrow",
+];
 
 export interface PipelineOptions {
   /** Build phase for phase-gated behaviour (dwell-click in Krita's window from P2a). Default BUILD_PHASE. */
@@ -324,9 +328,9 @@ class SteadyPipeline implements Pipeline {
     return true;
   }
 
-  private lift(t: number, reason: LiftReason, events: PenEvent[], at?: Vec2 | null): boolean {
+  private lift(t: number, reason: LiftReason, events: PenEvent[], at?: Vec2 | null, force = false): boolean {
     if (this.pen !== "DRAWING") return false;
-    if (USER_LIFTS.includes(reason) && t - this.downT < IGNORE_LIFT_AFTER_DOWN_MS) return false;
+    if (!force && USER_LIFTS.includes(reason) && t - this.downT < IGNORE_LIFT_AFTER_DOWN_MS) return false;
     const p = at ?? this.lastEmitted ?? this.lastPre ?? { x: 0, y: 0 };
     let buttonDown = true;
     if (this.hatch.isActive) {
@@ -687,6 +691,13 @@ class SteadyPipeline implements Pipeline {
         this.applySteadinessIfIdle();
         break;
       }
+      case "force_lift": {
+        // Safety lift with a caller-given reason (e.g. "socket" when the helper refused a down
+        // or reported a release): always immediate, never subject to the 80 ms guard.
+        const reason = (FORCE_LIFT_REASONS as string[]).includes(opts.variant ?? "") ? (opts.variant as LiftReason) : "socket";
+        this.lift(t, reason, events, undefined, true);
+        break;
+      }
       case "eyebrow_raise":
         // Eyebrow pen-up (P4): can only lift, never lower.
         this.lift(t, "eyebrow", events);
@@ -991,6 +1002,11 @@ export function modeState(p: Pipeline): ModeState | null {
  */
 export function setCalibrating(p: Pipeline, on: boolean): void {
   if (p instanceof SteadyPipeline) p.setCalibrating(on);
+}
+
+/** Always-immediate safety lift with the given reason (skips the 80 ms guard). Same as action("force_lift", t, { variant: reason }). */
+export function forceLift(p: Pipeline, reason: LiftReason, t: number): PenEvent[] {
+  return p.action("force_lift", t, { variant: reason });
 }
 
 /** Pan helper for the Worker: true when the last returned events must use the MIDDLE button. */
