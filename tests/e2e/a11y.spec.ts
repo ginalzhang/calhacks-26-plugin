@@ -11,7 +11,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, note, openSteady, pageTab } from "./helpers";
 
 const GATE = process.env.AXE_GATE === "1";
-const PAGES = ["Steady", "Setup", "Timing", "Demo", "Paint", "Colour", "View", "Layers"];
+const PAGES = ["Steady", "Modes", "Setup", "Input", "Timing", "Krita", "Demo", "Paint", "Colour", "View", "Layers"];
 const ZOOMS: Array<{ label: string; viewport: { width: number; height: number }; dsf: number }> = [
   { label: "100%", viewport: { width: 320, height: 900 }, dsf: 1 },
   { label: "200%", viewport: { width: 160, height: 450 }, dsf: 2 },

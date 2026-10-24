@@ -6,7 +6,7 @@ import { test } from "@playwright/test";
 import {
   expect,
   fakeHelper,
-  openPanelPage,
+  findTile,
   openSteady,
   state,
   statusText,
@@ -22,8 +22,7 @@ const ALIASES_KEY = "steady.aliases.v1";
 test.describe("P2b without a helper", () => {
   test("@P2b Hatch tile toggles Hatch and the status says 'Hatch: forward passes only'", async ({ page }) => {
     await openSteady(page, { replay: "rest-still", helper: "off" });
-    await openPanelPage(page, "Steady");
-    const hatch = tile(page, "Hatch");
+    const hatch = await findTile(page, "Hatch");
     await expect(hatch).toBeEnabled();
     await expect(hatch).toHaveAttribute("aria-pressed", "false");
     await hatch.click();
@@ -38,8 +37,7 @@ test.describe("P2b without a helper", () => {
 
   test("@P2b quiet mode turns the Mic off", async ({ page }) => {
     await openSteady(page, { replay: "rest-still", helper: "off" });
-    await openPanelPage(page, "Steady");
-    const quiet = tile(page, "Quiet");
+    const quiet = await findTile(page, "Quiet");
     await expect(quiet).toBeEnabled();
     await quiet.click();
     await expect(quiet).toHaveAttribute("aria-pressed", "true");
@@ -111,8 +109,7 @@ test.describe("P2b with the fake helper", () => {
     await waitForHelperOpen(page);
     await fakeHelper.send({ t: "krita_state", connected: true });
     await page.waitForTimeout(800);
-    await openPanelPage(page, "Layers");
-    const del = tile(page, "Delete layer");
+    const del = await findTile(page, "Delete layer");
     await expect(del).toBeEnabled();
     await del.click();
     const dialog = page.getByRole("alertdialog");

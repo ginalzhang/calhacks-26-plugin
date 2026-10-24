@@ -55,17 +55,22 @@ export const SEED_CALIBRATION: Calibration = {
   createdAt: 1761340000000,
 };
 
+/** B's first-run privacy flag (src/components/persist.ts B_KEYS.privacySeen). The Worker waits for it before connecting to the helper. */
+export const PRIVACY_SEEN_KEY = "steady.privacySeen.v1";
+
 export async function seedCalibration(page: Page, cal: Calibration | null = SEED_CALIBRATION): Promise<void> {
   await page.addInitScript(
-    ([key, value]) => {
+    ([key, value, privacyKey]) => {
       try {
         if (value === null) window.localStorage.clear();
         else window.localStorage.setItem(key as string, value as string);
+        // Acknowledge the first-run privacy screen (tests that check the screen itself clear this).
+        window.localStorage.setItem(privacyKey as string, "true");
       } catch {
         /* storage unavailable */
       }
     },
-    [CALIBRATION_KEY, cal === null ? null : JSON.stringify({ Right: cal, Left: { ...cal, handedness: "Left" } })],
+    [CALIBRATION_KEY, cal === null ? null : JSON.stringify({ Right: cal, Left: { ...cal, handedness: "Left" } }), PRIVACY_SEEN_KEY],
   );
 }
 
@@ -75,6 +80,8 @@ export async function openSteady(page: Page, o: OpenOpts): Promise<void> {
   else await seedCalibration(page, null);
   await page.goto(steadyUrl(o));
   await waitForHooks(page);
+  const gotIt = page.getByRole("button", { name: "Got it", exact: true });
+  if (await gotIt.isVisible().catch(() => false)) await gotIt.click();
   if (o.calibrated !== false) {
     // "Next launch offers Use last setup" (§2): it lives on the Setup page.
     let useLast = page.getByRole("button", { name: /use last setup/i });
@@ -157,6 +164,24 @@ export function summary(s: MirrorState | null): unknown {
 /** A tile by its actions.ts label. */
 export function tile(page: Page, label: string | RegExp): Locator {
   return page.getByRole("button", { name: label, exact: typeof label === "string" });
+}
+
+const ALL_PAGES = ["Steady", "Modes", "Setup", "Input", "Timing", "Krita", "Demo", "Paint", "Colour", "View", "Layers"];
+
+/**
+ * A tile wherever it lives: if it is not visible on the current page, visit each page tab until it is.
+ * Pages get reshuffled as the panel grows; tests address tiles by their action label, not by page.
+ */
+export async function findTile(page: Page, label: string): Promise<Locator> {
+  const t = tile(page, label);
+  if (await t.isVisible().catch(() => false)) return t;
+  for (const name of ALL_PAGES) {
+    const tab = await pageTab(page, name);
+    if (!tab) continue;
+    await tab.click();
+    if (await t.isVisible().catch(() => false)) return t;
+  }
+  throw new Error(`MISSING UI: no visible tile named "${label}" on any page (${ALL_PAGES.join(", ")}).`);
 }
 
 /** A page tab ("Steady", "Setup", …). Tabs may be role=tab or buttons. */

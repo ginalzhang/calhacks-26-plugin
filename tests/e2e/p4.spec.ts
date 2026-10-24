@@ -6,6 +6,7 @@ import { test } from "@playwright/test";
 import {
   expect,
   fakeHelper,
+  findTile,
   openPanelPage,
   openSteady,
   state,
@@ -35,8 +36,7 @@ test.describe("P4 without a helper", () => {
   test("@P4 hand preset tiles set the documented values", async ({ page }) => {
     await openSteady(page, { replay: "rest-still", helper: "off" });
     for (const p of PRESETS) {
-      await openPanelPage(page, "Steady");
-      const t = tile(page, p.label);
+      const t = await findTile(page, p.label);
       await expect(t, `"${p.label}" tile enabled (P4)`).toBeEnabled({ timeout: 3_000 });
       await t.click();
       await expect.poll(async () => (await state(page)).steadiness, { message: `${p.label}: Steadiness` }).toBe(p.steadiness);
@@ -52,13 +52,11 @@ test.describe("P4 without a helper", () => {
 
   test("@P4 profile save / use round-trip", async ({ page }) => {
     await openSteady(page, { replay: "rest-still", helper: "off" });
-    await openPanelPage(page, "Steady");
-    await tile(page, "Steadiness down").click(); // 50 → 45
+    await (await findTile(page, "Steadiness down")).click(); // 50 → 45
     await expect.poll(async () => (await state(page)).steadiness).toBe(45);
     await typeCommand(page, "save profile evening");
     await expect.poll(() => statusText(page)).toMatch(/evening/i);
-    await openPanelPage(page, "Steady");
-    await tile(page, "Steadiness up").click();
+    await (await findTile(page, "Steadiness up")).click();
     await tile(page, "Steadiness up").click(); // → 55
     await expect.poll(async () => (await state(page)).steadiness).toBe(55);
     await typeCommand(page, "profile evening");
@@ -88,8 +86,7 @@ test.describe("P4 with the fake helper", () => {
     await waitForHelperOpen(page);
     await fakeHelper.send({ t: "krita_state", connected: true });
     await page.waitForTimeout(800);
-    await openPanelPage(page, "View");
-    const show = tile(page, "Show numbers");
+    const show = await findTile(page, "Show numbers");
     await expect(show).toBeEnabled({ timeout: 3_000 });
     await show.click();
     let numbers: HelperMsg | undefined;

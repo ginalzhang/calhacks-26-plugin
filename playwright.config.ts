@@ -6,8 +6,9 @@
  *
  * Env:
  *   STEADY_PORT    port of this checkout's app (sets BASE_URL=http://localhost:$STEADY_PORT)
- *   BASE_URL       default: this repo's own running `next dev` (found via lsof), else
- *                  http://localhost:3000 if free, else http://localhost:3100 (started here)
+ *   BASE_URL       default: this checkout's own `next dev` started with NEXT_PUBLIC_STEADY_TEST=1 (found
+ *                  via lsof + ps), else http://localhost:3000 if free, else the first free port from 3100
+ *                  (started here with NEXT_PUBLIC_STEADY_TEST=1)
  *   FAKE_WS_PORT / FAKE_HTTP_PORT  fake helper ports (default 18765/18767; 28765/28767 when the
  *                  app is not on :3000; the fake helper is then started with `--origin <BASE_URL origin>`)
  *   PW_OUTPUT_DIR  artifacts dir (default test-results; demo-check.sh uses a private one)
@@ -23,10 +24,13 @@ import path from "node:path";
 
 const root = __dirname;
 
-/** Port of a `next dev` already serving THIS checkout, or null. Another checkout on :3000 must not be reused. */
-function ownServerPort(): { own: number | null; foreignOn3000: boolean } {
-  let own: number | null = null;
-  let foreignOn3000 = false;
+/**
+ * Listening servers on 3000–3199: port → whether it is THIS checkout's `next dev` started with
+ * NEXT_PUBLIC_STEADY_TEST=1 (the only kind the tests may reuse: without the flag the page ignores
+ * source=replay / helper= / target= URL params).
+ */
+function scanPorts(): Map<number, { ownTestServer: boolean }> {
+  const ports = new Map<number, { ownTestServer: boolean }>();
   try {
     const out = execSync("lsof -nP -iTCP -sTCP:LISTEN -Fpn", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
     let pid = "";
@@ -36,29 +40,36 @@ function ownServerPort(): { own: number | null; foreignOn3000: boolean } {
         const port = Number(line.split(":").pop());
         if (!(port >= 3000 && port < 3200)) continue;
         let cwd = "";
+        let env = "";
         try {
-          cwd = execSync(`lsof -a -p ${pid} -d cwd -Fn`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+          cwd = (execSync(`lsof -a -p ${pid} -d cwd -Fn`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
             .split("\n")
-            .find((l) => l.startsWith("n"))!
-            .slice(1);
+            .find((l) => l.startsWith("n")) ?? "n").slice(1);
+          env = execSync(`ps eww -p ${pid}`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
         } catch {
           /* ignore */
         }
-        if (cwd === root) own = own ?? port;
-        else if (port === 3000) foreignOn3000 = true;
+        const ownTestServer = cwd === root && /\bNEXT_PUBLIC_STEADY_TEST=1\b/.test(env);
+        const prev = ports.get(port);
+        ports.set(port, { ownTestServer: ownTestServer || !!prev?.ownTestServer });
       }
     }
   } catch {
     /* lsof unavailable: fall back to defaults */
   }
-  return { own, foreignOn3000 };
+  return ports;
+}
+
+function pickBaseUrl(): string {
+  const ports = scanPorts();
+  for (const [p, info] of ports) if (info.ownTestServer) return `http://localhost:${p}`;
+  if (!ports.has(3000)) return "http://localhost:3000";
+  for (let p = 3100; p < 3200; p++) if (!ports.has(p)) return `http://localhost:${p}`;
+  return "http://localhost:3100";
 }
 
 if (!process.env.BASE_URL && process.env.STEADY_PORT) process.env.BASE_URL = `http://localhost:${process.env.STEADY_PORT}`;
-const found = process.env.BASE_URL ? { own: null, foreignOn3000: false } : ownServerPort();
-const BASE_URL =
-  process.env.BASE_URL ??
-  (found.own ? `http://localhost:${found.own}` : found.foreignOn3000 ? "http://localhost:3100" : "http://localhost:3000");
+const BASE_URL = process.env.BASE_URL ?? pickBaseUrl();
 process.env.BASE_URL = BASE_URL;
 const appOrigin = new URL(BASE_URL).origin;
 const port = Number(new URL(BASE_URL).port || 80);
@@ -75,11 +86,17 @@ const fakeHelperCmd =
   `${python} scripts/fake_helper.py --ws-port ${FAKE_WS_PORT} --http-port ${FAKE_HTTP_PORT}` +
   (onDefaultOrigin ? "" : ` --origin ${appOrigin}`);
 
+function cleanEnv(): Record<string, string> {
+  return Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => typeof e[1] === "string"));
+}
+
 type WebServer = NonNullable<Parameters<typeof defineConfig>[0]["webServer"]>;
 const webServer: WebServer = [];
 if (!process.env.NO_WEBSERVER) {
   webServer.push({
+    // The page honours source=replay / helper= / target= only in test builds (R1 safety fix).
     command: `npx next dev -p ${port}`,
+    env: { ...cleanEnv(), NEXT_PUBLIC_STEADY_TEST: "1" },
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 180_000,

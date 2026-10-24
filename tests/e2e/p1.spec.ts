@@ -14,6 +14,7 @@ import {
   cameraPointForClient,
   dwellAtFixture,
   expect,
+  FAKE_HELPER_WS,
   fakeHelper,
   fitMapping,
   note,
@@ -106,6 +107,21 @@ test.describe("P1 with the fake helper", () => {
     expect(maxJump, "largest move-to-move jump while the button is down (points)").toBeLessThan(40);
     // The pen is up in the mirror after loss and stays up after re-acquire.
     expect((await state(page)).pen).toBe("HOVER");
+  });
+
+  test("@P1 with the privacy screen pending the Worker sends nothing to the helper; 'Got it' connects", async ({ page }) => {
+    await page.goto(
+      `/?${new URLSearchParams({ source: "replay", replay: "wander", helper: FAKE_HELPER_WS, privacy: "pending" }).toString()}`,
+    );
+    const gotIt = page.getByRole("button", { name: "Got it", exact: true });
+    await expect(gotIt, "first-run privacy screen shown").toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Camera frames never leave this computer/).first()).toBeVisible();
+    await page.waitForTimeout(3000);
+    expect(await fakeHelper.messages(), "nothing reaches the helper before the privacy screen is acknowledged").toEqual([]);
+    expect((await state(page)).helper).not.toBe("open");
+    await gotIt.click();
+    await waitForHelperOpen(page);
+    await expect.poll(async () => (await fakeHelper.messages()).length, { timeout: 5_000 }).toBeGreaterThan(0);
   });
 
   test("@P1 with the fake helper connected the page ignores F-keys; helper hotkeys work", async ({ page }) => {

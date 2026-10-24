@@ -20,7 +20,7 @@ cd "$(dirname "$0")/.."
 
 arg="${1:-}"
 case "$arg" in
-  P0|0) N=P0 ;; P1|1) N=P1 ;; P2a|2a|p2a) N=P2a ;; P2b|2b|p2b) N=P2b ;; P3|3) N=P3 ;;
+  P0|0) N=P0 ;; P1|1) N=P1 ;; P2a|2a|p2a) N=P2a ;; P2b|2b|p2b) N=P2b ;; P3|3) N=P3 ;; P4|4) N=P4 ;;
   *) echo "usage: scripts/demo-check.sh P0|P1|P2a|P2b|P3|P4   (or 0|1|2a|2b|3|4)" >&2; exit 2 ;;
 esac
 
@@ -30,20 +30,10 @@ for p in "${ALL[@]}"; do TAGS+=("$p"); [ "$p" = "$N" ] && break; done
 GREP=$(printf '@%s|' "${TAGS[@]}"); GREP="${GREP%|}"           # @P0|@P1
 PYM=$(printf '%s or ' "${TAGS[@]}"); PYM="${PYM% or }"          # P0 or P1
 
-# Port: STEADY_PORT (default 3000). If :3000 is held by something that is not THIS checkout (e.g. another
-# workspace's Next server), use 3100. playwright.config.ts starts/reuses the app there and starts the fake
-# helper with its allowed Origin set to match.
-if [ -z "${STEADY_PORT:-}" ] && [ -z "${BASE_URL:-}" ]; then
-  STEADY_PORT=3000
-  pid3000=$(lsof -nP -iTCP:3000 -sTCP:LISTEN -t 2>/dev/null | head -1)
-  if [ -n "$pid3000" ]; then
-    cwd3000=$(lsof -a -p "$pid3000" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
-    if [ "$cwd3000" != "$PWD" ]; then
-      echo "port 3000 is held by another app ($cwd3000); using 3100"
-      STEADY_PORT=3100
-    fi
-  fi
-fi
+# Port: STEADY_PORT/BASE_URL if set; otherwise playwright.config.ts picks one: this checkout's own dev
+# server only if it runs with NEXT_PUBLIC_STEADY_TEST=1 (test URL params are ignored otherwise), else :3000
+# if free, else the first free port from 3100, and starts `next dev` there with NEXT_PUBLIC_STEADY_TEST=1.
+# A non-3000 origin is passed to the fake helper with --origin.
 [ -n "${STEADY_PORT:-}" ] && export STEADY_PORT
 
 OUT=$(mktemp -d "${TMPDIR:-/tmp}/steady-demo-check.XXXXXX")
@@ -202,6 +192,7 @@ const DOD = {
     ["Show numbers → helper `numbers {items}`; \"click 1\" clicks the item centre", [pw(/Show numbers sends a numbers message/)]],
     ["App profile Photoshop: typed \"undo\" sends keys cmd+z, not krita", [pw(/app profile Photoshop/)]],
     ["Presets, profiles, re-baseline, head mode, eyebrow detector (every @P4 Vitest)", [allOf("vitest", "P4")]],
+    ["New pages Modes, Input, Krita fit 320×900 at 100 %", [pw(/@P4 page "(Modes|Input|Krita)" fits/)]],
     ["Every @P4 Playwright", [allOf("playwright", "P4")]],
     ["Every pytest ≤ P4 (helper numbers badges, Photoshop map, plugin list_widgets)", [allOf("pytest", "*")]],
     ["Real face: Head mode moves the pointer with the nose; gain 6× feels usable", "human"],
