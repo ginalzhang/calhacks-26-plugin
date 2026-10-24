@@ -106,7 +106,6 @@ export function SteadyPage({ ctx }: { ctx: PageCtx }) {
         format={(v) => String(v)}
         onChange={(v) => ctx.update({ steadiness: v })}
       />
-      <Grid ids={PAGE_LAYOUT.presets} ctx={ctx} cols={2} />
       <Grid
         ids={PAGE_LAYOUT.steady}
         ctx={ctx}
@@ -114,6 +113,17 @@ export function SteadyPage({ ctx }: { ctx: PageCtx }) {
           id === "dots" ? mode === "dots" : id === "hatch" ? mode === "hatch" || mode === "hatch_alternate" : id === "quiet" ? ctx.settings.quiet : false
         }
       />
+    </>
+  );
+}
+
+// ----------------------------------------------------------------------------- Presets
+/** Hand presets (§2, exact names). Own page since the Steady page overflowed 320 × 900 with them. */
+export function PresetsPage({ ctx }: { ctx: PageCtx }) {
+  return (
+    <>
+      <Grid ids={PAGE_LAYOUT.presets} ctx={ctx} cols={2} />
+      <p className="note">Each preset sets Steadiness, gain, hold times and Latch for how your hand is today. Change any slider afterwards.</p>
     </>
   );
 }

@@ -166,7 +166,7 @@ export function tile(page: Page, label: string | RegExp): Locator {
   return page.getByRole("button", { name: label, exact: typeof label === "string" });
 }
 
-const ALL_PAGES = ["Steady", "Modes", "Setup", "Input", "Timing", "Krita", "Demo", "Paint", "Colour", "View", "Layers"];
+const ALL_PAGES = ["Steady", "Presets", "Modes", "Setup", "Input", "Timing", "Krita", "Demo", "Paint", "Colour", "View", "Layers"];
 
 /**
  * A tile wherever it lives: if it is not visible on the current page, visit each page tab until it is.

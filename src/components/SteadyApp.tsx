@@ -57,6 +57,7 @@ import {
   SetupPage,
   LayersPage,
   ModesPage,
+  PresetsPage,
   InputPage,
   KritaPage,
   type UiSettings,
@@ -102,11 +103,12 @@ export const PRIVACY_TEXT =
 export const COACHING_TEXT =
   "Let your fingers curl loosely. Move from the elbow and shoulder; let the forearm slide; keep the wrist straight.";
 
-type UiPage = PageId | "modes" | "input" | "krita";
+type UiPage = PageId | "modes" | "input" | "krita" | "presets";
 
 /** Tabs, 4 per row. P4 added Modes / Input / Krita so every page still fits 320 × 900. */
 const PAGES: Array<{ id: UiPage; label: string; demoOnly?: boolean }> = [
   { id: "steady", label: "Steady" },
+  { id: "presets", label: "Presets" },
   { id: "modes", label: "Modes" },
   { id: "setup", label: "Setup" },
   { id: "input", label: "Input" },
@@ -1533,6 +1535,7 @@ export default function SteadyApp() {
           {page === "view" && <ViewPage ctx={ctx} />}
           {page === "layers" && <LayersPage ctx={ctx} />}
           {page === "modes" && <ModesPage ctx={ctx} />}
+          {page === "presets" && <PresetsPage ctx={ctx} />}
           {page === "input" && <InputPage ctx={ctx} />}
           {page === "krita" && <KritaPage ctx={ctx} />}
         </section>

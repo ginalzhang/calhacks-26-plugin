@@ -140,6 +140,7 @@ const PAGES: Array<[string, string]> = [
   ["View", "@P2a"],
   ["Layers", "@P2a"],
   // Added in the P4 page reshuffle (B): Gain/Mark corners/App → Krita; input toggles/Pointer point/Head mode → Input; hatch options → Modes.
+  ["Presets", "@P4"],
   ["Modes", "@P4"],
   ["Input", "@P4"],
   ["Krita", "@P4"],
