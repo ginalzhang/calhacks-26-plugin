@@ -174,3 +174,6 @@ errors into DECISIONS.md. Tags in brackets say which agent wrote the item (A–G
 
 ## Agent D
 9. **(P4) Numbered widgets line up:** after enlarging the toolbox icons (scripts/krita-setup.md §6), run `echo '{"id":"w1","cmd":"list_widgets"}' | nc -w 2 127.0.0.1 8766`. Check that number 1… follow reading order, that each toolbox button's `rect` sits exactly on that button on screen (hover its top-left corner and compare with the pointer's screen position), that labels are readable tool names (not object names like `KritaShape/...`), that hidden/collapsed dockers contribute nothing, and whether palette swatches (`KisPaletteView`) and preset-docker cells (`KisResourceItemListView`) appear. Note any class names that don't show up in DECISIONS.md.
+9. **(round 3) Head mode on a real face:** Input › Head mode: the pointer follows the nose tip (gain 6×). Eyebrow lift: raising the eyebrows while drawing lifts the pen and never lowers it.
+10. **(round 3) Numbers over Krita:** View › Show numbers draws badges over Krita's buttons (helper overlay); "click 3" clicks the third; moving Krita's window hides them.
+11. **(round 3) Page fit at 320×900** was computed, not measured, this round (B ran no Playwright): F's page-fit spec should cover the new Modes / Input / Krita pages.

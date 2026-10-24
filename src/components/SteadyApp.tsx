@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACTIONS, ACTIONS_BY_ID, COLOUR_HEX, DEFAULT_KEYS, type Action, type PageId } from "../actions";
 import { HELPER_URL } from "../desktop/protocol";
-import { CAMERA_W, STORAGE_KEYS } from "../pipeline/types";
+import { CAMERA_W, MENU_BAR_PT, STORAGE_KEYS } from "../pipeline/types";
 import type {
   Calibration,
   CommandContext,
@@ -21,9 +21,19 @@ import type {
 import { feedWorker, defaultMirrorFor, listCameras, openCamera, pickDefaultCamera, type CameraInfo } from "../tracking/camera";
 import { WorkerBridge, type SendMsg } from "../tracking/workerBridge";
 import { WORKER_EVENTS_CHANNEL, type WorkerEvent } from "../tracking/sentChannel";
-import { buildLookups, kritaMessageFor } from "../desktop/krita";
+import { buildLookups } from "../desktop/krita";
+import { appMessageFor } from "../desktop/apps";
 import { validateAlias } from "../pipeline/grammar";
 import { mirrorCalibration } from "../pipeline/calibration";
+import { handPresetSettings, isHandPreset } from "../pipeline/presets";
+import {
+  defaultProfileStore,
+  parseProfiles,
+  saveProfile as saveProfileIn,
+  serializeProfiles,
+  useProfile as profileFromStore,
+  type ProfileStore,
+} from "../pipeline/profiles";
 import {
   MicTile,
   markLastClaudeRejected,
@@ -45,7 +55,12 @@ import {
   DemoPage,
   PaintPage,
   SetupPage,
-  SimplePage,
+  LayersPage,
+  ModesPage,
+  InputPage,
+  KritaPage,
+  type UiSettings,
+  type NumberItem,
   SteadyPage,
   TimingPage,
   ViewPage,
@@ -87,15 +102,21 @@ export const PRIVACY_TEXT =
 export const COACHING_TEXT =
   "Let your fingers curl loosely. Move from the elbow and shoulder; let the forearm slide; keep the wrist straight.";
 
-const PAGES: Array<{ id: PageId; label: string; demoOnly?: boolean }> = [
+type UiPage = PageId | "modes" | "input" | "krita";
+
+/** Tabs, 4 per row. P4 added Modes / Input / Krita so every page still fits 320 × 900. */
+const PAGES: Array<{ id: UiPage; label: string; demoOnly?: boolean }> = [
   { id: "steady", label: "Steady" },
+  { id: "modes", label: "Modes" },
   { id: "setup", label: "Setup" },
+  { id: "input", label: "Input" },
   { id: "timing", label: "Timing" },
-  { id: "demo", label: "Demo", demoOnly: true },
+  { id: "krita", label: "Krita" },
   { id: "paint", label: "Paint" },
   { id: "colour", label: "Colour" },
   { id: "view", label: "View" },
   { id: "layers", label: "Layers" },
+  { id: "demo", label: "Demo", demoOnly: true },
 ];
 
 /** Actions the Worker's pipeline runs (pen state, pause, latch, recenter, stroke modes). */
@@ -127,6 +148,47 @@ const WORKER_ACTIONS = new Set([
 
 const STEADIER_DEBOUNCE_MS = 1000;
 const BREAK_EVERY_MS = 20 * 60 * 1000;
+
+const TIPS_KEY = "steady.tipsShown.v1";
+function tipShown(id: string): boolean {
+  try {
+    return (JSON.parse(localStorage.getItem(TIPS_KEY) ?? "[]") as string[]).includes(id);
+  } catch {
+    return false;
+  }
+}
+function markTipShown(id: string) {
+  try {
+    const all = JSON.parse(localStorage.getItem(TIPS_KEY) ?? "[]") as string[];
+    localStorage.setItem(TIPS_KEY, JSON.stringify([...all, id]));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * The button under (x, y), or — with a hover tolerance (Hard to hold still: 40 px) — the nearest enabled
+ * button whose rectangle is within `tolPx` of the point.
+ */
+function buttonNear(x: number, y: number, tolPx: number): HTMLButtonElement | null {
+  const hit = document.elementFromPoint(x, y)?.closest("button") as HTMLButtonElement | null;
+  if (hit || !tolPx) return hit;
+  const scope: ParentNode = document.querySelector("[role=alertdialog], [role=dialog]") ?? document;
+  let best: HTMLButtonElement | null = null;
+  let bestD = Infinity;
+  for (const b of Array.from(scope.querySelectorAll<HTMLButtonElement>("button:not([disabled])"))) {
+    const r = b.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const dx = Math.max(r.left - x, 0, x - r.right);
+    const dy = Math.max(r.top - y, 0, y - r.bottom);
+    const dd = Math.hypot(dx, dy);
+    if (dd <= tolPx && dd < bestD) {
+      best = b;
+      bestD = dd;
+    }
+  }
+  return best;
+}
 
 function loadAliases(): Record<string, string> {
   try {
@@ -183,7 +245,7 @@ function isFormTarget(t: EventTarget | null) {
 
 export default function SteadyApp() {
   const params = useMemo(readParams, []);
-  const [settings, setSettings] = useState<SteadySettings>(loadSettings);
+  const [settings, setSettings] = useState<UiSettings>(() => loadSettings() as UiSettings);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -191,7 +253,7 @@ export default function SteadyApp() {
   const mirrorRef = useRef<MirrorState | null>(null);
   const frameRef = useRef<PipelineOutput | null>(null);
   const [mirror, setMirror] = useState<MirrorState | null>(null);
-  const [page, setPage] = useState<PageId>(params.demo ? "demo" : "steady");
+  const [page, setPage] = useState<UiPage>(params.demo ? "demo" : "steady");
   const [status, setStatus] = useState<string>("Starting…");
   const [alert, setAlert] = useState<string>("");
   const [lastUndo, setLastUndo] = useState<string | null>(null);
@@ -300,15 +362,22 @@ export default function SteadyApp() {
     }
   }, []);
   const lastLocalSteadyRef = useRef(0);
+  const lastLocalLatchRef = useRef(0);
+  const [profileStore, setProfileStore] = useState<ProfileStore>(defaultProfileStore);
+  const profileStoreRef = useRef(profileStore);
+  const [numbers, setNumbers] = useState<NumberItem[] | null>(null);
+  const numbersRef = useRef<NumberItem[] | null>(null);
 
   // ---------------------------------------------------------------------------- settings
-  const update = useCallback((patch: Partial<SteadySettings>) => {
+  const update = useCallback((patch: Partial<UiSettings>) => {
     const next = { ...settingsRef.current, ...patch };
     if ("steadiness" in patch) lastLocalSteadyRef.current = performance.now();
+    if ("latch" in patch) lastLocalLatchRef.current = performance.now();
     settingsRef.current = next;
     setSettings(next);
     saveSettings(next);
-    bridgeRef.current?.post({ type: "settings", settings: patch });
+    // Extra keys (dwellRadius, lockLandmark, headMode, …) ride along; the pipeline reads what it knows.
+    bridgeRef.current?.post({ type: "settings", settings: patch as Partial<SteadySettings> });
     if (next.cameraDeviceId && ("mirrorCamera" in patch || "rotateCamera" in patch)) {
       saveCameraPref(next.cameraDeviceId, { mirror: next.mirrorCamera, rotate: next.rotateCamera });
     }
@@ -322,7 +391,8 @@ export default function SteadyApp() {
         say(`${a.label} needs the helper. Start it with npm run helper.`);
         return;
       }
-      const built = kritaMessageFor(a, {
+      const app = settingsRef.current.appProfile ?? "krita";
+      const built = appMessageFor(a, app, {
         arg,
         pluginConnected: !!mirrorRef.current?.kritaConnected,
         lookups: lookupsRef.current,
@@ -331,7 +401,9 @@ export default function SteadyApp() {
       if ("error" in built) {
         say(
           built.error === "needs_plugin"
-            ? "That needs the Krita plugin."
+            ? app === "photoshop"
+              ? `Photoshop: no shortcut for ${a.label}.`
+              : "That needs the Krita plugin."
             : built.error === "no_skin"
               ? "Pick a colour, then say save skin."
               : `${a.label} is not available in Krita.`,
@@ -412,6 +484,98 @@ export default function SteadyApp() {
     [say, speak],
   );
 
+  // ---------------------------------------------------------------------------- profiles (P4)
+  const persistProfiles = useCallback((st: ProfileStore) => {
+    profileStoreRef.current = st;
+    setProfileStore(st);
+    try {
+      localStorage.setItem(STORAGE_KEYS.profiles, serializeProfiles(st));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const applyProfile = useCallback(
+    (name: string) => {
+      const r = profileFromStore(profileStoreRef.current, name);
+      if (!r) {
+        say(`No profile called ${name}.`);
+        return;
+      }
+      persistProfiles(r.store);
+      update(r.profile.settings as Partial<UiSettings>);
+      const cal = r.profile.calibration;
+      const c = cal ? (cal.Right ?? cal.Left) : null;
+      if (c) bridgeRef.current?.post({ type: "use_calibration", calibration: c });
+      say(`Profile: ${r.profile.name}.`);
+    },
+    [persistProfiles, say, update],
+  );
+  const saveProfileNamed = useCallback(
+    (name: string) => {
+      const st = saveProfileIn(profileStoreRef.current, name, settingsRef.current as unknown as Record<string, unknown>);
+      persistProfiles(st);
+      say(`Saved profile ${st.active}.`);
+    },
+    [persistProfiles, say],
+  );
+  const applyProfileRef = useRef(applyProfile);
+  applyProfileRef.current = applyProfile;
+  const saveProfileNamedRef = useRef(saveProfileNamed);
+  saveProfileNamedRef.current = saveProfileNamed;
+
+  // ---------------------------------------------------------------------------- numbered overlay (P4)
+  const hideNumbers = useCallback(
+    (why: string | null) => {
+      const had = numbersRef.current !== null;
+      numbersRef.current = null;
+      setNumbers(null);
+      if (mirrorRef.current?.helper === "open") void bridgeRef.current?.request({ t: "numbers", items: null } as SendMsg);
+      if (why && had) say(why);
+    },
+    [say],
+  );
+  const showNumbers = useCallback(async () => {
+    const bridge = bridgeRef.current;
+    if (!bridge || mirrorRef.current?.helper !== "open") {
+      say("Show numbers needs the helper. Start it with npm run helper.");
+      return;
+    }
+    const r = await bridge.request({ t: "krita", cmd: "list_widgets" } as SendMsg);
+    const widgets = r.t === "krita_reply" && r.ok ? ((r as Record<string, unknown>).widgets as NumberItem[] | undefined) : undefined;
+    if (!widgets || !widgets.length) {
+      say(r.t === "krita_reply" && r.error === "plugin_down" ? "Show numbers needs the Krita plugin." : "Krita listed no buttons to number.");
+      return;
+    }
+    numbersRef.current = widgets;
+    setNumbers(widgets);
+    const ack = await bridge.request({ t: "numbers", items: widgets } as SendMsg);
+    const ok = ack.t === "ack" && ack.ok;
+    say(ok ? `${widgets.length} numbers shown. Say click and a number.` : `${widgets.length} numbers listed on the View page. Say click and a number.`);
+  }, [say]);
+  const clickNumber = useCallback(
+    (n: number) => {
+      const item = numbersRef.current?.find((i) => i.n === n);
+      if (!item) {
+        say(numbersRef.current ? `No number ${n}.` : "Show numbers first.");
+        return;
+      }
+      const x = Math.round(item.rect.x + item.rect.w / 2);
+      const y = Math.round(item.rect.y + item.rect.h / 2);
+      const m = mirrorRef.current;
+      const kw = m?.kritaWindowRect;
+      const top = 0;
+      // Dwell-click rules: only inside Krita's window, never the menu bar.
+      if (y < top + MENU_BAR_PT || (kw && !(x >= kw.x && y >= kw.y && x <= kw.x + kw.w && y <= kw.y + kw.h))) {
+        say(`Number ${n} is outside Krita's window.`);
+        return;
+      }
+      void bridgeRef.current?.request({ t: "click", x, y } as SendMsg);
+      setLastUndo(item.label);
+      say(`Clicked ${n}: ${item.label}.`);
+    },
+    [say],
+  );
+
   // ---------------------------------------------------------------------------- dispatcher
   const startCalibration = useCallback(() => {
     bridgeRef.current?.post({ type: "calibrate", steps: [1, 2, 3] });
@@ -461,6 +625,18 @@ export default function SteadyApp() {
         // Coalesced "undo that undo that": run serially 50 ms apart.
         const n = Math.min(20, Math.round(opts.arg));
         for (let i = 0; i < n; i++) setTimeout(() => dispatchRef.current(id, { source }), i * 50);
+        return;
+      }
+
+      if (isHandPreset(id)) {
+        const { tip, ...preset } = handPresetSettings(id);
+        update(preset as Partial<UiSettings>);
+        bridge.post({ type: "action", action: id, source });
+        say(`${a.label}: Steadiness ${preset.steadiness}.`);
+        if (tip && !tipShown(id)) {
+          markTipShown(id);
+          setTimeout(() => say(tip.replace(/\*/g, "")), 50);
+        }
         return;
       }
 
@@ -556,6 +732,66 @@ export default function SteadyApp() {
           }
           return;
         }
+        case "use_profile":
+        case "save_profile": {
+          const name = opts.variant?.trim();
+          if (name) {
+            if (id === "use_profile") applyProfileRef.current(name);
+            else saveProfileNamedRef.current(name);
+          } else
+            setDialog({
+              kind: "name",
+              title: a.label,
+              body: id === "use_profile" ? "Type the profile's name, e.g. Shaky day." : "Name these settings, e.g. Evening.",
+              inputLabel: "Profile name",
+              onName: (w) => (id === "use_profile" ? applyProfileRef.current(w) : saveProfileNamedRef.current(w)),
+              returnFocus: opts.el ?? null,
+            });
+          return;
+        }
+        case "show_numbers":
+          void showNumbers();
+          return;
+        case "hide_numbers":
+          hideNumbers("Numbers hidden.");
+          return;
+        case "click_number": {
+          const n = opts.arg ?? (opts.variant ? Number(opts.variant) : NaN);
+          if (Number.isFinite(n)) clickNumber(Number(n));
+          else
+            setDialog({
+              kind: "name",
+              title: "Click number",
+              body: numbersRef.current ? "Which number?" : "Show numbers first.",
+              inputLabel: "Number",
+              onName: (w) => clickNumber(Number(w)),
+              returnFocus: opts.el ?? null,
+            });
+          return;
+        }
+        case "head_mode": {
+          const on = !settingsRef.current.headMode;
+          update({ headMode: on });
+          say(on ? "Head mode: the pointer follows your nose tip." : "Head mode off: tracking your hand.");
+          return;
+        }
+        case "eyebrow_lift": {
+          const on = !settingsRef.current.eyebrowLift;
+          update({ eyebrowLift: on });
+          say(on ? "Eyebrow lift on: raise your eyebrows to lift the pen." : "Eyebrow lift off.");
+          return;
+        }
+        case "app_profile": {
+          const cur = settingsRef.current.appProfile ?? "krita";
+          const next = opts.variant === "krita" || opts.variant === "photoshop" ? opts.variant : cur === "krita" ? "photoshop" : "krita";
+          update({ appProfile: next });
+          say(
+            next === "photoshop"
+              ? "Photoshop: shortcuts only. Restart the helper with: npm run helper -- --app photoshop"
+              : "Krita: plugin and shortcuts.",
+          );
+          return;
+        }
         case "name_brush":
           if (opts.variant) void nameBrush(opts.variant);
           else
@@ -584,7 +820,7 @@ export default function SteadyApp() {
       }
       if (a.krita && (a.scope === "krita" || target === "krita")) void kritaDispatch(a, opts.arg);
     },
-    [kritaDispatch, say, startCalibration, strokes, update, nameBrush, hideNudge],
+    [kritaDispatch, say, startCalibration, strokes, update, nameBrush, hideNudge, showNumbers, hideNumbers, clickNumber],
   );
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
@@ -672,6 +908,11 @@ export default function SteadyApp() {
         return;
       }
       say(`Heard: ${text}`);
+      const prof = /^(save profile|use profile|profile)\s+(.+)$/i.exec(text.trim());
+      if (prof && !dlg) {
+        dispatchRef.current(/^save/i.test(prof[1]) ? "save_profile" : "use_profile", { variant: prof[2], source: "typed" });
+        return;
+      }
       const alias = /^(?:alias|call this brush)\s+(\S+)$/i.exec(text.trim());
       if (alias && !dlg) {
         dispatchRef.current("name_brush", { variant: alias[1], source: "typed" });
@@ -767,7 +1008,7 @@ export default function SteadyApp() {
       // Page hover-dwell (§3): with no helper, the page activates the tile under the dwell itself.
       const d = out.dwell;
       if (d.kind === "click" && d.progress >= 1 && lastClick < 1 && !d.gated && target === "canvas" && m?.helper !== "open") {
-        const el = document.elementFromPoint(d.x, d.y)?.closest("button") as HTMLButtonElement | null;
+        const el = buttonNear(d.x, d.y, settingsRef.current.tileHoverPx ?? 0);
         if (el && !el.disabled) el.click();
       }
       lastClick = d.kind === "click" ? d.progress : 0;
@@ -857,6 +1098,31 @@ export default function SteadyApp() {
     };
   }, [params, strokes, update, say]);
 
+  // Profiles from storage ("Steady day" / "Shaky day" always exist).
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(STORAGE_KEYS.profiles);
+    } catch {
+      /* ignore */
+    }
+    const st = parseProfiles(raw);
+    profileStoreRef.current = st;
+    setProfileStore(st);
+  }, []);
+
+  // Numbers hide on Pause and when Krita's window moves (the badges would point at the wrong place).
+  const kwKey = mirror?.kritaWindowRect ? JSON.stringify(mirror.kritaWindowRect) : "";
+  const pausedNow = !!mirror?.paused;
+  const kwKeyRef = useRef(kwKey);
+  useEffect(() => {
+    if (pausedNow && numbersRef.current) hideNumbers("Numbers hidden while paused.");
+    if (kwKey !== kwKeyRef.current) {
+      if (numbersRef.current && kwKeyRef.current) hideNumbers("Krita moved: say show numbers again.");
+      kwKeyRef.current = kwKey;
+    }
+  }, [pausedNow, kwKey, hideNumbers]);
+
   // Aliases from storage.
   useEffect(() => {
     aliasesRef.current = loadAliases();
@@ -911,7 +1177,7 @@ export default function SteadyApp() {
 
   // Latch can be flipped by the helper's F3 in the Worker: persist what the Worker reports.
   useEffect(() => {
-    if (mirror && mirror.latch !== settingsRef.current.latch) {
+    if (mirror && mirror.latch !== settingsRef.current.latch && performance.now() - lastLocalLatchRef.current > 1500) {
       const next = { ...settingsRef.current, latch: mirror.latch };
       settingsRef.current = next;
       setSettings(next);
@@ -1125,6 +1391,10 @@ export default function SteadyApp() {
     submitTyped,
     skinHex,
     eraserOn,
+    profiles: profileStore.profiles.map((p) => p.name),
+    activeProfile: profileStore.active,
+    applyProfile,
+    numbers,
     trackSource,
     setTrackSource,
     exposureLocked,
@@ -1211,7 +1481,10 @@ export default function SteadyApp() {
           {page === "paint" && <PaintPage ctx={ctx} />}
           {page === "colour" && <ColourPage ctx={ctx} />}
           {page === "view" && <ViewPage ctx={ctx} />}
-          {page === "layers" && <SimplePage page={page} ctx={ctx} />}
+          {page === "layers" && <LayersPage ctx={ctx} />}
+          {page === "modes" && <ModesPage ctx={ctx} />}
+          {page === "input" && <InputPage ctx={ctx} />}
+          {page === "krita" && <KritaPage ctx={ctx} />}
         </section>
         {nudge && (
           <div className="nudge" role="status">

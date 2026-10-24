@@ -17,10 +17,17 @@ type Delegate = "GPU" | "CPU";
 type Vision = typeof import("@mediapipe/tasks-vision");
 type Landmarker = import("@mediapipe/tasks-vision").HandLandmarker;
 type Result = import("@mediapipe/tasks-vision").HandLandmarkerResult;
+type FaceLm = import("@mediapipe/tasks-vision").FaceLandmarker;
+
+/** P4 Head mode / Eyebrow lift: FaceLandmarker float16 with blendshapes (browInnerUp). */
+export const FACE_MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 export interface MediaPipeSourceEvents {
   onDelegate?: (d: Delegate) => void;
   onWarning?: (text: string) => void;
+  /** browInnerUp blendshape (0..1) per face frame, while the face model runs. */
+  onBrow?: (value: number, t: number) => void;
 }
 
 export class MediaPipeSource implements LandmarkSource {
@@ -43,6 +50,13 @@ export class MediaPipeSource implements LandmarkSource {
   private lumaCtx: OffscreenCanvasRenderingContext2D | null = null;
   private frameCount = 0;
   private luma: number | undefined;
+  /** Head mode: face landmarks drive the pointer (hands are not detected). */
+  private headMode = false;
+  /** Eyebrow lift: run the face model for browInnerUp alongside the hand model. */
+  private eyebrow = false;
+  private face: FaceLm | null = null;
+  private faceLoading = false;
+  private lastFaceTs = -Infinity;
 
   constructor(private readonly events: MediaPipeSourceEvents = {}) {}
 
@@ -59,6 +73,7 @@ export class MediaPipeSource implements LandmarkSource {
       try {
         this.fileset = await this.vision.FilesetResolver.forVisionTasks(assets.wasmBase, useModule);
         await this.create("GPU");
+        if (this.headMode || this.eyebrow) void this.ensureFace();
         return;
       } catch (err) {
         lastErr = err;
@@ -191,6 +206,14 @@ export class MediaPipeSource implements LandmarkSource {
     try {
       this.measureLuma(src);
       const t = this.nextTimestamp();
+      const faceHands = this.wantFace() ? this.runFace(src, t) : null;
+      if (this.headMode) {
+        if (!faceHands) return;
+        this.stamps.push(t);
+        while (this.stamps.length && this.stamps[0] < t - 1000) this.stamps.shift();
+        this.onFrame?.({ t, width: w || 640, height: h || 480, hands: faceHands, luma: this.luma });
+        return;
+      }
       let result: Result | undefined;
       try {
         result = lm.detectForVideo(src as unknown as ImageBitmap, t);
@@ -219,8 +242,73 @@ export class MediaPipeSource implements LandmarkSource {
     }
   }
 
+  /** Head mode (P4): the nose tip drives the pointer through the same pipeline. */
+  setHeadMode(on: boolean): void {
+    this.headMode = on;
+    if (on) void this.ensureFace();
+  }
+
+  /** Eyebrow lift (P4): browInnerUp → onBrow; only ever lifts the pen (the Worker decides). */
+  setEyebrow(on: boolean): void {
+    this.eyebrow = on;
+    if (on) void this.ensureFace();
+  }
+
+  private wantFace(): boolean {
+    return (this.headMode || this.eyebrow) && !!this.face;
+  }
+
+  private async ensureFace(): Promise<void> {
+    if (this.face || this.faceLoading || !this.vision || !this.fileset) return;
+    this.faceLoading = true;
+    const { FaceLandmarker } = this.vision;
+    const opts = (delegate: Delegate) => ({
+      baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate },
+      runningMode: "VIDEO" as const,
+      numFaces: 1,
+      outputFaceBlendshapes: true,
+    });
+    try {
+      try {
+        this.face = await FaceLandmarker.createFromOptions(this.fileset, opts(this.delegate));
+      } catch {
+        this.face = await FaceLandmarker.createFromOptions(this.fileset, opts("CPU"));
+      }
+    } catch (err) {
+      this.events.onWarning?.(`Face tracking could not start: ${String((err as Error)?.message ?? err)}`);
+    } finally {
+      this.faceLoading = false;
+    }
+  }
+
+  /** Face landmarks as a LandmarkFrame hand (score 1: the model reports no per-face confidence). */
+  private runFace(src: VideoFrame | ImageBitmap, t: number): HandObservation[] | null {
+    const face = this.face;
+    if (!face) return null;
+    const ft = t <= this.lastFaceTs ? this.lastFaceTs + 1 : t;
+    this.lastFaceTs = ft;
+    try {
+      const r = face.detectForVideo(src as unknown as ImageBitmap, ft);
+      const brow = r.faceBlendshapes?.[0]?.categories?.find((c) => c.categoryName === "browInnerUp");
+      if (brow) this.events.onBrow?.(brow.score, t);
+      return (r.faceLandmarks ?? []).map((landmarks) => ({
+        landmarks: landmarks.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+        score: 1,
+        handedness: "Right" as const,
+      }));
+    } catch {
+      return null;
+    }
+  }
+
   stop(): void {
     this.stopped = true;
+    try {
+      this.face?.close();
+    } catch {
+      /* ignore */
+    }
+    this.face = null;
     try {
       this.reader?.cancel().catch(() => undefined);
     } catch {

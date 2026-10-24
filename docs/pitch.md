@@ -70,6 +70,12 @@ the practice canvas + Simulate tremor + Steadiness ± tiles need only Chrome and
   speech and say so.
 - **"Did you test with real users?"** Say exactly what is true at the time (see `docs/user-interview.md`).
   If no interview was recorded, say so. Do not paraphrase a quote that was not recorded.
+- **"Only Krita?"** Krita gets the deep integration (plugin). An app profile switches to keyboard shortcuts,
+  and we built a Photoshop profile to show the same layer works elsewhere; "show numbers" puts numbered
+  badges over Krita's own buttons so "click 5" reaches buttons too small to dwell on. Say plainly which of
+  these were tried on real hardware (see NEEDS-HUMAN.md).
+- **"What if my hand can't rest today?"** Head mode moves the pointer with the nose through the same
+  pipeline; hand presets and named profiles ("Shaky day") switch everything at once. Same honesty rule.
 - **"Is it medical?"** No. Steady is not a medical device and doesn't diagnose or treat anything.
 - **"Privacy?"** Camera stays local. Audio goes to Cartesia only while the mic is open. Unmatched command text,
   never audio, goes to Anthropic with the current brush context.

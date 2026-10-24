@@ -11,9 +11,10 @@
  * screen points.
  */
 import { ACTIONS_BY_ID, DEFAULT_KEYS, HOTKEY_TO_ACTION } from "../actions";
-import { createCalibrator } from "../pipeline/calibration";
+import { createCalibrator, type StepCalibrator } from "../pipeline/calibration";
 import { createPipeline, modeState, panState } from "../pipeline/pipeline";
 import { kritaMessageFor } from "../desktop/krita";
+import { EyebrowLift, handModeConfig, headModeConfig } from "../pipeline/presets";
 import {
   DEFAULT_SETTINGS,
   type Calibration,
@@ -57,7 +58,7 @@ const post = (msg: WorkerToPage, transfer: Transferable[] = []) => self.postMess
 let settings: SteadySettings = { ...DEFAULT_SETTINGS };
 let calibration: Calibration | null = null;
 let pipeline: Pipeline | null = null;
-let calibrator: Calibrator | null = null;
+let calibrator: StepCalibrator | null = null;
 let calibratorSteps: Array<1 | 2 | 3> = [];
 let source: LandmarkSource | null = null;
 /** Camera-fed source (HandLandmarker or the colour-cap sticker tracker); replay has none. */
@@ -199,6 +200,7 @@ function handleOutput(out: PipelineOutput, frame: LandmarkFrame | null) {
   if (calibrator && frame) {
     const hand = frame.hands[0];
     lastCalibProgress = calibrator.feed(out.t, out.raw, out.filtered, hand && hand.score >= 0.6 ? hand.handedness : null);
+    if (hand && hand.score >= 0.6) calibrator.recordHand(hand.landmarks, frame.width, frame.height);
     if (calibrator.step && calibrator.step !== lastCalibStep) {
       lastCalibStep = calibrator.step;
       setStatus(`Step ${calibrator.step} of ${calibratorSteps.length}: ${calibrator.prompt}`);
@@ -523,6 +525,10 @@ async function startCameraSource(kind: "hand" | "colorcap") {
   const events = {
     onDelegate: (d: "GPU" | "CPU") => post({ type: "ready", delegate: d }),
     onWarning: (text: string) => setStatus(text),
+    onBrow: (v: number, t: number) => {
+      // Eyebrow lift (P4): only ever lifts the pen (pen-state law).
+      if (ui().eyebrowLift && eyebrow.update(v, t)) runAction("eyebrow_raise");
+    },
   };
   let src: CameraSource;
   if (kind === "colorcap") {
@@ -537,6 +543,10 @@ async function startCameraSource(kind: "hand" | "colorcap") {
   }
   mediapipe = src;
   source = src;
+  if (src.kind === "mediapipe") {
+    src.setHeadMode(!!ui().headMode);
+    src.setEyebrow(!!ui().eyebrowLift);
+  }
   await src.start(onFrame);
   if (pendingReadable && mediapipe === src) {
     src.attach(pendingReadable);
@@ -544,10 +554,30 @@ async function startCameraSource(kind: "hand" | "colorcap") {
   }
 }
 
-function switchCameraKind(want: "hand" | "colorcap") {
+type UiExtras = { headMode?: boolean; eyebrowLift?: boolean };
+const ui = () => settings as typeof settings & UiExtras;
+const eyebrow = new EyebrowLift();
+
+/** Head mode / eyebrow toggles from the page's settings (extra keys beyond SteadySettings). */
+function applyFaceSettings(prev: UiExtras) {
+  const cur = ui();
+  if (!!cur.headMode !== !!prev.headMode) {
+    pipeline?.setSettings((cur.headMode ? headModeConfig() : handModeConfig(settings.landmark)) as Partial<typeof settings>);
+    if (cur.headMode && cameraKind === "colorcap") switchCameraKind("hand", false);
+    else if (!cur.headMode && settings.trackingSource === "colorcap") switchCameraKind("colorcap", false);
+    if (mediapipe?.kind === "mediapipe") mediapipe.setHeadMode(!!cur.headMode);
+  }
+  if (!!cur.eyebrowLift !== !!prev.eyebrowLift) {
+    eyebrow.reset();
+    if (mediapipe?.kind === "mediapipe") mediapipe.setEyebrow(!!cur.eyebrowLift);
+    if (cur.eyebrowLift && sourceKind === "replay") setStatus("Eyebrow lift needs the camera.");
+  }
+}
+
+function switchCameraKind(want: "hand" | "colorcap", announce = true) {
   cameraKind = want;
   if (sourceKind === "camera") void startCameraSource(want).catch((err) => post({ type: "error", text: String(err) }));
-  setStatus(want === "colorcap" ? "Tracking a coloured sticker." : "Tracking your hand.");
+  if (announce) setStatus(want === "colorcap" ? "Tracking a coloured sticker." : "Tracking your hand.");
 }
 
 async function pickStickerColour() {
@@ -582,6 +612,10 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
         rects: rectsFor(target),
         helperConnected: false,
       });
+      if (ui().headMode) {
+        cameraKind = "hand";
+        pipeline.setSettings(headModeConfig() as Partial<typeof settings>);
+      }
       if (m.helperUrl) connectHelper(m.helperUrl);
       void startSource(m.source, m.replayUrl);
       break;
@@ -595,9 +629,12 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       else m.bitmap.close();
       break;
     case "settings":
+      const prevUi: UiExtras = { headMode: ui().headMode, eyebrowLift: ui().eyebrowLift };
       settings = { ...settings, ...m.settings, inputs: { ...settings.inputs, ...(m.settings.inputs ?? {}) } };
+      applyFaceSettings(prevUi);
       if (m.settings.keymap) sendKeymap();
-      if (m.settings.trackingSource && m.settings.trackingSource !== cameraKind) switchCameraKind(m.settings.trackingSource);
+      if (m.settings.trackingSource && m.settings.trackingSource !== cameraKind && !ui().headMode)
+        switchCameraKind(m.settings.trackingSource);
       if (m.settings.stickerRange && mediapipe?.kind === "colorcap") mediapipe.setRange(m.settings.stickerRange);
       pipeline?.setSettings(
         calibrator && m.settings.inputs ? { ...m.settings, inputs: { ...settings.inputs, dwell: false } } : m.settings,

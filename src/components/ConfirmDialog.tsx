@@ -14,6 +14,8 @@ export interface DialogSpec {
   onConfirm?: () => void;
   /** choose: option tiles. */
   options?: Array<{ label: string; run: () => void }>;
+  /** name: label of the text field (default "Brush name"). */
+  inputLabel?: string;
   /** name: called with the typed word on Save. */
   onName?: (word: string) => void;
   /** Run when the dialog closes without a choice (Cancel, Esc, voice "no"). */
@@ -90,7 +92,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
               spec.onName?.(word.trim());
             }}
           >
-            <label htmlFor={`${titleId}-word`}>Brush name</label>
+            <label htmlFor={`${titleId}-word`}>{spec.inputLabel ?? "Brush name"}</label>
             <input
               id={`${titleId}-word`}
               ref={inputRef}
@@ -139,7 +141,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
                 spec.onName?.(word.trim());
               }}
             >
-              <span className="tile-label">Save name</span>
+              <span className="tile-label">{spec.inputLabel === "Brush name" || !spec.inputLabel ? "Save name" : "OK"}</span>
             </button>
           )}
           {spec.kind === "confirm" && (

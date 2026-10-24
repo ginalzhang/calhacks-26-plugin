@@ -17,8 +17,13 @@ foot pedal.
 1. Open **Terminal**: press `⌘ Space`, type `Terminal`, press Return.
 2. Go to the project folder. Type `cd ` (with a space), drag the project folder from Finder into the
    Terminal window, press Return.
-3. Type `npm install` and press Return (only the first time; wait until the prompt comes back).
+3. Type `npm install` and press Return, then `npm run assets` and Return (only the first time; each
+   waits until the prompt comes back). The second one downloads the hand-tracking model so tracking works
+   without the internet.
 4. Type `npm run dev` and press Return. Leave this window open. When it prints `Ready`, Steady is running.
+   If it says port 3000 is already in use, something else is running there: quit it (or ask a developer to
+   run Steady on port 3100 with `npx next dev -p 3100` and start the helper with
+   `npm run helper -- --origin http://localhost:3100`).
 5. Open a **second** Terminal window (`⌘ N`), `cd` into the same folder again, and type
    `npm run demo-chrome`. A separate Chrome window opens at `http://localhost:3000?demo=1`. It uses its
    own profile, so your normal Chrome, tabs and logins are untouched.

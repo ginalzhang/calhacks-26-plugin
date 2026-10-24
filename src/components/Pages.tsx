@@ -1,18 +1,23 @@
 "use client";
 /**
  * Side-panel pages (§0 rule 6). Each fits 320 × 900 at 100 % without scrolling; pages were added
- * rather than shrinking a tile or a gap. Tiles come from ACTIONS by `page`.
+ * rather than shrinking a tile or a gap. Since P4 the layout is explicit (PAGE_LAYOUT): the action
+ * table's `page` field is the default, but tiles moved to Modes / Input / Krita where a page would
+ * not fit (see DECISIONS.md › Agent B round 3). Every non-dialog action has exactly one tile.
  */
 import { useEffect, useRef, useState } from "react";
-import { ACTIONS, COLOUR_HEX, type PageId } from "../actions";
+import { ACTIONS, COLOUR_HEX } from "../actions";
 import { LANDMARK_CHOICES } from "../tracking/LandmarkSource";
 import type { MirrorState, SteadySettings, Vec2 } from "../pipeline/types";
 import { GAIN_MAX_SLIDER, GAIN_MIN } from "../pipeline/types";
+import type { ExtraSettings } from "../pipeline/presets";
 import { ActionTile } from "./ActionTile";
 import { SliderRow } from "./SliderRow";
 import { Tile } from "./Tile";
 import type { CameraInfo } from "../tracking/camera";
 import type { StrokeStore } from "./strokes";
+
+export type UiSettings = SteadySettings & ExtraSettings & { headMode?: boolean; eyebrowLift?: boolean; appProfile?: "krita" | "photoshop" };
 
 export interface DemoMetrics {
   commandsTried: number;
@@ -20,11 +25,17 @@ export interface DemoMetrics {
   claude: { calls: number; accepted: number; timeouts: number };
 }
 
+export interface NumberItem {
+  n: number;
+  label: string;
+  rect: { x: number; y: number; w: number; h: number };
+}
+
 export interface PageCtx {
-  settings: SteadySettings;
+  settings: UiSettings;
   mirror: MirrorState | null;
   run: (id: string, el: HTMLElement | null) => void;
-  update: (patch: Partial<SteadySettings>) => void;
+  update: (patch: Partial<UiSettings>) => void;
   // setup
   source: "camera" | "replay";
   replayName: string | null;
@@ -38,6 +49,9 @@ export interface PageCtx {
   setTarget: (t: "canvas" | "krita") => void;
   markCorners: () => void;
   marking: string | null;
+  profiles: string[];
+  activeProfile: string | null;
+  applyProfile: (name: string) => void;
   // paint
   submitTyped: (text: string) => Promise<void>;
   skinHex: string | null;
@@ -45,19 +59,33 @@ export interface PageCtx {
   trackSource: "hand" | "colorcap";
   setTrackSource: (k: "hand" | "colorcap") => void;
   exposureLocked: boolean;
+  numbers: NumberItem[] | null;
   // demo
   metrics: DemoMetrics;
   strokes: StrokeStore;
   getMirror: () => MirrorState | null;
 }
 
-const tilesFor = (page: PageId) => ACTIONS.filter((a) => a.page === page);
+/** B's page layout (tile ids per page, in order). */
+export const PAGE_LAYOUT = {
+  steady: ["steadier", "looser", "hatch", "dots", "quiet", "clear_practice"],
+  presets: ["preset_sore_joints", "preset_shakes_reaching", "preset_slow_rest", "preset_hard_still"],
+  modes: ["smoothing_sketch", "smoothing_ink", "smoothing_shade", "hatch_lr", "hatch_down", "hatch_alternate", "stop_hatching", "dash", "repeat"],
+  paint: ["pen_down", "pen_up", "brush", "pencil", "ink", "airbrush", "eraser", "bigger", "smaller", "size", "fade", "solid", "opacity", "name_brush", "line"],
+  view: ["zoom_in", "zoom_out", "fit", "actual", "turn_left", "turn_right", "straight", "mirror", "pan", "show_numbers", "hide_numbers", "click_number"],
+  layers: ACTIONS.filter((a) => a.page === "layers").map((a) => a.id),
+  colour: ACTIONS.filter((a) => a.page === "colour").map((a) => a.id),
+  setup: ["recalibrate", "save_profile", "use_profile"],
+  input: ["pick_sticker_colour", "lock_exposure", "head_mode", "eyebrow_lift"],
+  krita: ["app_profile"],
+  demo: ["simulate_tremor", "next_judge"],
+} as const;
 
-function TileGrid({ page, ctx, pressedOf }: { page: PageId; ctx: PageCtx; pressedOf?: (id: string) => boolean }) {
+function Grid({ ids, ctx, pressedOf, cols }: { ids: readonly string[]; ctx: PageCtx; pressedOf?: (id: string) => boolean; cols?: 2 | 4 }) {
   return (
-    <div className="tile-grid">
-      {tilesFor(page).map((a) => (
-        <ActionTile key={a.id} id={a.id} run={ctx.run} pressed={pressedOf?.(a.id)} />
+    <div className={`tile-grid${cols ? ` cols-${cols}` : ""}`}>
+      {ids.map((id) => (
+        <ActionTile key={id} id={id} run={ctx.run} pressed={pressedOf?.(id)} />
       ))}
     </div>
   );
@@ -78,21 +106,28 @@ export function SteadyPage({ ctx }: { ctx: PageCtx }) {
         format={(v) => String(v)}
         onChange={(v) => ctx.update({ steadiness: v })}
       />
-      <TileGrid
-        page="steady"
+      <Grid ids={PAGE_LAYOUT.presets} ctx={ctx} cols={2} />
+      <Grid
+        ids={PAGE_LAYOUT.steady}
         ctx={ctx}
         pressedOf={(id) =>
-          id === "dots"
-            ? mode === "dots"
-            : id === "hatch"
-              ? mode === "hatch" || mode === "hatch_alternate"
-              : id === "dash"
-                ? mode === "dash"
-                : id === "quiet"
-                  ? ctx.settings.quiet
-                  : false
+          id === "dots" ? mode === "dots" : id === "hatch" ? mode === "hatch" || mode === "hatch_alternate" : id === "quiet" ? ctx.settings.quiet : false
         }
       />
+    </>
+  );
+}
+
+// ----------------------------------------------------------------------------- Modes
+export function ModesPage({ ctx }: { ctx: PageCtx }) {
+  const mode = ctx.mirror?.mode ?? "normal";
+  const s = ctx.settings;
+  const ms = (v: number) => `${v} ms`;
+  return (
+    <>
+      <Grid ids={PAGE_LAYOUT.modes} ctx={ctx} pressedOf={(id) => (id === "dash" ? mode === "dash" : false)} />
+      <SliderRow label="Hatch lag" value={s.hatchLagMs} min={80} max={250} step={10} tileStep={10} format={ms} onChange={(v) => ctx.update({ hatchLagMs: v })} />
+      <SliderRow label="Dash pause" value={s.dashPauseMs} min={100} max={600} step={50} tileStep={50} format={ms} onChange={(v) => ctx.update({ dashPauseMs: v })} />
     </>
   );
 }
@@ -105,7 +140,6 @@ const LANDMARK_NAMES: Array<[number, string]> = [
   [LANDMARK_CHOICES.wrist, "Wrist"],
 ];
 const ADVANCED = Array.from({ length: 21 }, (_, i) => i).filter((i) => !LANDMARK_NAMES.some(([n]) => n === i));
-
 const LANDMARK_ORDER = [...LANDMARK_NAMES.map(([n]) => n), ...ADVANCED];
 
 export function landmarkName(i: number) {
@@ -115,6 +149,7 @@ export function landmarkName(i: number) {
 export function SetupPage({ ctx }: { ctx: PageCtx }) {
   const s = ctx.settings;
   const krita = ctx.mirror?.target === "krita";
+  const custom = ctx.profiles.slice(0, 5);
   return (
     <>
       <div className="field-row">
@@ -144,17 +179,8 @@ export function SetupPage({ ctx }: { ctx: PageCtx }) {
       <div className="tile-grid">
         <Tile label="Mirror camera" pressed={s.mirrorCamera} onPress={() => ctx.update({ mirrorCamera: !s.mirrorCamera })} />
         <Tile label="Rotate camera" pressed={s.rotateCamera} onPress={() => ctx.update({ rotateCamera: !s.rotateCamera })} />
-        <Tile
-          label="Colour cap"
-          pressed={ctx.trackSource === "colorcap"}
-          disabled={ctx.source === "replay"}
-          title="Track a bright sticker on a glove, brace or fingertip instead of the hand."
-          onPress={() => ctx.setTrackSource(ctx.trackSource === "colorcap" ? "hand" : "colorcap")}
-        />
         <ActionTile id="recalibrate" run={ctx.run} />
         <Tile label="Use last setup" onPress={ctx.useLastSetup} disabled={!ctx.hasLastSetup} />
-        <ActionTile id="pick_sticker_colour" run={ctx.run} disabled={ctx.trackSource !== "colorcap"} />
-        <ActionTile id="lock_exposure" run={ctx.run} pressed={ctx.exposureLocked} disabled={ctx.source === "replay"} />
         <Tile
           label="Draw in Krita"
           pressed={krita}
@@ -162,11 +188,63 @@ export function SetupPage({ ctx }: { ctx: PageCtx }) {
           title={ctx.helperOpen ? undefined : "Start the helper (npm run helper) to draw in Krita."}
           onPress={() => ctx.setTarget(krita ? "canvas" : "krita")}
         />
+        <ActionTile id="save_profile" run={ctx.run} />
+      </div>
+      <div className="tile-grid" role="group" aria-label="Profiles">
+        <ActionTile id="use_profile" run={ctx.run} />
+        {custom.map((name) => (
+          <Tile
+            key={name}
+            label={name}
+            current={ctx.activeProfile === name}
+            title={`Use the ${name} profile`}
+            onPress={() => ctx.applyProfile(name)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ----------------------------------------------------------------------------- Input
+export function InputPage({ ctx }: { ctx: PageCtx }) {
+  const s = ctx.settings;
+  return (
+    <>
+      <div className="tile-grid">
+        <Tile
+          label="Colour cap"
+          pressed={ctx.trackSource === "colorcap"}
+          disabled={ctx.source === "replay"}
+          title="Track a bright sticker on a glove, brace or fingertip instead of the hand."
+          onPress={() => ctx.setTrackSource(ctx.trackSource === "colorcap" ? "hand" : "colorcap")}
+        />
+        <ActionTile id="pick_sticker_colour" run={ctx.run} disabled={ctx.trackSource !== "colorcap"} />
+        <ActionTile id="lock_exposure" run={ctx.run} pressed={ctx.exposureLocked} disabled={ctx.source === "replay"} />
+        <ActionTile id="head_mode" run={ctx.run} pressed={!!s.headMode} />
+        <ActionTile id="eyebrow_lift" run={ctx.run} pressed={!!s.eyebrowLift} />
+        <Tile
+          label="Pointer point"
+          title="Which part of the hand moves the pointer. Index knuckle is the default; Advanced offers every point."
+          disabled={!!s.headMode}
+          onPress={() => {
+            const i = LANDMARK_ORDER.indexOf(s.landmark);
+            ctx.update({ landmark: LANDMARK_ORDER[(i + 1) % LANDMARK_ORDER.length] ?? 5 });
+          }}
+        >
+          <span className="tile-sub">{landmarkName(s.landmark)}</span>
+        </Tile>
         <Tile
           label="Browser speech fallback"
           pressed={s.webSpeechFallback}
           onPress={() => ctx.update({ webSpeechFallback: !s.webSpeechFallback })}
         />
+      </div>
+      <div className="tile-grid cols-4">
+        <Tile label="Dwell click" pressed={s.dwellClickEnabled} onPress={() => ctx.update({ dwellClickEnabled: !s.dwellClickEnabled })} />
+        <Tile label="All dwell" pressed={s.inputs.dwell} onPress={() => ctx.update({ inputs: { ...s.inputs, dwell: !s.inputs.dwell } })} />
+        <Tile label="Keys" pressed={s.inputs.keys} onPress={() => ctx.update({ inputs: { ...s.inputs, keys: !s.inputs.keys } })} />
+        <Tile label="Camera" pressed={s.inputs.camera} onPress={() => ctx.update({ inputs: { ...s.inputs, camera: !s.inputs.camera } })} />
       </div>
       {s.webSpeechFallback && (
         <p className="note">
@@ -178,6 +256,38 @@ export function SetupPage({ ctx }: { ctx: PageCtx }) {
   );
 }
 
+// ----------------------------------------------------------------------------- Krita
+export function KritaPage({ ctx }: { ctx: PageCtx }) {
+  const krita = ctx.mirror?.target === "krita";
+  const gain = ctx.settings.gainOverride ?? ctx.mirror?.gain ?? 3;
+  const app = ctx.settings.appProfile ?? "krita";
+  return (
+    <>
+      <div className="tile-grid">
+        <Tile
+          label="Mark corners"
+          onPress={ctx.markCorners}
+          disabled={!krita}
+          title="Hold still on Krita's canvas top-left corner, then bottom-right."
+        />
+        <ActionTile id="app_profile" run={ctx.run} label={app === "photoshop" ? "App: Photoshop" : "App: Krita"} />
+      </div>
+      <SliderRow
+        label="Gain"
+        value={Math.round(gain * 2) / 2}
+        min={GAIN_MIN}
+        max={GAIN_MAX_SLIDER}
+        step={0.5}
+        tileStep={0.5}
+        format={(v) => `${v.toFixed(1)} times`}
+        onChange={(v) => ctx.update({ gainOverride: v })}
+      />
+      {app === "photoshop" && <p className="hint">Photoshop: shortcuts only.</p>}
+      {ctx.marking && <p className="hint">{ctx.marking}</p>}
+    </>
+  );
+}
+
 // ----------------------------------------------------------------------------- Timing
 export function TimingPage({ ctx }: { ctx: PageCtx }) {
   const s = ctx.settings;
@@ -185,66 +295,10 @@ export function TimingPage({ ctx }: { ctx: PageCtx }) {
   const sec = (v: number) => `${(v / 1000).toFixed(1)} s`;
   return (
     <>
-      <SliderRow
-        label="Pen-down hold"
-        value={s.dwellDownMs}
-        min={500}
-        max={1500}
-        step={50}
-        tileStep={50}
-        format={ms}
-        onChange={(v) => ctx.update({ dwellDownMs: v })}
-      />
-      <SliderRow
-        label="Pen-up hold"
-        value={s.dwellUpMs}
-        min={800}
-        max={3000}
-        step={50}
-        tileStep={50}
-        format={ms}
-        onChange={(v) => ctx.update({ dwellUpMs: v })}
-      />
-      <SliderRow
-        label="Mic silence"
-        value={s.micSilenceMs}
-        min={1000}
-        max={8000}
-        step={50}
-        tileStep={500}
-        format={sec}
-        onChange={(v) => ctx.update({ micSilenceMs: v })}
-      />
-      <SliderRow
-        label="Mic limit"
-        value={s.micCapMs}
-        min={15000}
-        max={60000}
-        step={50}
-        tileStep={5000}
-        format={sec}
-        onChange={(v) => ctx.update({ micCapMs: v })}
-      />
-      <SliderRow
-        label="Hatch lag"
-        value={s.hatchLagMs}
-        min={80}
-        max={250}
-        step={10}
-        tileStep={10}
-        format={ms}
-        onChange={(v) => ctx.update({ hatchLagMs: v })}
-      />
-<SliderRow
-        label="Dash pause"
-        value={s.dashPauseMs}
-        min={100}
-        max={600}
-        step={50}
-        tileStep={50}
-        format={ms}
-        onChange={(v) => ctx.update({ dashPauseMs: v })}
-      />
+      <SliderRow label="Pen-down hold" value={s.dwellDownMs} min={500} max={1500} step={50} tileStep={50} format={ms} onChange={(v) => ctx.update({ dwellDownMs: v })} />
+      <SliderRow label="Pen-up hold" value={s.dwellUpMs} min={800} max={3000} step={50} tileStep={50} format={ms} onChange={(v) => ctx.update({ dwellUpMs: v })} />
+      <SliderRow label="Mic silence" value={s.micSilenceMs} min={1000} max={8000} step={50} tileStep={500} format={sec} onChange={(v) => ctx.update({ micSilenceMs: v })} />
+      <SliderRow label="Mic limit" value={s.micCapMs} min={15000} max={60000} step={50} tileStep={5000} format={sec} onChange={(v) => ctx.update({ micCapMs: v })} />
     </>
   );
 }
@@ -408,7 +462,7 @@ export function PaintPage({ ctx }: { ctx: PageCtx }) {
   return (
     <>
       <TypedBox ctx={ctx} />
-      <TileGrid page="paint" ctx={ctx} pressedOf={(id) => (id === "eraser" ? ctx.eraserOn : false)} />
+      <Grid ids={PAGE_LAYOUT.paint} ctx={ctx} cols={4} pressedOf={(id) => (id === "eraser" ? ctx.eraserOn : false)} />
     </>
   );
 }
@@ -417,22 +471,22 @@ export function PaintPage({ ctx }: { ctx: PageCtx }) {
 export function ColourPage({ ctx }: { ctx: PageCtx }) {
   const skin = ctx.skinHex;
   return (
-    <div className="tile-grid">
-      {tilesFor("colour").map((a) => {
-        if (a.id === "skin") {
+    <div className="tile-grid cols-4">
+      {PAGE_LAYOUT.colour.map((id) => {
+        if (id === "skin") {
           // Until a skin colour is saved, the Skin tile reads "Save current colour as skin" (no default hex).
           return skin ? (
-            <ActionTile key={a.id} id="skin" run={ctx.run}>
+            <ActionTile key={id} id="skin" run={ctx.run}>
               <span className="swatch" style={{ background: skin }} aria-hidden="true" />
             </ActionTile>
           ) : (
             <ActionTile key="save_skin" id="save_skin" run={ctx.run} span={2} />
           );
         }
-        if (a.id === "save_skin") return skin ? <ActionTile key={a.id} id={a.id} run={ctx.run} span={2} /> : null;
-        const hex = a.id.startsWith("colour_") ? COLOUR_HEX[a.id.slice(7)] : null;
+        if (id === "save_skin") return skin ? <ActionTile key={id} id={id} run={ctx.run} span={2} /> : null;
+        const hex = id.startsWith("colour_") ? COLOUR_HEX[id.slice(7)] : null;
         return (
-          <ActionTile key={a.id} id={a.id} run={ctx.run}>
+          <ActionTile key={id} id={id} run={ctx.run}>
             {hex && <span className="swatch" style={{ background: hex }} aria-hidden="true" />}
           </ActionTile>
         );
@@ -441,70 +495,20 @@ export function ColourPage({ ctx }: { ctx: PageCtx }) {
   );
 }
 
-export function SimplePage({ page, ctx }: { page: PageId; ctx: PageCtx }) {
-  return <TileGrid page={page} ctx={ctx} />;
-}
-
-/** View page: Krita view tiles, plus where the pointer lands in Krita (corner marking, gain). */
+// ----------------------------------------------------------------------------- View / Layers
 export function ViewPage({ ctx }: { ctx: PageCtx }) {
-  const s = ctx.settings;
-  const krita = ctx.mirror?.target === "krita";
-  const gain = ctx.settings.gainOverride ?? ctx.mirror?.gain ?? 3;
   return (
     <>
-      <TileGrid page="view" ctx={ctx} />
-      <div className="tile-grid">
-        <Tile
-          label="Mark corners"
-          onPress={ctx.markCorners}
-          disabled={!krita}
-          title="Hold still on Krita's canvas top-left corner, then bottom-right."
-        />
-        <Tile
-          label="Pointer point"
-          span={2}
-          title="Which part of the hand moves the pointer. Index knuckle is the default; Advanced offers every point."
-          onPress={() => {
-            const i = LANDMARK_ORDER.indexOf(s.landmark);
-            ctx.update({ landmark: LANDMARK_ORDER[(i + 1) % LANDMARK_ORDER.length] ?? 5 });
-          }}
-        >
-          <span className="tile-sub">{landmarkName(s.landmark)}</span>
-        </Tile>
-      </div>
-      <SliderRow
-        label="Gain"
-        value={Math.round(gain * 2) / 2}
-        min={GAIN_MIN}
-        max={GAIN_MAX_SLIDER}
-        step={0.5}
-        tileStep={0.5}
-        format={(v) => `${v.toFixed(1)} times`}
-        onChange={(v) => ctx.update({ gainOverride: v })}
-      />
-            <div className="tile-grid cols-4">
-        <Tile
-          label="Dwell click"
-          pressed={s.dwellClickEnabled}
-          onPress={() => ctx.update({ dwellClickEnabled: !s.dwellClickEnabled })}
-        />
-        <Tile
-          label="All dwell"
-          pressed={s.inputs.dwell}
-          onPress={() => ctx.update({ inputs: { ...s.inputs, dwell: !s.inputs.dwell } })}
-        />
-        <Tile
-          label="Keys"
-          pressed={s.inputs.keys}
-          onPress={() => ctx.update({ inputs: { ...s.inputs, keys: !s.inputs.keys } })}
-        />
-        <Tile
-          label="Camera"
-          pressed={s.inputs.camera}
-          onPress={() => ctx.update({ inputs: { ...s.inputs, camera: !s.inputs.camera } })}
-        />
-      </div>
-      {ctx.marking && <p className="hint">{ctx.marking}</p>}
+      <Grid ids={PAGE_LAYOUT.view} ctx={ctx} />
+      {ctx.numbers && (
+        <p className="numbers-list" aria-live="off">
+          {ctx.numbers.map((i) => `${i.n} ${i.label}`).join(" · ")}
+        </p>
+      )}
     </>
   );
+}
+
+export function LayersPage({ ctx }: { ctx: PageCtx }) {
+  return <Grid ids={PAGE_LAYOUT.layers} ctx={ctx} />;
 }

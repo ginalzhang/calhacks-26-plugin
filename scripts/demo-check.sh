@@ -21,10 +21,10 @@ cd "$(dirname "$0")/.."
 arg="${1:-}"
 case "$arg" in
   P0|0) N=P0 ;; P1|1) N=P1 ;; P2a|2a|p2a) N=P2a ;; P2b|2b|p2b) N=P2b ;; P3|3) N=P3 ;;
-  *) echo "usage: scripts/demo-check.sh P0|P1|P2a|P2b|P3   (or 0|1|2a|2b|3)" >&2; exit 2 ;;
+  *) echo "usage: scripts/demo-check.sh P0|P1|P2a|P2b|P3|P4   (or 0|1|2a|2b|3|4)" >&2; exit 2 ;;
 esac
 
-ALL=(P0 P1 P2a P2b P3)
+ALL=(P0 P1 P2a P2b P3 P4)
 TAGS=()
 for p in "${ALL[@]}"; do TAGS+=("$p"); [ "$p" = "$N" ] && break; done
 GREP=$(printf '@%s|' "${TAGS[@]}"); GREP="${GREP%|}"           # @P0|@P1
@@ -88,7 +88,7 @@ N="$N" OUT="$OUT" TSC=$TSC VITEST=$VITEST PYTEST=$PYTEST PW=$PW node - <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const OUT = process.env.OUT;
-const PHASES = ["P0", "P1", "P2a", "P2b", "P3"];
+const PHASES = ["P0", "P1", "P2a", "P2b", "P3", "P4"];
 const upto = PHASES.slice(0, PHASES.indexOf(process.env.N) + 1);
 const inScope = new RegExp(`@(${upto.join("|")})\\b`);
 
@@ -195,6 +195,19 @@ const DOD = {
     ["Real Mac: ring overlay visible over Krita; Krita's brush outline still shows through it", "human"],
     ["Real hand in a glove/brace: Colour cap sticker is tracked and paints", "human"],
     ["Real Mac: self-hosted MediaPipe assets load with the network off", "human"],
+  ],
+  P4: [
+    ["Hand preset tiles set the documented Steadiness / gain / dwell / Latch", [pw(/hand preset tiles/)]],
+    ["Profiles: save and use round-trip; \"Steady day\" and \"Shaky day\" exist", [pw(/profile save \/ use/)]],
+    ["Show numbers → helper `numbers {items}`; \"click 1\" clicks the item centre", [pw(/Show numbers sends a numbers message/)]],
+    ["App profile Photoshop: typed \"undo\" sends keys cmd+z, not krita", [pw(/app profile Photoshop/)]],
+    ["Presets, profiles, re-baseline, head mode, eyebrow detector (every @P4 Vitest)", [allOf("vitest", "P4")]],
+    ["Every @P4 Playwright", [allOf("playwright", "P4")]],
+    ["Every pytest ≤ P4 (helper numbers badges, Photoshop map, plugin list_widgets)", [allOf("pytest", "*")]],
+    ["Real face: Head mode moves the pointer with the nose; gain 6× feels usable", "human"],
+    ["Real face: an eyebrow lift lifts the pen, and talking or blinking does not", "human"],
+    ["Real Krita: numbered badges line up over Krita's widgets; \"click 5\" clicks the right one", "human"],
+    ["Real Photoshop: undo / brush / bigger / smaller shortcuts work through the Photoshop profile", "human"],
   ],
 };
 

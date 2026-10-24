@@ -111,6 +111,12 @@ export interface SteadySettings {
   tileHoverPx?: number | null;
   /** Landmark the hand lock follows (wrist 0; nose 1 in Head mode). */
   lockLandmark?: number;
+  /** P4 Head mode (nose tip, FaceLandmarker). */
+  headMode?: boolean;
+  /** P4 eyebrow raise lifts the pen (never lowers). */
+  eyebrowLift?: boolean;
+  /** P4 target app for krita-scoped actions. */
+  appProfile?: "krita" | "photoshop";
   /** Landmark source: MediaPipe hand, or the P3 colour-cap sticker. */
   trackingSource: "hand" | "colorcap";
   /** Saved sticker HSV range (ColorCapSource), or null for the default neon green. */

@@ -52,6 +52,7 @@ Step-by-step for non-experts, with System Settings deep links: [`scripts/human-s
 
 ```bash
 npm install
+npm run assets               # once: download MediaPipe's wasm + hand/face models into public/mediapipe/
 npm run dev                  # Next.js on http://localhost:3000
 npm run helper               # Python helper: pointer, F-keys, Krita relay (creates a venv on first run)
 npm run demo-chrome          # dedicated Chrome (own profile .steady-chrome) at http://localhost:3000?demo=1
@@ -74,12 +75,21 @@ npm run krita-plugin:install # copies the plugin into ~/Library/Application Supp
 7. **Keys** (remappable): F8 pen · F9 pause/resume · F10 push-to-talk · F7 undo · F6 redo · F5 recenter ·
    F4 other hand · F3 Latch.
 8. **If the pointer ever seems stuck, click the physical mouse once.**
+9. **Port 3000.** The helper accepts WebSocket connections only from `http://localhost:3000` (any other
+   website could otherwise move your mouse). If something else already uses port 3000, run Steady on another
+   port and tell the helper: `npx next dev -p 3100` and `npm run helper -- --origin http://localhost:3100`
+   (or `STEADY_ORIGIN=http://localhost:3100`). Only `localhost` / `127.0.0.1` origins are accepted.
+10. **Optional: browser speech fallback.** Off by default. Setup › "Browser speech fallback" lets Chrome's
+    own speech recognition stand in when Cartesia is unavailable; Chrome sends that audio to Google (see
+    Privacy).
 
 API keys (optional; without them voice and the Claude fallback run on mocks and the status bar says
 "key missing"): put `CARTESIA_API_KEY` and `ANTHROPIC_API_KEY` in `.env.local` (see `.env.example`).
 
-Tests: `npm test` (Vitest), `npm run pytest`, `npx playwright test`, and the phase gate
-`scripts/demo-check.sh P0|P1|P2a|P2b|P3`.
+Tests: `npm test` (Vitest), `npm run pytest`, `npx playwright test` (synthesised landmark replays and a
+fake helper; no camera, no Krita), and the phase gate `scripts/demo-check.sh P0|P1|P2a|P2b|P3|P4`, which
+prints PASS/FAIL per definition-of-done item and NEEDS HUMAN for real-hardware checks
+([`NEEDS-HUMAN.md`](NEEDS-HUMAN.md)).
 
 ## How it works
 
@@ -100,8 +110,8 @@ iPhone camera ──► Chrome page (Next.js)
 
 Tracking runs in a Web Worker, not on the page's render loop, so it keeps going when Krita covers Chrome
 (the dedicated Chrome from `npm run demo-chrome` also disables background throttling). The MediaPipe model
-and wasm are served from Steady's own `/public/mediapipe/`, so tracking needs no network
-(*TODO: confirm once the self-hosted assets land and are tested offline*).
+and wasm are served from Steady's own `/public/mediapipe/` (fetched once by `npm run assets`), so tracking
+needs no network (*TODO: not yet tested with Wi-Fi off on the real Mac*).
 
 **Two ways to track the hand.**
 - **Hand landmarks (default):** MediaPipe's hand model; the pointer follows the index knuckle by default
@@ -134,6 +144,22 @@ Pair Hatch with Krita's parallel ruler assistant for straight parallel lines.
 **Smoothing presets.** **Sketch** (Steadiness 25), **Ink mode** (70) and **Shade** (10, small dead zone:
 artists shading with fast back-and-forth strokes find heavy smoothing confusing). Everything is still a
 slider, because ability changes hour to hour.
+
+**Hand presets and profiles.** Four preset tiles describe what a hand does, never a diagnosis:
+*Sore joints, steady hand* (Steadiness 25, gain 3×); *Shakes when holding still or reaching* (70);
+*Slow movements, shakes at rest* (45, gain 4×, dwell 1200 ms, Latch on); *Hard to hold still* (60, Latch on,
+a wider dwell radius, and a one-time tip: the fastest way to lift the pen is a pedal, the pen key or saying
+"up"). Profiles store the user's own values under their own names ("Steady day" and "Shaky day" are
+pre-created); "save profile evening" / "profile evening" work by voice, typed command or tile. Re-baseline: every 10 min
+Steady re-measures hand size and rescales the active box, because swelling changes through the day.
+
+**More ways in (P4).** *Head mode* moves the pointer with the nose tip (gain 6×) through the same pipeline,
+for days when the hand can't rest at all. *Eyebrow lift* (opt-in) lifts the pen. *Show numbers* puts numbered
+badges over Krita's own buttons (the plugin lists the visible widgets; the helper draws the badges), so
+"click 5" presses a toolbar button too small to dwell on. An *app profile* switch ("photoshop mode") sends
+Photoshop's shortcuts instead of Krita plugin commands, to show the same layer works in any drawing app.
+*TODO: none of the P4 features has been tried with a real face, real Krita widgets or real Photoshop; see
+NEEDS-HUMAN.md.*
 
 **The dwell ring.** A small ring follows the pointer and fills while you hold still; it is filled while
 drawing, hollow while hovering, grey where a dwell would do nothing, and a "?" when tracking is lost
@@ -170,10 +196,11 @@ through the ring).*
   toggles, never while the mic is open (playback is cancelled on push-to-talk), off in quiet mode.
   *TODO: confirm it is live with a real key before submitting; delete this bullet if TTS did not land.*
 
-**Fallback when Cartesia is unavailable:** Chrome's built-in Web Speech recognition. *Chrome sends that
-audio to Google's servers*, so it is used only as a fallback, only while the mic is open, and the status bar
-says so whenever it is active. Tiles, typed commands and the pedal never need either.
-*TODO: delete this paragraph if the Web Speech fallback did not ship.*
+**Opt-in fallback when Cartesia is unavailable:** Chrome's built-in Web Speech recognition, off by default
+(Setup › "Browser speech fallback"). *Chrome sends that audio to Google's servers*, so it is used only when
+the user turns it on, only while the mic is open, and the status reads "Using the browser's speech
+recognition. Chrome sends this audio to Google while the mic is open." Tiles, typed commands and the pedal
+never need either. *TODO: not yet tested with a real microphone.*
 
 ### Limitations (voice)
 - Accuracy on dysarthric or accented speech has **not been measured**.
@@ -225,9 +252,9 @@ filter (±4 px at rest, up to ±8 px when moving fast); anything recorded with i
 
 Camera frames never leave this computer; the camera sees the desk, so papers on it are visible to the app, and processing is local only. Microphone audio goes to Cartesia only while the mic is open. When the local grammar can't match a command, its text (never audio) plus the current tool, preset, size, opacity, colour, Steadiness and your last three actions go to our server and on to Anthropic. The helper and the Krita plugin listen on `127.0.0.1` only and send nothing off the machine.
 
-*Speech fallback:* if Cartesia is unavailable and the Web Speech fallback is in use, Chrome sends the
-microphone audio to Google while the mic is open; the status bar shows "Speech via Google" whenever it is
-active. *TODO: confirm the exact status wording with the shipped build; delete if the fallback did not ship.*
+*Opt-in speech fallback:* only if you turn on Setup › "Browser speech fallback" and Cartesia is
+unavailable, Chrome's own speech recognition is used instead, and **Chrome sends that microphone audio to
+Google** while the mic is open. The status line says so whenever it is active. It is off by default.
 
 ## Pressure
 
