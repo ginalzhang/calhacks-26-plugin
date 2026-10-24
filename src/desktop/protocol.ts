@@ -137,7 +137,15 @@ export const ResumeMsg = z.object({ t: z.literal("resume"), id: Id });
 /** Chrome's own window rect (screen points), sent on connect, on change and before pause. */
 export const ChromeRectMsg = z.object({ t: z.literal("chrome_rect"), id: Id, rect: RectSchema });
 
+/** Remapped global keys (§4): combo → hotkey name. Replaces the helper's map (default f3..f10). Reply `ack`. */
+export const KeymapMsg = z.object({
+  t: z.literal("keymap"),
+  id: Id,
+  map: z.record(KeyComboSchema, HotkeyNameSchema),
+});
+
 export const WorkerToHelperSchema = z.union([
+  KeymapMsg,
   MoveMsg,
   DownMsg,
   UpMsg,

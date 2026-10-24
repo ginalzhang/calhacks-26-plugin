@@ -39,6 +39,7 @@ While paused the helper refuses `down` (error `paused`) and honours `click` only
 | `ping` | — | reply `pong` (same id). Feeds the watchdog and the round-trip metric. |
 | `pause` / `resume` | — | see pen-state law. Reply `ack`. |
 | `chrome_rect` | `rect` | Chrome window rect for pause clamping and click gating. |
+| `keymap` | `map: {combo: hotkeyName}` | Remapped global keys (Settings). Replaces the default F3–F10 map; `ptt_down` names the push-to-talk key (release sends `ptt_up`). Sent on connect and on change. Reply `ack`. |
 
 ## helper → Worker
 | t | fields | when |

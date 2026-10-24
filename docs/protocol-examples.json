@@ -78,6 +78,20 @@
         "w": 320,
         "h": 1000
       }
+    },
+    "keymap": {
+      "t": "keymap",
+      "id": "0b6a1f0e-000f-4000-8000-00000000000f",
+      "map": {
+        "f3": "latch",
+        "f4": "other_hand",
+        "f5": "recenter",
+        "f6": "redo",
+        "f7": "undo",
+        "f8": "pen",
+        "f9": "pause",
+        "f10": "ptt_down"
+      }
     }
   },
   "helper_to_worker": {

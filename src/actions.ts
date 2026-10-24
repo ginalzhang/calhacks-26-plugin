@@ -67,8 +67,8 @@ export interface Action {
   fuzzyAllowed: boolean;
   /** Changes a mode (latch, dots, hatch, ...). Never fuzzy-matched. */
   modeChanging?: boolean;
-  /** Takes a numeric argument ("size 20", "opacity fifty"). */
-  arg?: "number";
+  /** Takes an argument: a number ("size 20", "opacity fifty") or one word ("alias fluffy", "call this brush fluffy"). */
+  arg?: "number" | "word";
   /** Tile is a toggle exposing aria-pressed (fixed name). */
   toggle?: boolean;
   page: PageId;
@@ -692,6 +692,22 @@ export const ACTIONS: Action[] = [
     fuzzyAllowed: true,
     page: "view",
     krita: { plugin: { cmd: "action", action: "mirror_canvas" }, keys: "m" },
+  },
+  {
+    id: "name_brush",
+    label: "Name this brush",
+    voicePhrases: ["call this brush"],
+    typed: "alias",
+    key: null,
+    scope: "krita",
+    phase: "P2b",
+    destructive: false,
+    fuzzyAllowed: false,
+    modeChanging: true,
+    arg: "word",
+    page: "paint",
+    help: "Saves the current brush under a word you choose. Say the word later to pick it. A word that is already a command is refused.",
+    krita: { plugin: { cmd: "get_state" }, pluginOnly: true },
   },
   // ---- Layers ---------------------------------------------------------------
   {
