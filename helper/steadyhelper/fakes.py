@@ -78,7 +78,9 @@ class FakeSystem:
         krita_rect: Optional[Dict[str, float]] = None,
         activation_works: bool = True,
         activation_delay_pumps: int = 0,
+        target_bundle: str = KRITA_BUNDLE_ID,
     ) -> None:
+        self.target_bundle = target_bundle
         self.frontmost = frontmost
         self.krita_running = krita_running
         self.krita_rect = krita_rect if krita_rect is not None else {"x": 0.0, "y": 25.0, "w": 1400.0, "h": 1060.0}
@@ -94,7 +96,7 @@ class FakeSystem:
             self._pending_activation -= 1
         if self._pending_activation == 0:
             self._pending_activation = -1
-            self.frontmost = KRITA_BUNDLE_ID
+            self.frontmost = self.target_bundle
 
     def frontmost_bundle_id(self) -> Optional[str]:
         return self.frontmost
@@ -108,7 +110,7 @@ class FakeSystem:
         self.activations += 1
         if self.activation_works:
             if self.activation_delay_pumps <= 0:
-                self.frontmost = KRITA_BUNDLE_ID
+                self.frontmost = self.target_bundle
             else:
                 self._pending_activation = self.activation_delay_pumps
         return True

@@ -19,7 +19,17 @@ import signal
 import threading
 from typing import Callable, List, Optional, Tuple
 
-from .ring import RING_LINE_PT, RING_RADIUS_PT, RING_WINDOW_PT, OverlayController, RingFrame, window_origin
+from .ring import (
+    BADGE_BG,
+    BADGE_BORDER,
+    BADGE_FG,
+    RING_LINE_PT,
+    RING_RADIUS_PT,
+    RING_WINDOW_PT,
+    OverlayController,
+    RingFrame,
+    window_origin,
+)
 
 log = logging.getLogger("steady.overlay")
 
@@ -88,6 +98,63 @@ class AppKitRingView:
         self._win = win
         self._shown = False
 
+    def _make_window(self, w: float, h: float):
+        A = self._A
+        win = A.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+            A.NSMakeRect(0, 0, w, h), A.NSWindowStyleMaskBorderless, A.NSBackingStoreBuffered, False
+        )
+        win.setOpaque_(False)
+        win.setBackgroundColor_(A.NSColor.clearColor())
+        win.setIgnoresMouseEvents_(True)
+        win.setLevel_(A.NSStatusWindowLevel + 1)
+        win.setCollectionBehavior_(
+            A.NSWindowCollectionBehaviorCanJoinAllSpaces
+            | A.NSWindowCollectionBehaviorStationary
+            | A.NSWindowCollectionBehaviorFullScreenAuxiliary
+            | A.NSWindowCollectionBehaviorIgnoresCycle
+        )
+        win.setHasShadow_(False)
+        win.setReleasedWhenClosed_(False)
+        win.contentView().setWantsLayer_(True)
+        return win
+
+    def apply_badges(self, badges) -> None:
+        """One small window per badge (never one big window: keeps Chrome un-occluded and keeps
+        the transparent-window click-interception risk to the badge plates themselves)."""
+        A, Q = self._A, self._Q
+        pool = getattr(self, "_badge_windows", None)
+        if pool is None:
+            pool = self._badge_windows = []
+        screens = A.NSScreen.screens()
+        primary_h = float(screens[0].frame().size.height) if screens and len(screens) else 0.0
+        while len(pool) < len(badges):
+            win = self._make_window(10, 10)
+            text = Q.CATextLayer.layer()
+            text.setAlignmentMode_("center")
+            text.setContentsScale_(2.0)
+            win.contentView().layer().addSublayer_(text)
+            pool.append((win, text))
+        for i, (win, text) in enumerate(pool):
+            if i >= len(badges):
+                win.orderOut_(None)
+                continue
+            b = badges[i]
+            Q.CATransaction.begin()
+            Q.CATransaction.setDisableActions_(True)
+            try:
+                text.setFrame_(Q.CGRectMake(0, 0, b.w, b.h))
+                text.setString_(b.text)
+                text.setFontSize_(b.font_pt)
+                text.setForegroundColor_(self._cg(BADGE_FG))
+                text.setBackgroundColor_(self._cg(BADGE_BG))
+                text.setBorderColor_(self._cg(BADGE_BORDER))
+                text.setBorderWidth_(2.0)
+                text.setCornerRadius_(min(b.w, b.h) / 4.0)
+            finally:
+                Q.CATransaction.commit()
+            win.setFrame_display_(A.NSMakeRect(b.x, primary_h - b.y - b.h, b.w, b.h), True)
+            win.orderFrontRegardless()
+
     def _cg(self, rgba: Tuple[float, float, float, float], alpha_scale: float = 1.0):
         r, g, b, a = rgba
         return self._Q.CGColorCreateGenericRGB(r, g, b, a * alpha_scale)
@@ -123,11 +190,12 @@ class AppKitRingView:
             self._shown = True
 
     def close(self) -> None:
-        win = self._win
-        try:
-            self._H.callAfter(win.orderOut_, None)
-        except Exception:
-            pass
+        wins = [self._win] + [w for w, _ in getattr(self, "_badge_windows", [])]
+        for win in wins:
+            try:
+                self._H.callAfter(win.orderOut_, None)
+            except Exception:
+                pass
 
 
 def run_app_with_overlay(

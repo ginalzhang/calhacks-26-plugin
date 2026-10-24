@@ -16,7 +16,9 @@ Speaks the helper side of the protocol WITHOUT touching the pointer or keyboard:
                                  ok:false error:"plugin_down"; {"hello": {...}} overrides hello fields;
                                  {"canvas_rect": {x,y,w,h}} / {"window_rect": ...} sets the rect those
                                  cmds reply (null → ok:false no_canvas_rect / no_window);
-                                 {"payloads": {"<cmd>": {...}}} merges extra reply fields per cmd
+                                 {"payloads": {"<cmd>": {...}}} merges extra reply fields per cmd;
+                                 {"widgets": [{n,label,rect}, ...]} sets the list_widgets reply
+- Acks `numbers` and `keymap` (ok:true) and records them like every other message.
     GET  /health              → {"ok": true, "clients": n}
 
 Only needs `websockets` (stdlib otherwise). Run: scripts/run-fake-helper.sh or
@@ -89,6 +91,12 @@ KRITA_PAYLOADS: Dict[str, Dict[str, Any]] = {
     "session_init": {"smoothing_changed": True, "cleared": [{"key": "f5", "action": "show_brush_editor"}], "krita_version": "5.3.4"},
     "get_state": {"preset": "b) Basic-5 Size", "size": 40, "opacity": 100, "color": "#1d4ed8", "eraser": False, "layer": "Paint Layer 1"},
     "clear_shortcuts": {"cleared": []},
+    "list_widgets": {
+        "widgets": [
+            {"n": 1, "label": "Freehand Brush Tool", "rect": {"x": 12, "y": 140, "w": 32, "h": 32}},
+            {"n": 2, "label": "Eraser", "rect": {"x": 12, "y": 176, "w": 32, "h": 32}},
+        ]
+    },
     "preset": {"preset": "b) Basic-5 Size"},
     "new_layer": {"layer": "Steady 1"},
     "layer_nav": {"layer": "Paint Layer 1"},
@@ -153,7 +161,7 @@ class FakeHelper:
         rid = msg.get("id") if isinstance(msg.get("id"), str) else new_id()
         if t == "ping":
             return {"t": "pong", "id": rid}
-        if t in ("keys", "click", "pause", "resume"):
+        if t in ("keys", "click", "pause", "resume", "numbers", "keymap"):
             if t in ("pause", "resume"):
                 with self.lock:
                     self.paused = t == "pause"
@@ -170,6 +178,10 @@ class FakeHelper:
             if rect_override is None:
                 return {"t": "krita_reply", "id": rid, "ok": False, "via": "plugin", "error": "no_canvas_rect" if cmd == "canvas_rect" else "no_window"}
             payload = dict(KRITA_PAYLOADS.get(cmd, {}))
+            with self.lock:
+                widgets = self.config.get("widgets")
+            if cmd == "list_widgets" and isinstance(widgets, list):
+                payload = {"widgets": widgets}
             if isinstance(rect_override, dict):
                 payload["rect"] = rect_override
             payload.update(overrides.get(cmd) or {})

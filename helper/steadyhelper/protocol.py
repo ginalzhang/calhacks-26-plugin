@@ -57,6 +57,13 @@ def _keymap(v: Any) -> bool:
     return isinstance(v, dict) and all(_str(k) and v[k] in HOTKEYS for k in v)
 
 
+def _numbers_items(v: Any) -> bool:
+    return v is None or (
+        isinstance(v, list)
+        and all(isinstance(i, dict) and _num(i.get("n")) and _str(i.get("label")) and _rect(i.get("rect")) for i in v)
+    )
+
+
 def _screen(v: Any) -> bool:
     return isinstance(v, dict) and all(_num(v.get(k)) for k in ("w", "h", "scale"))
 
@@ -99,6 +106,7 @@ KRITA_COMMANDS: Dict[str, Spec] = {
     "smoothing": ({"mode": _enum("none", "simple", "weighted", "stabilizer")}, {}),
     "clear_shortcuts": ({"keys": _str_list}, {}),
     "session_init": ({"keys": _str_list}, {}),
+    "list_widgets": ({}, {"max": _num}),
     "get_state": ({}, {}),
     "ping": ({}, {}),
 }
@@ -116,6 +124,7 @@ def validate_krita_command(msg: Msg) -> Optional[str]:
 
 WORKER_TO_HELPER: Dict[str, Spec] = {
     "keymap": ({"map": _keymap}, {}),
+    "numbers": ({"items": _numbers_items}, {}),
     "move": ({"x": _num, "y": _num}, {}),
     "down": ({}, {}),
     "up": ({}, {"reason": _str}),

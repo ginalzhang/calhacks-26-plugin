@@ -114,7 +114,11 @@ class QuartzKeyPoster:
 # --- system -------------------------------------------------------------------------------
 
 class MacSystem:
-    def __init__(self) -> None:
+    """`target_bundle` is the drawing app (Krita by default; `--app photoshop`). The method names
+    say "krita" because the protocol fields do; they mean "the selected drawing app"."""
+
+    def __init__(self, target_bundle: str = KRITA_BUNDLE_ID) -> None:
+        self.target_bundle = target_bundle
         import AppKit
         import Quartz
 
@@ -141,7 +145,7 @@ class MacSystem:
         return str(app.bundleIdentifier()) if app is not None and app.bundleIdentifier() else None
 
     def _krita_app(self):
-        apps = self._A.NSRunningApplication.runningApplicationsWithBundleIdentifier_(KRITA_BUNDLE_ID)
+        apps = self._A.NSRunningApplication.runningApplicationsWithBundleIdentifier_(self.target_bundle)
         return apps[0] if apps and len(apps) else None
 
     def krita_pid(self) -> Optional[int]:

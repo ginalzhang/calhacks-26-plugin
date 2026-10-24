@@ -66,8 +66,9 @@ def build_keymap(mapping: Dict[str, str]) -> Keymap:
     return out
 
 
-def is_target_app(bundle_id: Optional[str]) -> bool:
-    return bundle_id == KRITA_BUNDLE_ID or bundle_id in CHROME_BUNDLE_IDS
+def is_target_app(bundle_id: Optional[str], app_bundle: str = KRITA_BUNDLE_ID) -> bool:
+    """Keys are consumed only while the drawing app (Krita by default) or Chrome is frontmost."""
+    return bundle_id == app_bundle or bundle_id in CHROME_BUNDLE_IDS
 
 
 class HotkeyRouter:
@@ -77,7 +78,9 @@ class HotkeyRouter:
         frontmost: Callable[[], Optional[str]],
         has_client: Callable[[], bool],
         keymap: Optional[Keymap] = None,
+        app_bundle: str = KRITA_BUNDLE_ID,
     ) -> None:
+        self.app_bundle = app_bundle
         self._emit = emit
         self._frontmost = frontmost
         self._has_client = has_client
@@ -114,7 +117,7 @@ class HotkeyRouter:
         except Exception:
             log.exception("frontmost lookup failed")
             front = None
-        if not is_target_app(front):
+        if not is_target_app(front, self.app_bundle):
             return False, []
         self._held[keycode] = name
         if is_repeat:

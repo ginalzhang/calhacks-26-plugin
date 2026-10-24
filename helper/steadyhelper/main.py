@@ -12,7 +12,7 @@ import sys
 from typing import Callable, Optional
 
 from . import VERSION
-from .config import ALLOWED_ORIGIN, PLUGIN_HOST, PLUGIN_PORT, WS_HOST, WS_PORT
+from .config import ALLOWED_ORIGIN, APP_BUNDLES, PLUGIN_HOST, PLUGIN_PORT, WS_HOST, WS_PORT
 from .permissions import (
     STARTUP_WARNING,
     accessibility_message,
@@ -71,8 +71,21 @@ def parse_args(argv=None, env=None) -> argparse.Namespace:
     ap.add_argument("--no-hotkeys", action="store_true", help="do not install the global key tap")
     ap.add_argument("--no-pointer", action="store_true", help="pointer-less mode (never post mouse events)")
     ap.add_argument("--no-overlay", action="store_true", help="no ring overlay window (P3); the side panel still shows state")
+    ap.add_argument(
+        "--app",
+        choices=sorted(APP_BUNDLES),
+        default=None,
+        help="drawing app that receives keys and global hotkeys (default krita; env STEADY_APP)",
+    )
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
+    env_map = os.environ if env is None else env
+    if args.app is None:
+        app = env_map.get("STEADY_APP", "").strip().lower() or "krita"
+        if app not in APP_BUNDLES:
+            ap.error(f"STEADY_APP={app!r}: choose one of {', '.join(sorted(APP_BUNDLES))}")
+        args.app = app
+    args.app_bundle = APP_BUNDLES[args.app]
     try:
         args.origins = resolve_origins(args.origin, os.environ if env is None else env)
     except BadOrigin as e:
@@ -86,8 +99,9 @@ async def _serve(args, pointer: Pointer, perms, warnings=None, overlay=None, on_
     from .macos import MacSystem, QuartzKeyPoster
     from .server import HelperServer
 
-    system = MacSystem()
-    relay = KritaRelay(PLUGIN_HOST, args.plugin_port)
+    system = MacSystem(args.app_bundle)
+    # Only Krita has a plugin; for other apps every `krita` message uses its fallback keys.
+    relay = KritaRelay(PLUGIN_HOST, args.plugin_port) if args.app == "krita" else None
     server = HelperServer(
         pointer=pointer,
         system=system,

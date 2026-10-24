@@ -32,6 +32,12 @@ WINDOW_RECT_PERIOD_S = 1.0
 RUNLOOP_PUMP_S = 0.050
 
 KRITA_BUNDLE_ID = "org.kde.krita"
+PHOTOSHOP_BUNDLE_ID = "com.adobe.Photoshop"
+
+#: `--app` / STEADY_APP choices (P4 "any drawing app"): which app keys go to, which app's
+#: window rect is reported and which app (besides Chrome) consumes the global keys.
+#: Only Krita has a plugin; for the others the helper never connects to port 8766.
+APP_BUNDLES = {"krita": KRITA_BUNDLE_ID, "photoshop": PHOTOSHOP_BUNDLE_ID}
 CHROME_BUNDLE_IDS = frozenset(
     {
         "com.google.Chrome",

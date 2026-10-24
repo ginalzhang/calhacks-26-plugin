@@ -147,8 +147,16 @@ errors into DECISIONS.md. Tags in brackets say which agent wrote the item (A–G
     looking down at the desk do not.
 40. [ ] **Numbers over Krita** [F]: View › Show numbers: the numbered badges line up over Krita's real
     widgets; "click 5" clicks the widget under badge 5; "hide numbers" clears them.
+    [C] Needs the overlay (`npm run helper`, not `--no-overlay`). Yellow digits on black plates at each
+    widget's top-left, readable from a normal seat, never covering a neighbouring button; Pause/F9 removes
+    them. Default-size icons get smaller digits: enlarge toolbox icons per `scripts/krita-setup.md`. Hover
+    Krita's brush outline under a badge (same transparent-window check as the ring).
 41. [ ] **Photoshop app profile** [F]: Setup › App → Photoshop, Photoshop frontmost: "undo", "brush",
     "bigger", "smaller", "eraser" send the right Photoshop shortcuts.
+    [C] Start the helper with `npm run helper -- --app photoshop` (Setup and helper must match). Also check the
+    **unverified** shortcuts: new layer = cmd+alt+shift+n adds a layer with no dialog; line = u; solid = 0
+    (100 % opacity); and zoom in/out (cmd+= / cmd+-), fit (cmd+0), 100 % (cmd+1), merge down (cmd+e),
+    eyedropper (i). F-keys are consumed while Photoshop is in front and Krita is left alone.
 
 ## For the submission
 42. [ ] **Record the fallback video first at 22:00** [F] (`docs/demo-video.md` › Fallback video: Chrome +

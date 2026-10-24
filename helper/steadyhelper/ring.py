@@ -76,6 +76,73 @@ def window_origin(x: float, y: float, primary_screen_h: float, size: float = RIN
     return (x - size / 2.0, primary_screen_h - y - size / 2.0)
 
 
+# ---------------------------------------------------------------------------------------------
+# Numbered badges (P4: "show numbers" / "click five" over Krita's widgets)
+# ---------------------------------------------------------------------------------------------
+
+#: Digit size target. Never smaller unless the widget itself is smaller (see layout_badges).
+BADGE_FONT_PT = 28.0
+BADGE_FONT_MAX_PT = 40.0
+BADGE_FONT_FLOOR_PT = 10.0
+MAX_BADGES = 99
+BADGE_BG: RGBA = (0.0, 0.0, 0.0, 0.88)  # near-black plate
+BADGE_FG: RGBA = (1.0, 0.92, 0.23, 1.0)  # yellow digits: ~15:1 on the plate
+BADGE_BORDER: RGBA = (1.0, 1.0, 1.0, 1.0)
+
+
+@dataclass(frozen=True)
+class Badge:
+    n: int
+    text: str
+    label: str
+    x: float  # Quartz global points, top-left of the badge (= the widget rect's top-left)
+    y: float
+    w: float
+    h: float
+    font_pt: float
+    full_size: bool  # False → the widget is smaller than a 28 pt badge; digits were shrunk to fit
+
+
+def badge_size(font_pt: float, digits: int) -> Tuple[float, float]:
+    """Plate size for `digits` digits at `font_pt` (digit advance ≈ 0.62 em, 0.25 em side pad)."""
+    h = round(font_pt * 1.25)
+    w = round(max(h, font_pt * (0.62 * digits + 0.5)))
+    return float(w), float(h)
+
+
+def layout_badges(items) -> list:
+    """`numbers.items` → Badges, anchored at each rect's top-left and NEVER larger than the rect
+    (a badge must not hide a neighbouring widget a dwell user may want).
+
+    Digits are ≥ 28 pt whenever the widget is big enough for a 28 pt plate (35 pt tall), up to
+    40 pt for big widgets. For smaller widgets the font shrinks to fit (floor 10 pt) and the badge
+    is marked `full_size=False`; `scripts/krita-setup.md` tells the human to enlarge toolbox
+    icons so this does not happen. Items with an empty rect are skipped; at most 99 badges.
+    """
+    out = []
+    for it in list(items or [])[: MAX_BADGES * 2]:
+        try:
+            n = it["n"]
+            r = it["rect"]
+            x, y, w, h = float(r["x"]), float(r["y"]), float(r["w"]), float(r["h"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if w <= 0 or h <= 0:
+            continue
+        text = str(int(n)) if float(n).is_integer() else str(n)
+        digits = max(1, len(text))
+        font = min(BADGE_FONT_MAX_PT, max(BADGE_FONT_PT, h * 0.5))
+        bw, bh = badge_size(font, digits)
+        while (bw > w or bh > h) and font > BADGE_FONT_FLOOR_PT:
+            font = max(BADGE_FONT_FLOOR_PT, font - 1.0)
+            bw, bh = badge_size(font, digits)
+        bw, bh = min(bw, w), min(bh, h)  # hard rule: never more than the rect
+        out.append(Badge(int(float(n)), text, str(it.get("label", "")), x, y, bw, bh, font, font >= BADGE_FONT_PT))
+        if len(out) >= MAX_BADGES:
+            break
+    return out
+
+
 class RingThrottle:
     """≤ max_hz frames; the newest frame always wins; identical frames are dropped.
 
@@ -148,6 +215,7 @@ class OverlayController:
         self._flush_scheduled = False
         self._last_state: Tuple[str, float, float, float] = ("hidden", 0.0, 0.0, 0.0)
         self.paused = False
+        self._badges: list = []
         self.disabled = False
         self.disabled_reason: Optional[str] = None
 
@@ -161,6 +229,11 @@ class OverlayController:
     def set_paused(self, paused: bool) -> None:
         with self._lock:
             self.paused = paused
+            clear = paused and bool(self._badges)
+            if clear:
+                self._badges = []  # numbers stay off after resume until the Worker sends them again
+        if clear:
+            self._post_badges([])
         self._push()
 
     def hide(self) -> None:
@@ -168,6 +241,29 @@ class OverlayController:
         with self._lock:
             self._last_state = ("hidden", 0.0, 0.0, 0.0)
         self._push()
+
+    def show_numbers(self, items) -> int:
+        """Draw numbered badges (None/[] hides). Returns how many were laid out. Hidden while paused."""
+        badges = [] if items is None or self.paused else layout_badges(items)
+        with self._lock:
+            self._badges = badges
+        self._post_badges(badges)
+        return len(badges)
+
+    def _post_badges(self, badges) -> None:
+        if self.disabled:
+            return
+
+        def apply() -> None:
+            if self.disabled:
+                return
+            try:
+                self._view.apply_badges(badges)
+            except Exception as e:
+                log.exception("badge overlay failed; disabling the overlay")
+                self.disable(f"{type(e).__name__}: {e}")
+
+        self._safe_post(apply)
 
     # -- internals ----------------------------------------------------------------------------
     def _push(self) -> None:

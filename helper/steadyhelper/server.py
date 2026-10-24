@@ -86,7 +86,10 @@ class HelperServer:
         self._frontmost: Optional[str] = None
         self._krita_was_running = False
         self.last_krita_rect: Optional[Dict[str, float]] = None
+        #: The selected drawing app's bundle id (Krita unless `--app` chose another).
+        self.app_bundle: str = getattr(system, "target_bundle", KRITA_BUNDLE_ID)
         self.router = HotkeyRouter(
+            app_bundle=self.app_bundle,
             emit=self._emit_hotkey_threadsafe,
             frontmost=lambda: self._frontmost,
             has_client=lambda: bool(self.clients),
@@ -191,7 +194,7 @@ class HelperServer:
         if running:
             rect = self.system.krita_window_rect()
             self.last_krita_rect = rect
-            msg = P.krita_window_rect(rect, self._frontmost == KRITA_BUNDLE_ID)
+            msg = P.krita_window_rect(rect, self._frontmost == self.app_bundle)
         elif self._krita_was_running:
             self.last_krita_rect = None
             msg = P.krita_window_rect(None, False)
@@ -259,6 +262,7 @@ class HelperServer:
             self.pointer.release("socket closed")
             if self.overlay is not None and not self.clients:
                 self.overlay.hide()
+                self.overlay.show_numbers(None)
 
     # ------------------------------------------------------------------ inbound
     async def handle_raw(self, ws: ServerConnection, raw) -> None:
@@ -341,6 +345,15 @@ class HelperServer:
         elif t == "ring":
             if self.overlay is not None:
                 self.overlay.submit(msg)
+        elif t == "numbers":
+            items = msg["items"]
+            if self.overlay is None or self.overlay.disabled:
+                await self._send(ws, P.ack(rid, False, "overlay_disabled"))
+            elif items and p.paused:
+                await self._send(ws, P.ack(rid, False, "paused"))
+            else:
+                self.overlay.show_numbers(items)
+                await self._send(ws, P.ack(rid))
         elif t == "keymap":
             ok, err = self.apply_keymap(msg["map"])
             await self._send(ws, P.ack(rid, ok, err))
@@ -387,16 +400,16 @@ class HelperServer:
         if self.system.krita_pid() is None:
             return False, "krita_not_running"
         self._refresh_frontmost()
-        if self._frontmost != KRITA_BUNDLE_ID:
+        if self._frontmost != self.app_bundle:
             self.system.activate_krita()
             loop = asyncio.get_running_loop()
             deadline = loop.time() + self.activate_wait
             while True:
                 self._refresh_frontmost()
-                if self._frontmost == KRITA_BUNDLE_ID or loop.time() >= deadline:
+                if self._frontmost == self.app_bundle or loop.time() >= deadline:
                     break
                 await asyncio.sleep(ACTIVATE_POLL_S)
-            if self._frontmost != KRITA_BUNDLE_ID:
+            if self._frontmost != self.app_bundle:
                 return False, "krita_not_frontmost"
         self.key_poster.post(stroke)
         return True, None

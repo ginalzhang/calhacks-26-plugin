@@ -188,3 +188,29 @@ def test_fake_refuses_non_local_origin_flag(bad, capsys):
         fake_helper.main(["--origin", bad])
     assert e.value.code == 2
     assert "only http://localhost" in capsys.readouterr().err
+
+
+@pytest.mark.P4
+@pytest.mark.asyncio
+async def test_fake_list_widgets_default_config_and_numbers_ack(fake):
+    async with connect(url(fake)) as ws:
+        await recv(ws)
+        await ws.send(json.dumps({"t": "krita", "id": "w1", "cmd": "list_widgets"}))
+        r = await recv(ws)
+        assert r["ok"] is True and r["id"] == "w1"
+        assert r["widgets"] == [
+            {"n": 1, "label": "Freehand Brush Tool", "rect": {"x": 12, "y": 140, "w": 32, "h": 32}},
+            {"n": 2, "label": "Eraser", "rect": {"x": 12, "y": 176, "w": 32, "h": 32}},
+        ]
+        custom = [{"n": 1, "label": "Fill", "rect": {"x": 1, "y": 2, "w": 40, "h": 40}}]
+        await ahttp(fake, "POST", "/config", {"widgets": custom})
+        await ws.send(json.dumps({"t": "krita", "id": "w2", "cmd": "list_widgets"}))
+        assert (await recv(ws))["widgets"] == custom
+        ex = EXAMPLES["worker_to_helper"]["numbers"]
+        await ws.send(json.dumps(ex))
+        assert (await recv(ws)) == {"t": "ack", "id": ex["id"], "ok": True}
+        km = EXAMPLES["worker_to_helper"]["keymap"]
+        await ws.send(json.dumps(km))
+        assert (await recv(ws)) == {"t": "ack", "id": km["id"], "ok": True}
+        recorded = await ahttp(fake, "GET", "/messages?t=numbers")
+        assert recorded == [ex]
