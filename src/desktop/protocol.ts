@@ -193,6 +193,8 @@ export const HelloMsg = z.object({
   krita_running: z.boolean(),
   krita_window_rect: RectSchema.nullable(),
   paused: z.boolean(),
+  /** Usable screen area (NSScreen.visibleFrame in Quartz top-left points): excludes the menu bar and the Dock. Clicks outside it are refused. */
+  visible_frame: RectSchema.nullable().optional(),
 });
 export const KritaWindowRectMsg = z.object({
   t: z.literal("krita_window_rect"),
@@ -230,6 +232,13 @@ export const ErrorMsg = z
   })
   .passthrough();
 export const KritaStateMsg = z.object({ t: z.literal("krita_state"), id: Id, connected: z.boolean() });
+/** The helper released a held button on its own (watchdog, socket, pause, hotkey, exception). The Worker lifts its pen and, if mid-stroke, raises the alert. */
+export const ReleasedMsg = z.object({
+  t: z.literal("released"),
+  id: Id,
+  reason: z.enum(["watchdog", "pause", "hotkey", "ptt", "exception", "other"]),
+  button: z.enum(["left", "middle"]),
+});
 /** Reply to `ping` (echoes id) for the round-trip metric. */
 export const PongMsg = z.object({ t: z.literal("pong"), id: Id });
 /** Generic ack for keys/click/pause/resume (echoes id). */
@@ -244,6 +253,7 @@ export const WarningMsg = z.object({
 });
 
 export const HelperToWorkerSchema = z.union([
+  ReleasedMsg,
   WarningMsg,
   HelloMsg,
   KritaWindowRectMsg,

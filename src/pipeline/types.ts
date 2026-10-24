@@ -226,6 +226,8 @@ export interface PipelineRects {
   krita: Rect | null;
   /** Screen bounds (screen points) for clamping. */
   screen: Rect | null;
+  /** Usable area (helper hello.visible_frame: no menu bar, no Dock). Dwell-clicks only inside it. */
+  usable?: Rect | null;
 }
 
 /** One frame's output, posted from the Worker to the page as `frame`. */
@@ -300,7 +302,8 @@ export type PageToWorker =
   /** Fallback path when MediaStreamTrackProcessor is missing: page posts ImageBitmaps. */
   | { type: "bitmap"; bitmap: ImageBitmap; t: number }
   | { type: "settings"; settings: Partial<SteadySettings> }
-  | { type: "window_rect"; rect: Rect }
+  /** rect in screen points; zoom = page zoom factor (outerWidth/innerWidth-based) so page CSS px → screen points = css × zoom. */
+  | { type: "window_rect"; rect: Rect; zoom?: number }
   | { type: "canvas_rect"; target: Target; rect: Rect }
   | { type: "set_target"; target: Target }
   /** Run a Steady-internal action (pen_toggle, pen_down, pen_up, pause, latch, recenter, steadier, looser, hatch, …). */

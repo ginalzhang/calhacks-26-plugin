@@ -145,7 +145,13 @@
         "w": 1400,
         "h": 1060
       },
-      "paused": false
+      "paused": false,
+      "visible_frame": {
+        "x": 0,
+        "y": 25,
+        "w": 1728,
+        "h": 1020
+      }
     },
     "krita_window_rect": {
       "t": "krita_window_rect",
@@ -201,6 +207,12 @@
       "id": "1c7b2a1f-0006-4000-8000-000000000006",
       "code": "voice_control",
       "message": "macOS Voice Control is on. Turn it off in System Settings › Accessibility › Voice Control while using Steady."
+    },
+    "released": {
+      "t": "released",
+      "id": "1c7b2a1f-0007-4000-8000-000000000007",
+      "reason": "watchdog",
+      "button": "left"
     }
   },
   "plugin_request": {

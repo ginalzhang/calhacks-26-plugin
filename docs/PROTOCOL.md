@@ -10,6 +10,7 @@ Chrome page ──postMessage──► Worker ──ws://127.0.0.1:8765──►
 ```
 
 ## Conventions
+- **One Worker at a time:** the helper accepts a single WebSocket client; a new connection replaces (and closes) the old one, which releases any held button first.
 - Every message is one JSON object with `t` (type) and `id` (uuid string). Replies echo the request `id`.
 - Coordinates are **Quartz global screen points**, top-left origin, no Retina scaling.
 - The helper **rejects any WebSocket whose `Origin` header is not `http://localhost:3000`** (close code 4003).
@@ -45,7 +46,8 @@ While paused the helper refuses `down` (error `paused`) and honours `click` only
 ## helper → Worker
 | t | fields | when |
 |---|---|---|
-| `hello` | `version, screen{w,h,scale}, accessibility, input_monitoring, krita, krita_running, krita_window_rect, paused` | on connect |
+| `hello` | `version, screen{w,h,scale}, accessibility, input_monitoring, krita, krita_running, krita_window_rect, paused, visible_frame?` | on connect. `visible_frame` = usable area (no menu bar, no Dock); clicks outside it are refused by both Worker and helper. If `paused` differs from the Worker's state the Worker reconciles (sends `pause`/`resume`). |
+| `released` | `reason, button` | the helper released a held button by itself (watchdog, pause, hotkey, ptt, exception); the Worker lifts its pen and shows the mid-stroke alert |
 | `krita_window_rect` | `rect \| null, frontmost` | every 1 s while Krita runs |
 | `hotkey` | `key: pen\|pause\|ptt_down\|ptt_up\|undo\|redo\|recenter\|other_hand\|latch` | global key pressed (consumed only while Krita or Chrome is frontmost) |
 | `krita_reply` | `ok, error?, via?, ...payload` | reply to `krita`; helper-side errors `plugin_down`, `timeout`, `internal: …` |

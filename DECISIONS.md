@@ -498,3 +498,18 @@ demo-check P3: PASS
   2. `check_permissions()` always calls `AXIsProcessTrustedWithOptions(prompt=True)` and `CGRequestListenEventAccess()`, even with `--no-pointer --no-hotkeys`. Each launch can open macOS permission dialogs. Suggested fix: use preflight-only checks when both flags are set.
   3. Ports: the WebSocket port (`--port`) and the plugin port (`--plugin-port`) can be overridden; the plugin host is fixed at 127.0.0.1, which is fine. The plugin's own port 8766 is a constant in `bridge.py`/`__init__.py`, so a real Krita cannot be moved off 8766.
 - **Page finding (not a failure):** with the real pointer-less helper, the page still enters `DRAWING` on dwell even though the helper refused `down`. The connect-time permission status is later overwritten (e.g. "Pen lifted: tracking lost mid-stroke."). If a user has no Accessibility grant, the page shows them drawing while nothing reaches Krita.
+
+### Safety review (R) + integration (H) — lead triage 15:57
+Report: .context/review-R.md. Assigned fixes:
+- R1 critical (URL params let any site drive the pointer): test-only params (`source=replay`, `target=krita`, `helper=`) honoured only when `NEXT_PUBLIC_STEADY_TEST=1` (Playwright/integration webServer sets it); Worker never connects to the helper before the first-run privacy screen is acknowledged; lead added `X-Frame-Options: DENY` + `frame-ancestors 'none'` in next.config.ts. → B, F, H.
+- R2 high (multiple clients share one button): helper accepts one client; newest replaces oldest (old closed → released). → C. PROTOCOL.md updated.
+- R3 high (calibration while pen down): setCalibration lifts; pen-down refused while calibrating. → A (+ B Worker).
+- R4 (Hatch down outside canvas): Worker sends move to the event's coordinates before every down/middle_down. → B.
+- R5 (move coalescing flattens bursts while held): queue moves while a button is held, drain at 120 Hz. → C.
+- R6 + H5 (helper pause persists / refused down shows drawing): Worker reconciles hello.paused; on refused down (permission/paused) lift the Worker pen + persistent status. → B.
+- R7 (watchdog release invisible to Worker): new helper→Worker `released {reason, button}`. → C sends, B handles (mid-stroke role=alert).
+- R8 (Dock clicks): hello.visible_frame; PipelineRects.usable; clicks only inside it (Worker + helper). → C, A, B.
+- R9 (page zoom): window_rect carries zoom; Worker scales CSS px → points. → B.
+- R10 (plugin keeps reading after non-JSON / runs any action): close connection on first non-JSON-object line; `action` limited to an allowlist (verified ids + runtime-looked-up merge/remove/clear/visibility ids). → D. H4 (Bridge.stop leaves connections open) → D.
+- H1/H2 (--no-pointer still posts keys / permission prompts): new `--no-input` (no pointer, no keys, no activation, no permission prompts); `--no-pointer` also blocks key posting. → C.
+- R minor: Worker never sends `ring` → B sends ring updates (≤ 30 Hz, hidden on pause). `numbers` handler → C verify.
