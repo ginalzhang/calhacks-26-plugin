@@ -13,7 +13,7 @@
 # SAFETY: the helper always runs through tests/integration/safe_helper.py, which seals CGEventPost, the key
 # poster, Krita activation, the global key tap and the permission prompts, and requires
 # --no-pointer --no-hotkeys --no-overlay. Nothing here moves the pointer, clicks, posts keys or opens windows.
-# Ports: app $INTEG_APP_PORT (default 3200, never 3000), helper/plugin: free ephemeral ports. Every process
+# Ports: app $INTEG_APP_PORT (first free from 3200, never 3000; dev server runs with NEXT_PUBLIC_STEADY_TEST=1), helper/plugin: free ephemeral ports. Every process
 # is stopped by PID by its owner (pytest fixtures / Playwright webServer). Owner: agent H.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -31,12 +31,12 @@ listener_cwd() { # port -> cwd of the listener ("" if none)
   [ -n "$pid" ] && lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'
 }
 
-# App port: 3200.. (never 3000, which another workspace uses). Reuse only a server of THIS checkout.
+# App port: first FREE port in 3200.. (never 3000, which another workspace uses). Never reused: the page needs
+# a dev server started with NEXT_PUBLIC_STEADY_TEST=1 (the config starts it and stops it).
 APP=${INTEG_APP_PORT:-}
 if [ -z "$APP" ]; then
   for p in $(seq 3200 3299); do
-    c=$(listener_cwd "$p")
-    if [ -z "$c" ] || [ "$c" = "$ROOT" ]; then APP=$p; break; fi
+    [ -z "$(listener_cwd "$p")" ] && ! lsof -nP -iTCP:"$p" -sTCP:LISTEN -t >/dev/null 2>&1 && { APP=$p; break; }
   done
 fi
 export INTEG_APP_PORT=$APP STEADY_INTEG_APP_PORT=$APP

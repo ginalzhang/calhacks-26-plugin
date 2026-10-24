@@ -3,8 +3,9 @@
  * Separate from playwright.config.ts (agent F) — its own testDir, testMatch (*.pw.ts), ports and outputDir.
  *
  * Starts (unless NO_WEBSERVER=1):
- *   1. `next dev -p $INTEG_APP_PORT` (default 3200; reuses a server of THIS checkout on that port,
- *      refuses a foreign one),
+ *   1. `NEXT_PUBLIC_STEADY_TEST=1 next dev -p $INTEG_APP_PORT` (default 3200; the page honours source=replay,
+ *      target= and helper= only with that build flag, so an already-running server is never reused: the port
+ *      must be free),
  *   2. the real plugin bridge with a fake adapter (tests/integration/fake_krita_bridge.py) on $INTEG_PLUGIN_PORT (28866),
  *   3. the real helper, sealed (tests/integration/safe_helper.py --no-pointer --no-hotkeys --no-overlay)
  *      on $INTEG_HELPER_PORT (28865) with --origin http://localhost:$INTEG_APP_PORT.
@@ -46,8 +47,10 @@ function listenerCwd(port: number): string | null {
 
 if (!process.env.NO_WEBSERVER) {
   const cwd = listenerCwd(APP_PORT);
-  if (cwd !== null && cwd !== root) {
-    throw new Error(`port ${APP_PORT} is held by another app (${cwd}); set INTEG_APP_PORT to a free port`);
+  if (cwd !== null) {
+    throw new Error(
+      `port ${APP_PORT} is already in use (${cwd}); the integration run needs its own NEXT_PUBLIC_STEADY_TEST=1 dev server. Set INTEG_APP_PORT to a free port`,
+    );
   }
 }
 
@@ -60,10 +63,11 @@ const webServer: WebServer = process.env.NO_WEBSERVER
   ? []
   : [
       {
-        command: `npx next dev -p ${APP_PORT}`,
+        command: `NEXT_PUBLIC_STEADY_TEST=1 npx next dev -p ${APP_PORT}`,
         cwd: root,
+        env: { NEXT_PUBLIC_STEADY_TEST: "1" },
         url: BASE_URL,
-        reuseExistingServer: true,
+        reuseExistingServer: false,
         timeout: 180_000,
         stdout: "ignore",
         stderr: "pipe",

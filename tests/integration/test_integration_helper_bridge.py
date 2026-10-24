@@ -428,6 +428,34 @@ def test_watchdog_releases_after_silence_fake_pointer(fake_pointer_helper, plugi
         c.close()
 
 
+def _helper_sends_released() -> bool:
+    """True once agent C's `released {reason, button}` message exists in the helper sources."""
+    src = "".join(p.read_text() for p in (ROOT / "helper" / "steadyhelper").glob("*.py"))
+    return '"released"' in src or "'released'" in src
+
+
+@pytest.mark.P1
+def test_watchdog_release_is_reported_to_the_client_fake_pointer(fake_pointer_helper, plugin):
+    """Watchdog release → the helper tells the (single) client `released {reason, button}`."""
+    hp = fake_pointer_helper
+    c = connected_client(hp, plugin)
+    try:
+        c.send({"t": "move", "x": 50, "y": 60})
+        c.send({"t": "down"})
+        wait_until(lambda: "FAKE-MOUSE down" in hp.log(), 2, "down")
+        wait_until(lambda: "released button (watchdog" in hp.log(), 2, "watchdog release")
+        try:
+            m = c.wait_for(lambda m: m.get("t") == "released", 2.0, "released message")
+        except AssertionError:
+            if not _helper_sends_released():
+                pytest.skip("agent C's `released {reason, button}` message has not landed in helper/steadyhelper yet")
+            raise
+        assert m["button"] in ("left", "both", "all"), m
+        assert "watchdog" in str(m.get("reason", "")), m
+    finally:
+        c.close()
+
+
 @pytest.mark.P1
 def test_socket_close_and_sigterm_release_fake_pointer(fake_pointer_helper, plugin):
     hp = fake_pointer_helper
