@@ -10,7 +10,7 @@ vi.mock("../pipeline/grammar", () => ({
 
 import type { CommandContext, ParseResult } from "../pipeline/types";
 import { readClaudeLog, setClaudeLogStorage } from "./claudeLog";
-import { pickContext, resolveClarify, resolveText, type ResolveDeps } from "./resolve";
+import { isAliasTaken, pickContext, resolveClarify, resolveText, type ResolveDeps } from "./resolve";
 import { FakeStorage } from "./testStorage";
 
 const context: CommandContext = {
@@ -159,6 +159,22 @@ describe("grammar-owned arguments pass through unchanged", () => {
     expect(r).toMatchObject({ kind: "none", reason: "invalid" });
     const { d: d2 } = deps({ api: { kind: "actions", first: "name_brush", second: "bigger", arg: null, latencyMs: 1, mock: false } });
     expect(await resolveText("x", { mode: "voice", dialogOpen: false, context }, d2)).toMatchObject({ kind: "commands", commands: [{ action: "bigger" }] });
+  });
+});
+
+describe("refused alias", () => {
+  it('@P2b "call this brush blue" refused as taken → none/nomatch, isAliasTaken gives the word, Claude never called', async () => {
+    const parse = vi.fn((): ParseResult => ({ kind: "nomatch", closest: ["colour_blue"], refused: { reason: "alias_taken", word: "blue" } }));
+    const { d, fetchImpl } = deps({ parse });
+    const statuses: string[] = [];
+    const r = await resolveText("call this brush blue", { mode: "voice", dialogOpen: false, context, onStatus: (t) => statuses.push(t) }, d);
+    expect(r).toEqual({ kind: "none", heard: "call this brush blue", closest: [], reason: "nomatch" });
+    expect(isAliasTaken(r)).toBe("blue");
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(readClaudeLog()).toHaveLength(0);
+    expect(statuses.join(" ")).toMatch(/That word is taken/);
+    const other = await resolveText("paint the room", { mode: "voice", dialogOpen: true, context }, deps().d);
+    expect(isAliasTaken(other)).toBeNull();
   });
 });
 

@@ -61,6 +61,17 @@ export function pickContext(c: CommandContext): CommandContext {
   };
 }
 
+const aliasTaken = new WeakMap<Resolution, string>();
+/**
+ * The refused alias word when the grammar refused "alias <word>" / "call this brush <word>" because
+ * the word is taken (§6 collision rule), else null. The Resolution itself is
+ * {kind:"none", reason:"nomatch", closest:[]}; B shows/speaks "That word is taken"
+ * (speakConfirmation("word_taken")). Claude is never called for it.
+ */
+export function isAliasTaken(r: Resolution): string | null {
+  return aliasTaken.get(r) ?? null;
+}
+
 let lastClarifyLogId: string | null = null;
 /** B calls this when a Claude clarify prompt closes: a picked option = accepted, cancel = rejected. */
 export function resolveClarify(accepted: boolean): void {
@@ -86,6 +97,14 @@ export async function resolveText(text: string, opts: ResolveOptions, depsIn?: P
   // (1) grammar
   const parsed = deps.parse(heard, { mode: opts.mode, dialogOpen: opts.dialogOpen, aliases: opts.aliases });
   if (parsed.kind === "match") return { kind: "commands", commands: parsed.commands, heard, via: "grammar" };
+
+  // A refused alias is a definite answer from the grammar: never ask Claude.
+  if (parsed.refused?.reason === "alias_taken") {
+    const r: Resolution = { kind: "none", heard, closest: [], reason: "nomatch" };
+    aliasTaken.set(r, parsed.refused.word);
+    opts.onStatus?.(`That word is taken: "${parsed.refused.word}".`, "status");
+    return r;
+  }
 
   // Dialogs and clarify prompts: exact grammar only, never Claude, no suggestion tiles.
   if (opts.dialogOpen) return { kind: "none", heard, closest: [], reason: "nomatch" };

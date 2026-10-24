@@ -9,7 +9,7 @@
  *   claude log: readClaudeLog / summariseClaudeLog / onClaudeLogChange / markLastClaudeRejected / clearClaudeLog
  */
 export { default as MicTile } from "./MicTile";
-export { resolveText, resolveClarify, pickContext } from "./resolve";
+export { resolveText, resolveClarify, pickContext, isAliasTaken } from "./resolve";
 export { prewarmClaude } from "./prewarm";
 export { tts, cancelSpeech, speakConfirmation, confirmationText, type ConfirmationKind, type TtsStatus } from "./ttsClient";
 export {
