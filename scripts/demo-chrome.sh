@@ -23,8 +23,8 @@ fi
 ORIGIN="$(printf '%s' "$URL" | sed -E 's#^(https?://[^/?]+).*#\1#')"
 if ! curl -s -o /dev/null --max-time 2 "$ORIGIN"; then
   echo "Note: nothing answers on $ORIGIN yet. Start it in another terminal with: npm run dev" >&2
-elif ! curl -s --max-time 2 "$ORIGIN" | grep -q "<title>Steady</title>"; then
-  echo "Warning: $ORIGIN is answering but it is not Steady (another project's dev server?)." >&2
+elif ! curl -s -D - -o /dev/null --max-time 2 "$ORIGIN" | grep -qi "^x-steady-build: calhacks-26-plugin"; then
+  echo "Warning: $ORIGIN is answering but it is not this Steady checkout (another project's or another workspace's dev server?)." >&2
   echo "Run Steady on another port: npm run dev -- -p 3100; npm run helper -- --origin http://localhost:3100;" >&2
   echo "STEADY_URL='http://localhost:3100?demo=1' npm run demo-chrome" >&2
 fi

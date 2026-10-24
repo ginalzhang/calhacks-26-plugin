@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          // Lets scripts/demo-chrome.sh tell this build apart from another Steady checkout on the same port.
+          { key: "X-Steady-Build", value: "calhacks-26-plugin" },
         ],
       },
     ];
