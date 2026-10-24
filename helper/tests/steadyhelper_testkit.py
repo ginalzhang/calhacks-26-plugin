@@ -142,6 +142,7 @@ async def rig(
     window_rect_period: float = 1.0,
     watchdog_timeout: float = 0.3,
     pointer_enabled: bool = True,
+    warnings=None,
 ):
     mouse = FakeMouse()
     system = system or FakeSystem()
@@ -162,6 +163,7 @@ async def rig(
         window_rect_period=window_rect_period,
         pump_period=0.01,
         reactivate_delay=0.02,
+        warnings=warnings,
     )
     await server.start()
     try:

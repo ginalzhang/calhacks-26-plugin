@@ -121,15 +121,35 @@ TABLET_PROCESS_HINTS = ("Wacom", "WacomTabletDriver", "TabletDriver", "Huion", "
 CONFLICT_PROCESS_HINTS = ("VoiceControl",)
 
 
+TABLET_WARNING = (
+    "A drawing-tablet driver is running. Unplug the tablet while using Steady: Krita can latch "
+    "into tablet mode and ignore the mouse until it restarts."
+)
+VOICE_CONTROL_WARNING = (
+    "macOS Voice Control is on. Turn it off in System Settings › Accessibility › Voice Control "
+    "while using Steady: it listens for the same words."
+)
+
+
+def detect_warnings(process_names: Iterable[str]) -> List[Tuple[str, str]]:
+    """(code, message) for each active conflict detectable from running processes.
+
+    Detectable: tablet drivers (`tablet`) and Voice Control (`voice_control`). Dwell Control
+    and Head Pointer have no reliable process signature, so they are only covered by the
+    console STARTUP_WARNING (codes `dwell_control` / `head_pointer` are never emitted).
+    """
+    out: List[Tuple[str, str]] = []
+    names = list(process_names)
+    if any(n in CONFLICT_PROCESS_HINTS for n in names):
+        out.append(("voice_control", VOICE_CONTROL_WARNING))
+    if any(any(h.lower() in n.lower() for h in TABLET_PROCESS_HINTS) for n in names):
+        out.append(("tablet", TABLET_WARNING))
+    return out
+
+
 def detect_conflicts(process_names: Iterable[str]) -> List[str]:
     """Human-readable notes for running processes that conflict (tablet drivers, Voice Control)."""
-    notes = []
-    names = list(process_names)
-    if any(any(h.lower() in n.lower() for h in TABLET_PROCESS_HINTS) for n in names):
-        notes.append("A tablet driver is running: unplug the tablet while using Steady.")
-    if any(n in CONFLICT_PROCESS_HINTS for n in names):
-        notes.append("Voice Control appears to be on: turn it off while using Steady.")
-    return notes
+    return [msg for _, msg in detect_warnings(process_names)]
 
 
 def check_permissions(

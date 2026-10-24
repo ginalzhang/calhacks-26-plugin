@@ -178,7 +178,11 @@ HELPER_TO_WORKER: Dict[str, Spec] = {
     "krita_state": ({"connected": _bool}, {}),
     "pong": ({}, {}),
     "ack": ({"ok": _bool}, {"error": _str}),
+    "warning": ({"code": _str, "message": _str}, {}),
 }
+
+#: Known warning codes (protocol.ts types `code` as a plain string).
+WARNING_CODES = ("dwell_control", "head_pointer", "voice_control", "tablet", "overlay_disabled")
 
 
 def validate_helper_msg(msg: Any) -> Optional[str]:
@@ -251,6 +255,10 @@ def krita_state(connected: bool) -> Msg:
 
 def krita_window_rect(rect: Optional[Msg], frontmost: bool) -> Msg:
     return {"t": "krita_window_rect", "id": new_id(), "rect": rect, "frontmost": frontmost}
+
+
+def warning(code: str, message: str) -> Msg:
+    return {"t": "warning", "id": new_id(), "code": code, "message": message}
 
 
 def krita_reply(req_id: str, ok: bool, via: Optional[str] = None, error: Optional[str] = None, **payload: Any) -> Msg:

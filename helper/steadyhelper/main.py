@@ -17,7 +17,7 @@ from .permissions import (
     STARTUP_WARNING,
     accessibility_message,
     check_permissions,
-    detect_conflicts,
+    detect_warnings,
     input_monitoring_message,
 )
 from .pointer import Pointer
@@ -66,7 +66,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
-async def _serve(args, pointer: Pointer, perms) -> None:
+async def _serve(args, pointer: Pointer, perms, warnings=None) -> None:
     from .hotkeys import start_listener
     from .krita_relay import KritaRelay
     from .macos import MacSystem, QuartzKeyPoster
@@ -83,6 +83,7 @@ async def _serve(args, pointer: Pointer, perms) -> None:
         host=args.host,
         port=args.port,
         allowed_origin=args.origin,
+        warnings=warnings,
     )
     await server.start()
     listener = None
@@ -125,13 +126,15 @@ def main(argv=None) -> int:
     if not perms.input_monitoring:
         print("\n!! " + input_monitoring_message(perms.app_name) + "\n", flush=True)
     print("Note: " + STARTUP_WARNING, flush=True)
+    warnings = []
     try:
         from .macos import running_process_names
 
-        for note in detect_conflicts(running_process_names()):
-            print("Warning: " + note, flush=True)
+        warnings = detect_warnings(running_process_names())
     except Exception:
-        pass
+        log.exception("conflict detection failed")
+    for _code, note in warnings:
+        print("Warning: " + note, flush=True)
 
     if args.no_pointer or not perms.accessibility:
         from .fakes import FakeMouse
@@ -144,7 +147,7 @@ def main(argv=None) -> int:
         pointer = Pointer(QuartzMouse(), enabled=True)
 
     install_safety(pointer)
-    return run_guarded(lambda: asyncio.run(_serve(args, pointer, perms)), pointer)
+    return run_guarded(lambda: asyncio.run(_serve(args, pointer, perms, warnings)), pointer)
 
 
 if __name__ == "__main__":  # pragma: no cover

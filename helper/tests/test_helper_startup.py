@@ -147,3 +147,44 @@ def test_every_keystroke_fallback_in_actions_ts_parses():
 def test_cli_defaults():
     a = parse_args([])
     assert a.port == 8765 and a.origin == "http://localhost:3000" and a.plugin_port == 8766
+
+
+def test_detect_warnings_codes():
+    from steadyhelper.protocol import WARNING_CODES, validate_helper_msg, warning
+    from steadyhelper.permissions import detect_warnings
+
+    w = detect_warnings(["Finder", "VoiceControl", "WacomTabletDriver"])
+    assert [c for c, _ in w] == ["voice_control", "tablet"]
+    for code, message in w:
+        assert code in WARNING_CODES
+        assert validate_helper_msg(warning(code, message)) is None
+    assert detect_warnings(["Finder", "krita"]) == []
+
+
+@pytest.mark.asyncio
+async def test_one_warning_per_active_startup_warning_after_hello():
+    from steadyhelper.permissions import detect_warnings
+    from steadyhelper.protocol import validate_helper_msg
+
+    warnings = detect_warnings(["VoiceControl", "PenTabletDriver"])
+    async with rig(warnings=warnings) as r:
+        for _ in range(2):  # every new client gets them, right after hello
+            async with r.client(skip_hello=False) as c:
+                hello = await c.recv()
+                assert hello["t"] == "hello"
+                w1, w2 = await c.recv(), await c.recv()
+                assert [w1["t"], w2["t"]] == ["warning", "warning"]
+                assert [w1["code"], w2["code"]] == ["voice_control", "tablet"]
+                assert w1["id"] != w2["id"]
+                for m in (w1, w2):
+                    assert validate_helper_msg(m) is None and m["message"]
+
+
+@pytest.mark.asyncio
+async def test_no_warning_messages_when_nothing_is_active():
+    async with rig() as r:
+        async with r.client() as c:
+            rid = mid()
+            await c.send({"t": "ping", "id": rid})
+            m = await c.recv()  # first message after hello is the pong, not a warning
+            assert m == {"t": "pong", "id": rid}

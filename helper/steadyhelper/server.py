@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
@@ -55,6 +55,7 @@ class HelperServer:
         pump_period: float = RUNLOOP_PUMP_S,
         activate_wait: float = ACTIVATE_WAIT_S,
         reactivate_delay: float = REACTIVATE_DELAY_S,
+        warnings: Optional[List[Tuple[str, str]]] = None,
     ) -> None:
         self.pointer = pointer
         self.system = system
@@ -69,6 +70,8 @@ class HelperServer:
         self.pump_period = pump_period
         self.activate_wait = activate_wait
         self.reactivate_delay = reactivate_delay
+        #: Active startup warnings as (code, message); each new client gets one `warning` per entry.
+        self.warnings: List[Tuple[str, str]] = list(warnings or [])
 
         self.clients: Set[ServerConnection] = set()
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -230,6 +233,8 @@ class HelperServer:
             await self._send(ws, self.hello_msg())
             for err in self.permission_errors():
                 await self._send(ws, err)
+            for code, message in self.warnings:
+                await self._send(ws, P.warning(code, message))
             async for raw in ws:
                 await self.handle_raw(ws, raw)
         except ConnectionClosed:
