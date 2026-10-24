@@ -289,6 +289,8 @@ class SteadyPipeline implements Pipeline {
 
   private lower(t: number, atPointer: Vec2, events: PenEvent[]): boolean {
     if (this.pen === "DRAWING") return false;
+    // R3: no pen-down from any source while calibration runs.
+    if (this.calibrating) return false;
     const hatching = !this.panArmed && (this.mode === "hatch" || this.mode === "hatch_alternate");
     const dashing = !this.panArmed && this.mode === "dash";
     const at = (hatching || dashing) && this.lastPre ? { ...this.lastPre } : atPointer;
@@ -308,6 +310,11 @@ class SteadyPipeline implements Pipeline {
       this.dash.start(at, t);
       this.lastEmitted = { ...at };
       return true;
+    }
+    // R4: the helper presses where the pointer last moved; make that exactly `at`.
+    if (!this.lastEmitted || this.lastEmitted.x !== at.x || this.lastEmitted.y !== at.y) {
+      events.push({ type: "move", x: at.x, y: at.y });
+      this.lastEmitted = { ...at };
     }
     events.push({ type: "down", x: at.x, y: at.y });
     if (hatching) {
@@ -354,15 +361,7 @@ class SteadyPipeline implements Pipeline {
     this.frameH = frame.height || CAMERA_H;
     const events: PenEvent[] = [];
     this.beginBatch();
-    if (this.pendingLift) {
-      this.pendingLift = false;
-      this.lift(t, "mode_change", events);
-      this.euro.reset();
-      this.lazy.reset();
-      this.dwell.reset();
-      this.tracker.acceptedSinceAcquire = 0; // warm-up re-applies
-      this.setRearm(t, 0, null);
-    }
+    this.flushPendingLift(t, events);
     const tf = { mirror: this.settings.mirrorCamera, rotate: this.settings.rotateCamera };
     const choice = this.settings.inputs.camera
       ? this.lock.choose(frame.hands, tf, this.extra().lockLandmark ?? 0)
@@ -464,8 +463,25 @@ class SteadyPipeline implements Pipeline {
   tick(t: number): PipelineOutput {
     this.lastT = t;
     this.beginBatch();
+    const events: PenEvent[] = [];
+    this.flushPendingLift(t, events);
     const upd = this.tracker.tick(t);
-    return this.noFrame(t, upd, [], 0);
+    return this.noFrame(t, upd, events, 0);
+  }
+
+  /**
+   * A mapping change (landmark/mirror/rotate/lock, new calibration, calibration start) lifts the
+   * pen BEFORE any move through the new mapping, restarts the filter and the warm-up gate.
+   */
+  private flushPendingLift(t: number, events: PenEvent[]): void {
+    if (!this.pendingLift) return;
+    this.pendingLift = false;
+    this.lift(t, "mode_change", events);
+    this.euro.reset();
+    this.lazy.reset();
+    this.dwell.reset();
+    this.tracker.acceptedSinceAcquire = 0; // warm-up re-applies
+    this.setRearm(t, 0, null);
   }
 
   private noFrame(t: number, upd: TrackUpdate, events: PenEvent[], score: number): PipelineOutput {
@@ -522,7 +538,7 @@ class SteadyPipeline implements Pipeline {
     } else if (inCanvas) {
       if (this.pen === "HOVER") {
         kind = "pen_down";
-        if (!this.rearm) params = { kind, ms: this.settings.dwellDownMs, rIn, tight: false };
+        if (!this.rearm && !this.calibrating) params = { kind, ms: this.settings.dwellDownMs, rIn, tight: false };
       } else {
         kind = "pen_up";
         const hatching = this.mode === "hatch" || this.mode === "hatch_alternate";
@@ -761,7 +777,7 @@ class SteadyPipeline implements Pipeline {
 
   /** Repeat stroke: stamp a copy of the last stroke with its first point at the cursor. */
   private stampRepeat(t: number, cursor: Vec2 | null, events: PenEvent[]): void {
-    if (this.pen === "DRAWING" || !cursor || !this.lastStroke || this.tracker.phase !== "tracking") return;
+    if (this.pen === "DRAWING" || this.calibrating || !cursor || !this.lastStroke || this.tracker.phase !== "tracking") return;
     const pts = offsetStroke(this.lastStroke, cursor);
     if (!this.inkAllowedAt(pts[0])) return;
     events.push({ type: "down", x: pts[0].x, y: pts[0].y });
@@ -871,10 +887,24 @@ class SteadyPipeline implements Pipeline {
   }
 
   private pendingLift = false;
+  /** R3: calibration running — every pen-down source is refused. */
+  private calibrating = false;
+
+  setCalibrating(on: boolean): void {
+    this.calibrating = on;
+    if (on && this.pen === "DRAWING") this.pendingLift = true;
+  }
+
+  get isCalibrating(): boolean {
+    return this.calibrating;
+  }
   /** The pre-point is pinned at a clamp edge (screen, or Chrome's rect while paused): no dwell-click. */
   private pinned = false;
 
   setCalibration(c: Calibration | null): void {
+    // R3: lift before the new mapping applies; the `up` goes out with the next step()/tick(),
+    // ahead of any move through the new box/gain. Re-armed: a resting hand must move first.
+    if (this.pen === "DRAWING") this.pendingLift = true;
     this.calibration = c;
     this.recenterAt = null;
     this.resetBaseline();
@@ -951,6 +981,16 @@ export function createPipeline(config: PipelineConfig, opts: PipelineOptions = {
 /** P3 mode state of a pipeline made by createPipeline (null for any other Pipeline). */
 export function modeState(p: Pipeline): ModeState | null {
   return p instanceof SteadyPipeline ? p.modeState() : null;
+}
+
+/**
+ * R3: tell the pipeline a calibration is running (B: `setCalibrating(pipeline, true)` when the
+ * calibrator starts, `false` when it finishes or is cancelled). While on, pen-down from any
+ * source (pen key, pedal, voice "down", dwell, Dots, Repeat) is refused; a pen that is down is
+ * lifted with the next step()/tick().
+ */
+export function setCalibrating(p: Pipeline, on: boolean): void {
+  if (p instanceof SteadyPipeline) p.setCalibrating(on);
 }
 
 /** Pan helper for the Worker: true when the last returned events must use the MIDDLE button. */

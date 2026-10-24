@@ -210,6 +210,12 @@ Every non-obvious choice, with the clock. Newest at the bottom of each section.
 - **App profile:** C's `appMessageFor(action, app, opts)` for every Krita-scoped action; Photoshop status "Photoshop: shortcuts only. Restart the helper with: npm run helper -- --app photoshop".
 - **Calibration** now calls `calibrator.recordHand(...)` next to `feed` (re-baseline reference). Re-baseline itself (every 10 min) is not wired yet.
 
+### Agent A — safety round (review R #3, #8, #4), 2026-10-24 15:58 PDT
+- R3: `setCalibration` now queues a `mode_change` lift (`up` goes out on the next `step()`/`tick()`, before any move through the new mapping; filter + warm-up restart; re-armed). New `setCalibrating(pipeline, on)` (exported from `pipeline.ts`/`index.ts`): while on, pen-down from every source (pen key, pedal, voice, dwell, Dots, Repeat) is refused, and a pen that is down is lifted on the next frame. **B must call it when the calibrator starts and when it ends/cancels.**
+- R8: `clickZone` also requires `rects.usable` (helper visible frame) when present.
+- R4 (my code, fixed too): `lower()` emits `move` to the exact down point before `down` when it differs from the last move (Hatch/Dash press at the pre-point, not the lazy pointer).
+- Tests: `src/pipeline/safety.test.ts` (7). `npx vitest run src/pipeline`: 10 files / 129 tests.
+
 ## Contract change requests
 - **F → lead (target selection in tests):** the P1 Playwright tests need the Worker to target Krita (send `move`/`down`/`up` to the helper) without real Krita. Request either a URL param `?target=krita` (tests already append it) or `SteadyTestHooks.setTarget(target: Target): void`. Without one of these, "page sends move/down/up in order" can only pass if the page targets Krita automatically when the helper connects.
 - **F → lead/C (fake helper canvas rect):** add `POST /config {"canvas_rect": {x,y,w,h}}` to the fake helper so `krita {cmd:"canvas_rect"}` replies `{ok:true, rect}`; ink is rect-gated, so without a canvas rect no `down` can be sent in tests. Tests already send it (and tolerate a non-2xx reply).
@@ -513,3 +519,7 @@ Report: .context/review-R.md. Assigned fixes:
 - R10 (plugin keeps reading after non-JSON / runs any action): close connection on first non-JSON-object line; `action` limited to an allowlist (verified ids + runtime-looked-up merge/remove/clear/visibility ids). → D. H4 (Bridge.stop leaves connections open) → D.
 - H1/H2 (--no-pointer still posts keys / permission prompts): new `--no-input` (no pointer, no keys, no activation, no permission prompts); `--no-pointer` also blocks key posting. → C.
 - R minor: Worker never sends `ring` → B sends ring updates (≤ 30 Hz, hidden on pause). `numbers` handler → C verify.
+- **Follow-up (15:55–15:59):**
+  - The integration `next dev` now runs with `NEXT_PUBLIC_STEADY_TEST=1` and `reuseExistingServer:false`. The app port must be free; `integration-check.sh` picks the first free port from 3200.
+  - `safe_helper.py` accepts `--no-input`: it adds it automatically when the helper supports it and translates it to `--no-pointer` when the helper doesn't. All of the shim's patches stay in place.
+  - New test `test_watchdog_release_is_reported_to_the_client_fake_pointer` polls for `released {reason, button}`. It skips with a message until C's change lands.
