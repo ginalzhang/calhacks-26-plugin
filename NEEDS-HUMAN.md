@@ -10,6 +10,13 @@ errors into DECISIONS.md. Tags in brackets say which agent wrote the item (A–G
 
 ## Top priority (hour 0)
 
+0. [ ] **Port 3000 is taken on this Mac** [lead]: at 16:20 on Sat, another workspace's dev server
+   (`calhacks-26/marseille`, `next-server`) was listening on :3000, so `npm run dev` here would not get it, and
+   `npm run demo-chrome` / the helper's default Origin would point at the wrong app. Either stop that server
+   first, or run Steady on another port end to end:
+   `npm run dev -- -p 3100`, `npm run helper -- --origin http://localhost:3100`,
+   `STEADY_URL='http://localhost:3100?demo=1' npm run demo-chrome`.
+
 1. [ ] **Desk View in Chrome's camera list** [F, B]: `npm run demo-chrome`, allow the camera, Setup page ›
    Camera. Is "Desk View" listed (it is chosen by default when present)? If not, plug the iPhone in **over
    USB** and pick it as a plain Continuity Camera aimed down at the desk. Write which one you used.
