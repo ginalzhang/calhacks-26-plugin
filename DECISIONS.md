@@ -637,3 +637,4 @@ totals (tags ≤ P4): 795 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
 demo-check P4: PASS
 ```
 - strict AXE_GATE=1: 0 violations at 100 % and 200 % (12 pages incl. Presets). integration-check: PASS (13 pytest, 3 Playwright, 0 real input attempted).
+- 16:2x B: tile labels never break inside a word (`word-break: keep-all; overflow-wrap: normal; hyphens: none`). To make "Recenter" / "Airbrush" / "Presets" fit at 18 px: side padding of the header and pages 8 → 4 px (4-per-row tiles are now 72 px), tile frame drawn as a 2 px inset box-shadow instead of a border (no width taken), horizontal tile padding 0, letter-spacing −0.02em, weight stays 600. Dev-only guard: `console.warn("[steady] tile labels too wide: …")` when any `.tile-label` has scrollWidth > clientWidth (checked on page change, pause and resize). Not measured in a browser this round (no Playwright).

@@ -81,7 +81,7 @@ export const PAGE_LAYOUT = {
   demo: ["simulate_tremor", "next_judge"],
 } as const;
 
-function Grid({ ids, ctx, pressedOf, cols }: { ids: readonly string[]; ctx: PageCtx; pressedOf?: (id: string) => boolean; cols?: 2 | 4 }) {
+function Grid({ ids, ctx, pressedOf, cols }: { ids: readonly string[]; ctx: PageCtx; pressedOf?: (id: string) => boolean; cols?: 1 | 2 | 4 }) {
   return (
     <div className={`tile-grid${cols ? ` cols-${cols}` : ""}`}>
       {ids.map((id) => (
@@ -122,7 +122,8 @@ export function SteadyPage({ ctx }: { ctx: PageCtx }) {
 export function PresetsPage({ ctx }: { ctx: PageCtx }) {
   return (
     <>
-      <Grid ids={PAGE_LAYOUT.presets} ctx={ctx} cols={2} />
+      {/* One per row at full width: the §2 names are long and must read on one or two lines. */}
+      <Grid ids={PAGE_LAYOUT.presets} ctx={ctx} cols={1} />
       <p className="note">Each preset sets Steadiness, gain, hold times and Latch for how your hand is today. Change any slider afterwards.</p>
     </>
   );

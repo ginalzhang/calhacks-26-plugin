@@ -1373,6 +1373,23 @@ export default function SteadyApp() {
     return () => ro.disconnect();
   }, [page]);
 
+  // Dev-only guard: a tile label wider than its tile means a word would spill (labels never break inside a word).
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    const check = () => {
+      const bad = Array.from(document.querySelectorAll<HTMLElement>(".tile .tile-label"))
+        .filter((l) => l.scrollWidth > l.clientWidth + 1)
+        .map((l) => `${l.textContent} (${l.scrollWidth} > ${l.clientWidth})`);
+      if (bad.length) console.warn(`[steady] tile labels too wide: ${bad.join(", ")}`);
+    };
+    const raf = requestAnimationFrame(() => requestAnimationFrame(check));
+    window.addEventListener("resize", check);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", check);
+    };
+  }, [page, mirror?.paused]);
+
   // ---------------------------------------------------------------------------- keys (§4)
   useEffect(() => {
     const keymap = () => ({ ...DEFAULT_KEYS, ...settingsRef.current.keymap });
