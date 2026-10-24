@@ -13,6 +13,7 @@ Chrome page ──postMessage──► Worker ──ws://127.0.0.1:8765──►
 - Every message is one JSON object with `t` (type) and `id` (uuid string). Replies echo the request `id`.
 - Coordinates are **Quartz global screen points**, top-left origin, no Retina scaling.
 - The helper **rejects any WebSocket whose `Origin` header is not `http://localhost:3000`** (close code 4003).
+  Another local port (e.g. 3100): `npm run helper -- --origin http://localhost:3100` (repeatable) or `STEADY_ORIGIN=a,b`; only `http(s)://localhost|127.0.0.1[:port]`, never `*` (refused at startup).
   Tests run a fake helper on `ws://127.0.0.1:18765` (`?helper=ws://127.0.0.1:18765`).
 - The page never opens a socket. It posts `{type:"send", msg}` to the Worker; the Worker routes the
   reply back as `{type:"reply", id, msg}`.
@@ -92,7 +93,7 @@ Replies may carry extra fields that the helper passes through unchanged in `krit
 ## Fake helper (tests)
 `scripts/fake_helper.py --ws-port 18765 --http-port 18767` speaks the helper side of this protocol without
 touching the pointer: sends `hello` on connect, replies `pong`/`ack`/`krita_reply ok:true via:"plugin"`, and
-records every received message. HTTP control (for Playwright):
+records every received message. `--origin` / `STEADY_ORIGIN` work as for the helper (a missing Origin is always accepted by the fake). HTTP control (for Playwright):
 - `GET /messages` → `[msg, ...]` received so far
 - `POST /reset` → clears the record
 - `POST /send` body = a helper→Worker message (e.g. a `hotkey` or `krita_state`) → pushed to every client

@@ -2,7 +2,8 @@
 """Fake Steady helper for tests (docs/PROTOCOL.md › "Fake helper").
 
 Speaks the helper side of the protocol WITHOUT touching the pointer or keyboard:
-- WebSocket on 127.0.0.1:18765 (--ws-port). Accepts Origin http://localhost:3000 or no Origin;
+- WebSocket on 127.0.0.1:18765 (--ws-port). Accepts Origin http://localhost:3000 (or the
+  --origin flags / STEADY_ORIGIN list; localhost/127.0.0.1 only) or no Origin;
   any other Origin is closed with code 4003 (like the real helper).
 - Sends `hello` on connect; replies `pong` to ping, `ack ok:true` to keys/click/pause/resume,
   `krita_reply ok:true via:"plugin"` (with a canned payload per cmd) to krita; records every
@@ -27,6 +28,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
+import re
 import sys
 import threading
 import uuid
@@ -38,6 +41,39 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
 ALLOWED_ORIGIN = "http://localhost:3000"
+ORIGIN_ENV_VAR = "STEADY_ORIGIN"
+_ORIGIN_RE = re.compile(r"^https?://(localhost|127\.0\.0\.1)(:(\d{1,5}))?$")
+
+
+class BadOrigin(ValueError):
+    pass
+
+
+def validate_origin(origin: str) -> str:
+    """Copy of helper/steadyhelper/origins.py (kept standalone): localhost/127.0.0.1 only, no '*'."""
+    o = origin.strip()
+    m = _ORIGIN_RE.match(o)
+    if not m or (m.group(3) is not None and not 0 < int(m.group(3)) < 65536):
+        raise BadOrigin(
+            f"Refusing Origin {origin!r}: only http://localhost:<port> or http://127.0.0.1:<port> "
+            f"are allowed (no '*', no other hosts, no paths). Default: {ALLOWED_ORIGIN}"
+        )
+    return o
+
+
+def resolve_origins(flags, env) -> List[str]:
+    """--origin flags, else STEADY_ORIGIN (comma-separated), else the default. Raises BadOrigin."""
+    raw = [f for f in (flags or []) if f is not None]
+    if not raw and env is not None and env.get(ORIGIN_ENV_VAR, "").strip():
+        raw = [p for p in env[ORIGIN_ENV_VAR].split(",") if p.strip()]
+    if not raw:
+        return [ALLOWED_ORIGIN]
+    out: List[str] = []
+    for o in raw:
+        v = validate_origin(o)
+        if v not in out:
+            out.append(v)
+    return out
 
 KRITA_PAYLOADS: Dict[str, Dict[str, Any]] = {
     "canvas_rect": {"rect": {"x": 64, "y": 120, "w": 1180, "h": 860}},
@@ -65,7 +101,16 @@ def new_id() -> str:
 
 
 class FakeHelper:
-    def __init__(self, host: str = "127.0.0.1", ws_port: int = 18765, http_port: int = 18767, quiet: bool = False):
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        ws_port: int = 18765,
+        http_port: int = 18767,
+        quiet: bool = False,
+        origins: Optional[List[str]] = None,
+    ):
+        #: Allowed Origins (validated); a missing Origin header is always accepted by the fake.
+        self.origins = frozenset(origins or [ALLOWED_ORIGIN])
         self.host = host
         self.ws_port = ws_port
         self.http_port = http_port
@@ -134,7 +179,7 @@ class FakeHelper:
     # ------------------------------------------------------------- websocket
     async def _handler(self, ws) -> None:
         origin = ws.request.headers.get("Origin") if ws.request is not None else None
-        if origin not in (None, ALLOWED_ORIGIN):
+        if origin is not None and origin not in self.origins:
             await ws.close(4003, "origin not allowed")
             return
         self.clients.add(ws)
@@ -274,7 +319,7 @@ class FakeHelper:
 
 
 async def amain(args) -> None:
-    fake = await FakeHelper(args.host, args.ws_port, args.http_port, quiet=args.quiet).start()
+    fake = await FakeHelper(args.host, args.ws_port, args.http_port, quiet=args.quiet, origins=args.origins).start()
     print(
         f"fake helper ready: ws://{args.host}:{fake.ws_port}  http://{args.host}:{fake.http_port}",
         flush=True,
@@ -291,7 +336,17 @@ def main(argv=None) -> int:
     ap.add_argument("--ws-port", type=int, default=18765)
     ap.add_argument("--http-port", type=int, default=18767)
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument(
+        "--origin",
+        action="append",
+        default=None,
+        help=f"allowed Origin, repeatable (default {ALLOWED_ORIGIN}; env {ORIGIN_ENV_VAR}=a,b); localhost/127.0.0.1 only",
+    )
     args = ap.parse_args(argv)
+    try:
+        args.origins = resolve_origins(args.origin, os.environ)
+    except BadOrigin as e:
+        ap.error(str(e))
     try:
         asyncio.run(amain(args))
     except KeyboardInterrupt:

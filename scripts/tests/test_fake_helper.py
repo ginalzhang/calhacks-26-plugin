@@ -156,3 +156,35 @@ async def test_config_canvas_rect_and_payload_overrides(fake):
         r = await recv(ws)
         assert r["ok"] is False and r["error"] == "no_canvas_rect"
         assert validate_helper_msg(r) is None
+
+
+@pytest.mark.asyncio
+async def test_fake_default_rejects_3100_and_origin_flag_accepts_it():
+    f = await fake_helper.FakeHelper(ws_port=0, http_port=0, quiet=True).start()
+    try:
+        with pytest.raises(ConnectionClosed) as ei:
+            async with connect(url(f), origin="http://localhost:3100") as ws:
+                await recv(ws)
+        assert ei.value.rcvd.code == 4003
+    finally:
+        await f.stop()
+    origins = fake_helper.resolve_origins(["http://localhost:3100"], {})
+    f = await fake_helper.FakeHelper(ws_port=0, http_port=0, quiet=True, origins=origins).start()
+    try:
+        async with connect(url(f), origin="http://localhost:3100") as ws:
+            assert (await recv(ws))["t"] == "hello"
+        async with connect(url(f)) as ws:  # no Origin still accepted
+            assert (await recv(ws))["t"] == "hello"
+    finally:
+        await f.stop()
+    assert fake_helper.resolve_origins(None, {"STEADY_ORIGIN": "http://127.0.0.1:3100"}) == ["http://127.0.0.1:3100"]
+
+
+@pytest.mark.parametrize("bad", ["*", "http://evil.example", "http://10.0.0.2:3100"])
+def test_fake_refuses_non_local_origin_flag(bad, capsys):
+    with pytest.raises(fake_helper.BadOrigin):
+        fake_helper.resolve_origins([bad], {})
+    with pytest.raises(SystemExit) as e:
+        fake_helper.main(["--origin", bad])
+    assert e.value.code == 2
+    assert "only http://localhost" in capsys.readouterr().err

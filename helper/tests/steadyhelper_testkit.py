@@ -143,6 +143,7 @@ async def rig(
     watchdog_timeout: float = 0.3,
     pointer_enabled: bool = True,
     warnings=None,
+    allowed_origins=(ORIGIN,),
 ):
     mouse = FakeMouse()
     system = system or FakeSystem()
@@ -164,6 +165,7 @@ async def rig(
         pump_period=0.01,
         reactivate_delay=0.02,
         warnings=warnings,
+        allowed_origins=allowed_origins,
     )
     await server.start()
     try:

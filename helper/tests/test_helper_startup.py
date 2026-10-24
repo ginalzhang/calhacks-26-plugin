@@ -146,7 +146,7 @@ def test_every_keystroke_fallback_in_actions_ts_parses():
 
 def test_cli_defaults():
     a = parse_args([])
-    assert a.port == 8765 and a.origin == "http://localhost:3000" and a.plugin_port == 8766
+    assert a.port == 8765 and a.origins == ["http://localhost:3000"] and a.plugin_port == 8766
 
 
 def test_detect_warnings_codes():

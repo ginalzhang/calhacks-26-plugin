@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
@@ -49,7 +49,7 @@ class HelperServer:
         permissions: Optional[PermissionState] = None,
         host: str = WS_HOST,
         port: int = WS_PORT,
-        allowed_origin: str = ALLOWED_ORIGIN,
+        allowed_origins: Iterable[str] = (ALLOWED_ORIGIN,),
         watchdog: Optional[Watchdog] = None,
         window_rect_period: float = WINDOW_RECT_PERIOD_S,
         pump_period: float = RUNLOOP_PUMP_S,
@@ -64,7 +64,7 @@ class HelperServer:
         self.permissions = permissions or PermissionState(True, True, "Terminal")
         self.host = host
         self.port = port
-        self.allowed_origin = allowed_origin
+        self.allowed_origins = frozenset(allowed_origins)  # validated by origins.resolve_origins
         self.watchdog = watchdog or Watchdog(pointer)
         self.window_rect_period = window_rect_period
         self.pump_period = pump_period
@@ -101,7 +101,7 @@ class HelperServer:
             self.relay.start()
         self._spawn(self._pump_loop())
         self._spawn(self._window_rect_loop())
-        log.info("listening on ws://%s:%d (Origin %s only)", self.host, self.port, self.allowed_origin)
+        log.info("listening on ws://%s:%d (Origin %s only)", self.host, self.port, ", ".join(sorted(self.allowed_origins)))
         return self
 
     async def stop(self) -> None:
@@ -224,7 +224,7 @@ class HelperServer:
 
     async def _handler(self, ws: ServerConnection) -> None:
         origin = ws.request.headers.get("Origin") if ws.request is not None else None
-        if origin != self.allowed_origin:
+        if origin is None or origin not in self.allowed_origins:
             log.warning("refused connection with Origin %r", origin)
             await ws.close(BAD_ORIGIN_CLOSE_CODE, "origin not allowed")
             return

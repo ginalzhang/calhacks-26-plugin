@@ -20,6 +20,7 @@ from .permissions import (
     detect_warnings,
     input_monitoring_message,
 )
+from .origins import ENV_VAR, BadOrigin, resolve_origins
 from .pointer import Pointer
 
 log = logging.getLogger("steady")
@@ -54,16 +55,28 @@ def run_guarded(fn: Callable[[], object], pointer: Pointer) -> int:
         pointer.release("exit")
 
 
-def parse_args(argv=None) -> argparse.Namespace:
+def parse_args(argv=None, env=None) -> argparse.Namespace:
+    """Parse CLI args; `args.origins` is the validated allowed-Origin list (exits 2 on a bad one)."""
     ap = argparse.ArgumentParser(description="Steady helper: pointer, hotkeys, Krita relay.")
     ap.add_argument("--host", default=WS_HOST)
     ap.add_argument("--port", type=int, default=WS_PORT)
-    ap.add_argument("--origin", default=ALLOWED_ORIGIN, help="allowed WebSocket Origin")
+    ap.add_argument(
+        "--origin",
+        action="append",
+        default=None,
+        help=f"allowed WebSocket Origin, repeatable (default {ALLOWED_ORIGIN}; env {ENV_VAR}=a,b). "
+        "Only http(s)://localhost or 127.0.0.1 with an optional port.",
+    )
     ap.add_argument("--plugin-port", type=int, default=PLUGIN_PORT)
     ap.add_argument("--no-hotkeys", action="store_true", help="do not install the global key tap")
     ap.add_argument("--no-pointer", action="store_true", help="pointer-less mode (never post mouse events)")
     ap.add_argument("-v", "--verbose", action="store_true")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    try:
+        args.origins = resolve_origins(args.origin, os.environ if env is None else env)
+    except BadOrigin as e:
+        ap.error(str(e))
+    return args
 
 
 async def _serve(args, pointer: Pointer, perms, warnings=None) -> None:
@@ -82,7 +95,7 @@ async def _serve(args, pointer: Pointer, perms, warnings=None) -> None:
         permissions=perms,
         host=args.host,
         port=args.port,
-        allowed_origin=args.origin,
+        allowed_origins=args.origins,
         warnings=warnings,
     )
     await server.start()
