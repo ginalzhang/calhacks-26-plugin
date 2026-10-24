@@ -9,7 +9,10 @@ backend is injected (QuartzMouse for real, FakeMouse in tests).
   called. Button events flush the pending move first so they land at the latest point.
 - while paused: `down` is refused, `click` is honoured only inside chrome_rect, and moves
   are clamped to chrome_rect (defence in depth; the Worker clamps too).
-- `release()` is idempotent and never raises: it is what every fail-safe calls.
+- `release()` is idempotent and never raises: it is what every fail-safe calls. It lifts
+  BOTH the left button and the middle (pan) button.
+- pan (P3): `middle_down`/`middle_up` hold the middle button; `move` while it is held posts
+  other-mouse-dragged. Lowering one button lifts the other; `middle_down` is refused while paused.
 """
 
 from __future__ import annotations
@@ -62,6 +65,7 @@ class Pointer:
         self._min_interval = min_interval
         self._lock = threading.RLock()
         self.is_down = False
+        self.is_middle_down = False
         self.paused = False
         self.chrome_rect: Optional[Rect] = None
         self._pos: Optional[Tuple[float, float]] = None
@@ -86,7 +90,18 @@ class Pointer:
         self._pending = None
         self._last_post = self._clock()
         if self.enabled:
-            self._mouse.move(x, y, self.is_down)
+            self._mouse.move(x, y, self._drag_kind())
+
+    def _drag_kind(self) -> Optional[str]:
+        if self.is_down:
+            return "left"
+        if self.is_middle_down:
+            return "middle"
+        return None
+
+    @property
+    def any_down(self) -> bool:
+        return self.is_down or self.is_middle_down
 
     def move(self, x: float, y: float) -> float:
         """Returns 0 if posted now, else seconds until flush() should be called."""
@@ -115,6 +130,7 @@ class Pointer:
             self.flush()
             if self.is_down:
                 return
+            self._release_middle("down")
             x, y = self.position()
             self.is_down = True
             self._pos = (x, y)
@@ -125,7 +141,48 @@ class Pointer:
         self.release("up")
 
     def release(self, reason: str = "") -> bool:
-        """Lift the left button if held. Idempotent; never raises. Returns True if it released."""
+        """Lift the left AND middle buttons if held. Idempotent; never raises. True if it released any."""
+        with self._lock:
+            middle = self._release_middle(reason)
+            return self._release_left(reason) or middle
+
+    def _release_middle(self, reason: str) -> bool:
+        if not self.is_middle_down:
+            return False
+        try:
+            self.flush()
+        except Exception:
+            log.exception("flush during middle release failed")
+        self.is_middle_down = False
+        self.releases += 1
+        x, y = self._pos if self._pos is not None else (0.0, 0.0)
+        try:
+            if self.enabled:
+                self._mouse.middle_up(x, y)
+        except Exception:
+            log.exception("middle_up failed during release (%s)", reason)
+        log.info("released middle button (%s)", reason)
+        return True
+
+    def middle_down(self) -> None:
+        with self._lock:
+            if self.paused:
+                raise Refused("paused", "Steady is paused; resume first.")
+            self.flush()
+            if self.is_middle_down:
+                return
+            self._release_left("pan")
+            x, y = self.position()
+            self.is_middle_down = True
+            self._pos = (x, y)
+            if self.enabled:
+                self._mouse.middle_down(x, y)
+
+    def middle_up(self) -> None:
+        with self._lock:
+            self._release_middle("middle_up")
+
+    def _release_left(self, reason: str) -> bool:
         with self._lock:
             if not self.is_down:
                 return False
@@ -153,7 +210,7 @@ class Pointer:
             self._pos = (x, y)
             self._last_post = self._clock()
             if self.enabled:
-                self._mouse.move(x, y, False)
+                self._mouse.move(x, y, None)
                 self._mouse.left_down(x, y)
                 self._mouse.left_up(x, y)
 

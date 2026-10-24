@@ -13,7 +13,7 @@
  * Owned by agent C. Pure; no DOM.
  */
 import { ACTIONS, DEFAULT_KEYS, type Action } from "../actions";
-import type { DistributiveOmit, KritaCommand, WorkerToHelper } from "./protocol";
+import { HotkeyNameSchema, type DistributiveOmit, type HotkeyName, type KritaCommand, type WorkerToHelper } from "./protocol";
 
 type KritaWire = Extract<WorkerToHelper, { t: "krita" }>;
 type KeysWire = Extract<WorkerToHelper, { t: "keys" }>;
@@ -160,3 +160,42 @@ export function buildLookups(
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Global-key remapping (`keymap`, P2b)
+// ---------------------------------------------------------------------------
+
+type KeymapWire = Extract<WorkerToHelper, { t: "keymap" }>;
+
+/** Action ids with a global key → the helper's hotkey name (`mic` = the push-to-talk key). */
+export const ACTION_TO_HOTKEY: Record<string, Exclude<HotkeyName, "ptt_up">> = {
+  pen_toggle: "pen",
+  pause: "pause",
+  mic: "ptt_down",
+  undo: "undo",
+  redo: "redo",
+  recenter: "recenter",
+  other_hand: "other_hand",
+  latch: "latch",
+};
+
+/**
+ * Build the `keymap` message (send on connect and whenever Settings change).
+ * Accepts `{combo: hotkeyName}` or `{combo: actionId}` (e.g. DEFAULT_KEYS: {"F8": "pen_toggle"}).
+ * Combos are lowercased and trimmed; entries whose value is neither a key action nor a hotkey
+ * name (and `ptt_up`, which is not a key of its own) are dropped. The helper validates the
+ * combos and answers `ack ok:false error:"bad_combo"` for unknown or duplicate ones.
+ */
+export function keymapMessage(map: Record<string, string>): Omit<KeymapWire, "id"> {
+  const out: Record<string, HotkeyName> = {};
+  for (const [combo, value] of Object.entries(map)) {
+    const key = combo.trim().toLowerCase();
+    if (!key) continue;
+    const name =
+      ACTION_TO_HOTKEY[value] ??
+      (HotkeyNameSchema.safeParse(value).success && value !== "ptt_up" ? (value as HotkeyName) : undefined);
+    if (name) out[key] = name;
+  }
+  return { t: "keymap", map: out };
+}
+

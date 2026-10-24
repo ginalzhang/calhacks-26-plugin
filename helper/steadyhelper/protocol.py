@@ -20,6 +20,9 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
+HOTKEYS = ("pen", "pause", "ptt_down", "ptt_up", "undo", "redo", "recenter", "other_hand", "latch")
+
+
 # --- primitive checks ---------------------------------------------------------
 
 def _num(v: Any) -> bool:
@@ -48,6 +51,10 @@ def _enum(*values: str) -> Check:
 
 def _str_list(v: Any) -> bool:
     return isinstance(v, list) and all(_str(x) for x in v)
+
+
+def _keymap(v: Any) -> bool:
+    return isinstance(v, dict) and all(_str(k) and v[k] in HOTKEYS for k in v)
 
 
 def _screen(v: Any) -> bool:
@@ -108,6 +115,7 @@ def validate_krita_command(msg: Msg) -> Optional[str]:
 # --- Worker → helper -----------------------------------------------------------
 
 WORKER_TO_HELPER: Dict[str, Spec] = {
+    "keymap": ({"map": _keymap}, {}),
     "move": ({"x": _num, "y": _num}, {}),
     "down": ({}, {}),
     "up": ({}, {"reason": _str}),
@@ -152,7 +160,6 @@ def validate_worker_msg(msg: Any) -> Optional[str]:
 # --- helper → Worker -----------------------------------------------------------
 
 ERROR_CODES = ("permission", "bad_message", "krita_not_running", "plugin_down", "paused", "outside_chrome", "internal")
-HOTKEYS = ("pen", "pause", "ptt_down", "ptt_up", "undo", "redo", "recenter", "other_hand", "latch")
 
 HELPER_TO_WORKER: Dict[str, Spec] = {
     "hello": (

@@ -70,6 +70,7 @@ def parse_args(argv=None, env=None) -> argparse.Namespace:
     ap.add_argument("--plugin-port", type=int, default=PLUGIN_PORT)
     ap.add_argument("--no-hotkeys", action="store_true", help="do not install the global key tap")
     ap.add_argument("--no-pointer", action="store_true", help="pointer-less mode (never post mouse events)")
+    ap.add_argument("--no-overlay", action="store_true", help="no ring overlay window (P3); the side panel still shows state")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
     try:
@@ -79,7 +80,7 @@ def parse_args(argv=None, env=None) -> argparse.Namespace:
     return args
 
 
-async def _serve(args, pointer: Pointer, perms, warnings=None) -> None:
+async def _serve(args, pointer: Pointer, perms, warnings=None, overlay=None, on_ready=None) -> None:
     from .hotkeys import start_listener
     from .krita_relay import KritaRelay
     from .macos import MacSystem, QuartzKeyPoster
@@ -97,6 +98,7 @@ async def _serve(args, pointer: Pointer, perms, warnings=None) -> None:
         port=args.port,
         allowed_origins=args.origins,
         warnings=warnings,
+        overlay=overlay,
     )
     await server.start()
     listener = None
@@ -110,8 +112,10 @@ async def _serve(args, pointer: Pointer, perms, warnings=None) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         try:
             loop.add_signal_handler(sig, lambda s=sig: (pointer.release(f"signal {s}"), stop.set()))
-        except (NotImplementedError, RuntimeError):
-            pass
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass  # not the main thread (overlay mode): the Cocoa main thread handles signals
+    if on_ready is not None:
+        on_ready(loop, stop)
     print(f"Steady helper {VERSION} ready on ws://{args.host}:{server.port}. Ctrl-C to quit.", flush=True)
     try:
         await stop.wait()
@@ -160,6 +164,23 @@ def main(argv=None) -> int:
         pointer = Pointer(QuartzMouse(), enabled=True)
 
     install_safety(pointer)
+    if not args.no_overlay:
+        try:
+            from .overlay import run_app_with_overlay
+        except Exception as e:
+            log.exception("ring overlay unavailable")
+            warnings.append(("overlay_disabled", f"The pointer ring is off ({type(e).__name__}). Steady works without it."))
+        else:
+            return run_guarded(
+                lambda: run_app_with_overlay(
+                    lambda overlay, on_ready: asyncio.run(
+                        _serve(args, pointer, perms, warnings, overlay=overlay, on_ready=on_ready)
+                    ),
+                    pointer,
+                    warnings,
+                ),
+                pointer,
+            )
     return run_guarded(lambda: asyncio.run(_serve(args, pointer, perms, warnings)), pointer)
 
 

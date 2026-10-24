@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ACTIONS, ACTIONS_BY_ID, type Action } from "../actions";
-import { KRITA_STEADY_KEYS, buildLookups, kritaConnectMessages, kritaMessageFor, normalizeActionText } from "./krita";
+import { ACTIONS, ACTIONS_BY_ID, DEFAULT_KEYS, type Action } from "../actions";
+import {
+  KRITA_STEADY_KEYS,
+  buildLookups,
+  keymapMessage,
+  kritaConnectMessages,
+  kritaMessageFor,
+  normalizeActionText,
+} from "./krita";
 import { WorkerToHelperSchema } from "./protocol";
 
 const kritaScoped = ACTIONS.filter((a) => a.scope !== "canvas" && a.krita);
@@ -134,5 +141,34 @@ describe("buildLookups", () => {
     ]);
     expect(tie.merge_down).toBeUndefined();
     expect(buildLookups([])).toEqual({});
+  });
+});
+
+describe("P2b/P3 rows and keymap", () => {
+  it("@P3 pick → keys p and line → keys v (with or without the plugin)", () => {
+    for (const opts of [UP, DOWN]) {
+      expect(kritaMessageFor(A("pick"), opts)).toEqual({ msg: { t: "keys", combo: "p" } });
+      expect(kritaMessageFor(A("line"), opts)).toEqual({ msg: { t: "keys", combo: "v" } });
+    }
+  });
+
+  it("@P2b name_brush reads the current preset via get_state; needs the plugin", () => {
+    expect(kritaMessageFor(A("name_brush"), { ...UP, arg: null })).toEqual({ msg: { t: "krita", cmd: "get_state" } });
+    expect(kritaMessageFor(A("name_brush"), DOWN)).toEqual({ error: "needs_plugin" });
+  });
+
+  it("@P2b keymapMessage from DEFAULT_KEYS equals the protocol example map", () => {
+    const msg = keymapMessage(DEFAULT_KEYS);
+    validates(msg);
+    expect(msg).toEqual({
+      t: "keymap",
+      map: { f3: "latch", f4: "other_hand", f5: "recenter", f6: "redo", f7: "undo", f8: "pen", f9: "pause", f10: "ptt_down" },
+    });
+  });
+
+  it("@P2b keymapMessage accepts hotkey names, lowercases combos, drops junk and ptt_up", () => {
+    const msg = keymapMessage({ " PageUp ": "pen", "Shift+F8": "undo", f10: "ptt_down", x: "explode", y: "ptt_up", "": "pen" });
+    validates(msg);
+    expect(msg.map).toEqual({ pageup: "pen", "shift+f8": "undo", f10: "ptt_down" });
   });
 });

@@ -21,10 +21,12 @@ class FakeMouse:
             self.fail_on = None
             raise RuntimeError(f"fake {what} failure")
 
-    def move(self, x: float, y: float, dragging: bool) -> None:
+    def move(self, x: float, y: float, drag: Optional[str]) -> None:
+        """drag: None → "move", "left" → "drag", "middle" → "middle_drag"."""
         self._maybe_fail("move")
+        kind = {None: "move", "left": "drag", "middle": "middle_drag"}[drag]
         with self._lock:
-            self.events.append(("drag" if dragging else "move", x, y))
+            self.events.append((kind, x, y))
             self._pos = (x, y)
 
     def left_down(self, x: float, y: float) -> None:
@@ -36,6 +38,16 @@ class FakeMouse:
         self._maybe_fail("left_up")
         with self._lock:
             self.events.append(("up", x, y))
+
+    def middle_down(self, x: float, y: float) -> None:
+        self._maybe_fail("middle_down")
+        with self._lock:
+            self.events.append(("middle_down", x, y))
+
+    def middle_up(self, x: float, y: float) -> None:
+        self._maybe_fail("middle_up")
+        with self._lock:
+            self.events.append(("middle_up", x, y))
 
     def position(self) -> Tuple[float, float]:
         return self._pos

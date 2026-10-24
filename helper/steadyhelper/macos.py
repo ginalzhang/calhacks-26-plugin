@@ -4,7 +4,8 @@ Everything here touches the real system and is therefore NOT exercised by pytest
 beyond pure helpers (`pick_main_window`). Tests inject the fakes in `fakes.py`.
 
 Interfaces (duck-typed):
-  MouseBackend : move(x, y, dragging) · left_down(x, y) · left_up(x, y) · position() -> (x, y)
+  MouseBackend : move(x, y, drag: None|"left"|"middle") · left_down/left_up(x, y)
+                 middle_down/middle_up(x, y) · position() -> (x, y)
   KeyPoster    : post(stroke: KeyStroke)
   System       : frontmost_bundle_id() · krita_pid() · activate_krita() -> bool
                  krita_window_rect() -> rect | None · screen() -> {w,h,scale} · pump()
@@ -60,16 +61,29 @@ class QuartzMouse:
 
         self._Q = Quartz
 
-    def _post(self, etype: int, x: float, y: float, click_state: int = 0) -> None:
+    def _post(self, etype: int, x: float, y: float, click_state: int = 0, button=None) -> None:
         Q = self._Q
-        ev = Q.CGEventCreateMouseEvent(None, etype, (x, y), Q.kCGMouseButtonLeft)
+        ev = Q.CGEventCreateMouseEvent(None, etype, (x, y), Q.kCGMouseButtonLeft if button is None else button)
         if click_state:
             Q.CGEventSetIntegerValueField(ev, Q.kCGMouseEventClickState, click_state)
         Q.CGEventPost(Q.kCGHIDEventTap, ev)
 
-    def move(self, x: float, y: float, dragging: bool) -> None:
+    def move(self, x: float, y: float, drag) -> None:
         Q = self._Q
-        self._post(Q.kCGEventLeftMouseDragged if dragging else Q.kCGEventMouseMoved, x, y)
+        if drag == "left":
+            self._post(Q.kCGEventLeftMouseDragged, x, y)
+        elif drag == "middle":
+            self._post(Q.kCGEventOtherMouseDragged, x, y, button=Q.kCGMouseButtonCenter)
+        else:
+            self._post(Q.kCGEventMouseMoved, x, y)
+
+    def middle_down(self, x: float, y: float) -> None:
+        Q = self._Q
+        self._post(Q.kCGEventOtherMouseDown, x, y, 1, button=Q.kCGMouseButtonCenter)
+
+    def middle_up(self, x: float, y: float) -> None:
+        Q = self._Q
+        self._post(Q.kCGEventOtherMouseUp, x, y, 1, button=Q.kCGMouseButtonCenter)
 
     def left_down(self, x: float, y: float) -> None:
         self._post(self._Q.kCGEventLeftMouseDown, x, y, 1)

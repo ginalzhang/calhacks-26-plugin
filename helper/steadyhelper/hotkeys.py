@@ -20,13 +20,50 @@ import logging
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from .config import CHROME_BUNDLE_IDS, DEFAULT_HOTKEYS, FKEY_KEYCODES, KRITA_BUNDLE_ID
+from .keys import FLAG_ALT, FLAG_CMD, FLAG_CTRL, FLAG_SHIFT, try_parse
 
 log = logging.getLogger("steady.hotkeys")
 
 
-def default_keycode_map() -> Dict[int, str]:
-    """keycode → action name ("pen", "pause", "ptt", ...)."""
-    return {FKEY_KEYCODES[k]: name for k, name in DEFAULT_HOTKEYS.items()}
+#: Modifier bits compared when matching a key (cmd/ctrl/alt/shift). Fn and numeric-pad bits
+#: are ignored (macOS sets Fn on every F-key event).
+MODIFIER_MASK = FLAG_CMD | FLAG_CTRL | FLAG_ALT | FLAG_SHIFT
+
+Keymap = Dict[Tuple[int, int], str]
+
+
+def default_keycode_map() -> Keymap:
+    """(keycode, modifier flags) → action name ("pen", "pause", "ptt", ...)."""
+    return {(FKEY_KEYCODES[k], 0): name for k, name in DEFAULT_HOTKEYS.items()}
+
+
+class BadKeymap(ValueError):
+    pass
+
+
+#: `keymap` values allowed from the Worker (`ptt_down` names the push-to-talk key; `ptt_up`
+#: is not a key of its own: it is sent when the PTT key is released).
+KEYMAP_NAMES = ("pen", "pause", "ptt_down", "undo", "redo", "recenter", "other_hand", "latch")
+
+
+def build_keymap(mapping: Dict[str, str]) -> Keymap:
+    """Worker `keymap.map` ({combo: hotkeyName}) → router keymap. Raises BadKeymap on an
+    unparseable combo, a combo that duplicates another after normalisation ("F8" vs "f8",
+    "command+z" vs "cmd+z"), a modifier-only combo or a name that is not a key action."""
+    if not isinstance(mapping, dict):
+        raise BadKeymap("map must be an object")
+    out: Keymap = {}
+    for combo, name in mapping.items():
+        if name not in KEYMAP_NAMES:
+            raise BadKeymap(f"{name!r} cannot be bound to a key")
+        stroke = try_parse(str(combo))
+        if stroke is None:
+            raise BadKeymap(f"unknown combo {combo!r}")
+        key = (stroke.keycode, stroke.flags & MODIFIER_MASK)
+        if key in out:
+            raise BadKeymap(f"duplicate combo {combo!r}")
+        out[key] = "ptt" if name == "ptt_down" else name
+    return out
 
 
 def is_target_app(bundle_id: Optional[str]) -> bool:
@@ -39,23 +76,27 @@ class HotkeyRouter:
         emit: Callable[[str], None],
         frontmost: Callable[[], Optional[str]],
         has_client: Callable[[], bool],
-        keymap: Optional[Dict[int, str]] = None,
+        keymap: Optional[Keymap] = None,
     ) -> None:
         self._emit = emit
         self._frontmost = frontmost
         self._has_client = has_client
         self.keymap = keymap if keymap is not None else default_keycode_map()
-        self._held: Set[int] = set()  # keycodes whose key-down we consumed
+        #: keycode → the action name its consumed key-down was matched to. A key-up is matched
+        #: by keycode only (modifiers may already be released; the map may have changed).
+        self._held: Dict[int, str] = {}
 
-    def handle(self, keycode: int, is_down: bool, is_repeat: bool = False) -> Tuple[bool, List[str]]:
+    def set_keymap(self, keymap: Keymap) -> None:
+        self.keymap = dict(keymap)  # atomic swap; held keys still get their key-up consumed
+
+    def handle(
+        self, keycode: int, is_down: bool, is_repeat: bool = False, flags: int = 0
+    ) -> Tuple[bool, List[str]]:
         """Returns (consume, emitted hotkey names)."""
-        name = self.keymap.get(keycode)
-        if name is None:
-            return False, []
         if not is_down:
-            if keycode not in self._held:
+            name = self._held.pop(keycode, None)
+            if name is None:
                 return False, []
-            self._held.discard(keycode)
             emitted = ["ptt_up"] if name == "ptt" else []
             for e in emitted:
                 self._emit(e)
@@ -63,6 +104,9 @@ class HotkeyRouter:
         # key down
         if keycode in self._held:
             return True, []  # auto-repeat of a consumed key
+        name = self.keymap.get((keycode, flags & MODIFIER_MASK))
+        if name is None:
+            return False, []
         if not self._has_client():
             return False, []
         try:
@@ -72,7 +116,7 @@ class HotkeyRouter:
             front = None
         if not is_target_app(front):
             return False, []
-        self._held.add(keycode)
+        self._held[keycode] = name
         if is_repeat:
             return True, []
         emitted = ["ptt_down"] if name == "ptt" else [name]
@@ -98,7 +142,8 @@ def start_listener(router: HotkeyRouter, own_pid: int):
                 return event
             keycode = int(Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode))
             repeat = bool(Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventAutorepeat))
-            consume, _ = router.handle(keycode, event_type == Quartz.kCGEventKeyDown, repeat)
+            flags = int(Quartz.CGEventGetFlags(event))
+            consume, _ = router.handle(keycode, event_type == Quartz.kCGEventKeyDown, repeat, flags)
             return None if consume else event
         except Exception:
             log.exception("hotkey intercept failed; passing key through")

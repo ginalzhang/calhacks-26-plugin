@@ -76,6 +76,14 @@ Nothing here has been run against the real pointer; the helper's tests use a fak
    8. With the Krita plugin disabled, say/type "undo": Krita undoes via the keystroke (`cmd+z`) after Krita is brought to the front. Quit Krita and try again: Steady reports Krita is not running and no keys go anywhere else.
    9. `kill -9` the helper while the pen is down: if the pointer seems stuck, click the physical mouse once (README).
    10. Verify Krita's "Clear" fires on Backspace and "Delete layer" on shift+forward-delete via the keystroke fallback (keycodes chosen from the macOS keymap, not verified in Krita).
+5. **Ring overlay (P3), real screen:** `npm run helper` (overlay on by default; `npm run helper -- --no-overlay` to turn it off).
+   1. A 160×160 pt ring follows the pointer while Steady sends `ring` messages: hollow blue with a filling arc while dwelling, filled orange while drawing, dashed grey outside the canvas, "?" when tracking is lost. No Dock icon appears and Krita keeps focus.
+   2. **Hover Krita's brush outline through the ring** (macOS 26.3/26.4 regression: transparent windows may intercept clicks). The brush outline must still show under the ring and strokes must still land. If not: run with `--no-overlay` and note it in DECISIONS.md.
+   3. F9 hides the ring at once; Resume shows it again. Put Krita in full screen: the ring still appears there (FullScreenAuxiliary) and on every Space.
+   4. With the Chrome strip next to Krita, the fps counter keeps running while the ring is over Chrome (the window is never full-screen, so Chrome is not marked occluded).
+   5. Ctrl-C in the helper terminal quits cleanly with the overlay on (button released, ring gone).
+6. **Pan (P3):** say/tap "pan", then lower the pen over Krita's canvas: the canvas pans (middle-button drag) and lifting ends the pan.
+7. **Remapped keys (P2b):** in Settings remap Pen to a pedal key (e.g. PageUp) and confirm Krita no longer receives that key while Krita or Chrome is in front, and F8 is passed through again.
 
 
 ## Agent A

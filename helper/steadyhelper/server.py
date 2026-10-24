@@ -28,7 +28,7 @@ from .config import (
     WS_HOST,
     WS_PORT,
 )
-from .hotkeys import HotkeyRouter
+from .hotkeys import BadKeymap, HotkeyRouter, build_keymap
 from .keys import try_parse
 from .krita_relay import PluginDown
 from .permissions import PermissionState, accessibility_message, input_monitoring_message
@@ -56,6 +56,7 @@ class HelperServer:
         activate_wait: float = ACTIVATE_WAIT_S,
         reactivate_delay: float = REACTIVATE_DELAY_S,
         warnings: Optional[List[Tuple[str, str]]] = None,
+        overlay=None,
     ) -> None:
         self.pointer = pointer
         self.system = system
@@ -72,6 +73,10 @@ class HelperServer:
         self.reactivate_delay = reactivate_delay
         #: Active startup warnings as (code, message); each new client gets one `warning` per entry.
         self.warnings: List[Tuple[str, str]] = list(warnings or [])
+        #: ring.OverlayController or None (P3 ring overlay; --no-overlay or not available).
+        self.overlay = overlay
+        if overlay is not None:
+            overlay._on_disabled = self._on_overlay_disabled
 
         self.clients: Set[ServerConnection] = set()
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -149,9 +154,19 @@ class HelperServer:
         # at once for pen (if down), pause and push-to-talk start, before the Worker reacts.
         if name in ("pen", "pause", "ptt_down"):
             self.pointer.release(f"hotkey {name}")
+        if name == "pause" and self.overlay is not None and not self.pointer.paused:
+            self.overlay.hide()  # F9 hides the ring at once; the Worker's `pause` keeps it hidden
         loop = self.loop
         if loop is not None and not loop.is_closed():
             loop.call_soon_threadsafe(self.broadcast, P.hotkey(name))
+
+    def _on_overlay_disabled(self, reason: str) -> None:
+        """Any thread. Tell every client now and every later client after hello."""
+        msg = f"The pointer ring is off ({reason}). Steady works without it; status and sounds still show the pen state."
+        self.warnings.append(("overlay_disabled", msg))
+        loop = self.loop
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(self.broadcast, P.warning("overlay_disabled", msg))
 
     def _on_krita_state(self, connected: bool) -> None:
         self.broadcast(P.krita_state(connected))
@@ -242,6 +257,8 @@ class HelperServer:
         finally:
             self.clients.discard(ws)
             self.pointer.release("socket closed")
+            if self.overlay is not None and not self.clients:
+                self.overlay.hide()
 
     # ------------------------------------------------------------------ inbound
     async def handle_raw(self, ws: ServerConnection, raw) -> None:
@@ -297,9 +314,13 @@ class HelperServer:
                 asyncio.get_running_loop().call_later(self.reactivate_delay, self._reactivate_krita)
         elif t == "pause":
             p.pause()
+            if self.overlay is not None:
+                self.overlay.set_paused(True)
             await self._send(ws, P.ack(rid))
         elif t == "resume":
             p.resume()
+            if self.overlay is not None:
+                self.overlay.set_paused(False)
             await self._send(ws, P.ack(rid))
         elif t == "chrome_rect":
             p.set_chrome_rect(msg["rect"])
@@ -307,10 +328,35 @@ class HelperServer:
             self._spawn(self._handle_keys(ws, msg))
         elif t == "krita":
             self._spawn(self._handle_krita(ws, msg))
-        elif t in ("middle_down", "middle_up", "ring"):
-            pass  # † P3
+        elif t == "middle_down":
+            if not p.enabled:
+                await self._send(ws, self._permission_error(rid))
+                return
+            try:
+                p.middle_down()
+            except Refused as r:
+                await self._send(ws, P.error(rid, r.code, str(r)))
+        elif t == "middle_up":
+            p.middle_up()
+        elif t == "ring":
+            if self.overlay is not None:
+                self.overlay.submit(msg)
+        elif t == "keymap":
+            ok, err = self.apply_keymap(msg["map"])
+            await self._send(ws, P.ack(rid, ok, err))
         else:  # pragma: no cover - validate_worker_msg already filtered
             await self._send(ws, P.error(rid, "bad_message", f"unhandled {t}"))
+
+    def apply_keymap(self, mapping: Dict[str, str]):
+        """Replace the global-key map. Returns (ok, error)."""
+        try:
+            km = build_keymap(mapping)
+        except BadKeymap as e:
+            log.warning("keymap refused: %s", e)
+            return False, "bad_combo"
+        self.router.set_keymap(km)
+        log.info("keymap: %s", mapping)
+        return True, None
 
     def _permission_error(self, rid: str) -> Dict[str, Any]:
         return P.error(rid, "permission", accessibility_message(self.permissions.app_name), which="accessibility")

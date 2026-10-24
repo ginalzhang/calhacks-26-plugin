@@ -40,7 +40,7 @@ class Watchdog:
 
     def check(self) -> bool:
         """One watchdog step (also used directly by tests). Returns True if it released."""
-        if self._pointer.is_down and self._clock() - self._last > self.timeout:
+        if self._pointer.any_down and self._clock() - self._last > self.timeout:
             if self._pointer.release("watchdog: no message for %d ms" % int(self.timeout * 1000)):
                 self.fired += 1
                 if self._on_release:
