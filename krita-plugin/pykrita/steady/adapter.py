@@ -13,15 +13,15 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 try:  # Krita 5.x (Qt5) is the tested target
-    from PyQt5.QtCore import QPoint, QTimer
-    from PyQt5.QtGui import QColor, QKeySequence
-    from PyQt5.QtWidgets import QOpenGLWidget, QWidget
+    from PyQt5.QtCore import QPoint, Qt, QTimer
+    from PyQt5.QtGui import QColor, QGuiApplication, QKeySequence
+    from PyQt5.QtWidgets import QAbstractButton, QAbstractItemView, QOpenGLWidget, QTabBar, QWidget
 
     QT_BINDING = "PyQt5"
 except ImportError:  # Krita 6.x (Qt6): loads, untested
-    from PyQt6.QtCore import QPoint, QTimer
-    from PyQt6.QtGui import QColor, QKeySequence
-    from PyQt6.QtWidgets import QWidget
+    from PyQt6.QtCore import QPoint, Qt, QTimer
+    from PyQt6.QtGui import QColor, QGuiApplication, QKeySequence
+    from PyQt6.QtWidgets import QAbstractButton, QAbstractItemView, QTabBar, QWidget
 
     try:
         from PyQt6.QtOpenGLWidgets import QOpenGLWidget
@@ -46,6 +46,17 @@ try:
     _PORTABLE = QKeySequence.PortableText  # Qt5
 except AttributeError:  # Qt6
     _PORTABLE = QKeySequence.SequenceFormat.PortableText
+
+try:
+    _TOOLTIP_ROLE, _DISPLAY_ROLE = Qt.ToolTipRole, Qt.DisplayRole  # Qt5
+except AttributeError:  # Qt6
+    _TOOLTIP_ROLE, _DISPLAY_ROLE = Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.DisplayRole
+
+# Item views whose cells are worth numbering (P4 list_widgets). Class names verified as strings in
+# Krita 5.3.4's bundled libkritawidgets / libkritaresourcewidgets dylibs (DECISIONS.md, Agent D).
+ITEM_VIEW_CLASSES = {"KisPaletteView": "Swatch", "KisResourceItemListView": "Preset"}
+_MAX_CELLS_PER_VIEW = 64
+_MAX_CELL_SCAN = 4000
 
 # Krita's canvas widget classes (Krita 5.x source: KisOpenGLCanvas2 is a QOpenGLWidget,
 # KisQPainterCanvas the software fallback). Verified at runtime: the reply carries
@@ -283,6 +294,75 @@ class KritaAdapter(Adapter):
                 rect["widget_class"] = cls
                 return rect
         return None
+
+    def widget_candidates(self) -> Optional[List[Dict[str, Any]]]:
+        """Raw clickable widgets under the main window (buttons, tabs, palette/preset cells).
+
+        Buttons cover KoToolBoxButton (toolbox), toolbar QToolButtons and
+        KoDockWidgetTitleBarButton (docker title buttons); all are QAbstractButton subclasses.
+        Filtering, labels, reading order and numbering happen in dispatch.order_widgets.
+        """
+        qw = self._qwindow()
+        if qw is None:
+            return None
+        out: List[Dict[str, Any]] = []
+        for b in qw.findChildren(QAbstractButton):
+            if not b.isVisible() or b.visibleRegion().isEmpty():
+                continue  # hidden, or scrolled/clipped fully out of view
+            out.append({"tooltip": b.toolTip(), "text": b.text(), "object_name": b.objectName(),
+                        "rect": _rect_of(b), "visible": True, "enabled": b.isEnabled(),
+                        "class": b.metaObject().className()})
+        for bar in qw.findChildren(QTabBar):
+            if not bar.isVisible():
+                continue
+            visible = bar.rect()
+            for i in range(bar.count()):
+                r = bar.tabRect(i)
+                if r.isEmpty() or not visible.contains(r.center()):
+                    continue
+                tl = bar.mapToGlobal(r.topLeft())
+                out.append({"tooltip": bar.tabToolTip(i), "text": bar.tabText(i), "object_name": "",
+                            "rect": {"x": tl.x(), "y": tl.y(), "w": r.width(), "h": r.height()},
+                            "visible": True, "enabled": bar.isTabEnabled(i), "class": "QTabBar"})
+        for view in qw.findChildren(QAbstractItemView):
+            prefix = ITEM_VIEW_CLASSES.get(view.metaObject().className())
+            if prefix is None or not view.isVisible() or view.model() is None:
+                continue
+            out.extend(self._cells(view, prefix))
+        return out
+
+    @staticmethod
+    def _cells(view: Any, prefix: str) -> List[Dict[str, Any]]:
+        model, vp = view.model(), view.viewport()
+        area = vp.rect()
+        cells: List[Dict[str, Any]] = []
+        scanned = 0
+        for row in range(model.rowCount()):
+            for col in range(model.columnCount()):
+                scanned += 1
+                if scanned > _MAX_CELL_SCAN or len(cells) >= _MAX_CELLS_PER_VIEW:
+                    return cells
+                idx = model.index(row, col)
+                r = view.visualRect(idx)
+                if r.isEmpty() or not area.contains(r.center()):
+                    continue
+                tip, text = idx.data(_TOOLTIP_ROLE), idx.data(_DISPLAY_ROLE)
+                tl = vp.mapToGlobal(r.topLeft())
+                cells.append({"tooltip": tip if isinstance(tip, str) else "",
+                              "text": text if isinstance(text, str) else "",
+                              "object_name": f"{prefix} {len(cells) + 1}",
+                              "rect": {"x": tl.x(), "y": tl.y(), "w": r.width(), "h": r.height()},
+                              "visible": True, "enabled": bool(idx.flags() & Qt.ItemIsEnabled)
+                              if hasattr(Qt, "ItemIsEnabled") else True,
+                              "class": view.metaObject().className()})
+        return cells
+
+    def screen_rects(self) -> List[Dict[str, Any]]:
+        out = []
+        for scr in QGuiApplication.screens():
+            g = scr.geometry()
+            out.append({"x": g.x(), "y": g.y(), "w": g.width(), "h": g.height()})
+        return out
 
     def window_rect(self) -> Optional[Dict[str, Any]]:
         qw = self._qwindow()

@@ -46,6 +46,15 @@ Every non-obvious choice, with the clock. Newest at the bottom of each section.
 - Install script copies only `steady.desktop` + `steady/*.py` (no tests, no caches), replaces only Steady's own folder, honours `KRITA_PYKRITA_DIR`; tested with `HOME` pointed at a temp dir. Not run against the real folder.
 - P4 note only (not built): exact hatch via `Node.paintPath(QPainterPath)` — the method exists in 5.3.4's stub; whether one call = one undo step and how Speed sensors behave must be verified in Krita.
 
+### Agent D — round 3 (P4 `list_widgets`) — 2026-10-24 15:45–15:48 PDT
+- `list_widgets {max?}`: the adapter walks `qwindow().findChildren(...)` and returns raw candidates; the pure `dispatch.order_widgets` filters, labels, orders and numbers them (tested with a fake adapter and with stub Qt).
+  - Candidates: every `QAbstractButton` that is visible and whose `visibleRegion()` is not empty (covers `KoToolBoxButton` toolbox buttons, toolbar `QToolButton`s, `KoDockWidgetTitleBarButton` docker title buttons); every visible tab of every `QTabBar` (tabbed dockers); cells of item views of class `KisPaletteView` (palette swatches, label = cell tooltip/display text, else "Swatch N") and `KisResourceItemListView` (preset docker, else "Preset N"), ≤ 64 cells per view, only cells whose centre is inside the viewport.
+  - **Class names verified** as strings in the Krita 5.3.4 bundle: `KoToolBoxButton`, `KoToolBox`, `KisOpenGLCanvas2`, `KisQPainterCanvas`, `KisPresetChooser`, `KisMainWindow` (libkritaui); `KoDockWidgetTitleBarButton`, `KoDockWidgetTitleBar`, `KisPaletteView` (libkritawidgets); `KisResourceItemListView` (libkritaresourcewidgets). `KoResourceItemView` (older Krita) is **not** in 5.3.4. The code itself only relies on Qt base classes for buttons/tabs; the two item-view names gate cell enumeration.
+  - Filters: visible, enabled, ≥ 8×8 pt, centre on some `QGuiApplication.screens()` geometry, non-empty label; duplicates (same label + rect) dropped. Label = toolTip → text → objectName, with HTML tags, `&nbsp;` and `&` mnemonics removed, ≤ 60 chars.
+  - Reading order: sort by vertical centre; a widget joins the current row if its centre is within half the row-leader's height; rows top→bottom, left→right inside a row. `max` default 40, hard cap 200; non-positive/non-integer → `bad_args`. No main window → `no_window`; no document is fine (the toolbox exists).
+- Registered the `P4` marker in `krita-plugin/tests/conftest.py` (pytest.ini lists P0–P3 only; lead may move it there).
+- **`paint_path` (exact hatch probe) not built**: it needs screen→image coordinate mapping through the canvas transform and a real-Krita check that one `Node.paintPath` call is one undo step; not trivial without Krita. `Node.paintPath(QPainterPath, strokeStyle, fillStyle)` and `paintLine/paintPolygon` exist in 5.3.4's `krita.pyi`.
+
 ## Contract change requests
 
 ### From Agent D (plugin) — additive, no change made to the contracts
@@ -439,3 +448,4 @@ totals (tags ≤ P3): 674 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
 demo-check P3: PASS
 ```
 - 15:44 lead: strict axe gate (AXE_GATE=1) PASS at 100 %/200 %. P4 contracts added: Worker→helper `numbers`, plugin `list_widgets`, 12 P4 action rows (4 hand presets with exact §2 names, use/save profile, show/hide numbers, click <n>, head mode, eyebrow lift, app profile). Python suites fail on the new examples until C/D implement them (round 3). Launching round 3 (P4) + integration agent H + safety reviewer R.
+- (F, 15:47) NEEDS-HUMAN.md restructured once (lead's permission): a single prioritised list (Desk View, Krita from the helper, keys, permissions, conflicts, plugin, Chrome-beside-Krita, then the real-hardware checklist by phase, then submission). Every agent's items were kept and deduplicated; each carries [agent] tags. Snapshot of the previous version: compare with git history.

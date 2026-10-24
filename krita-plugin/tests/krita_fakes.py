@@ -177,6 +177,20 @@ class FakeAdapter(Adapter):
         self.visible[name] = visible
         return name
 
+    widgets: Optional[List[Dict[str, Any]]] = None
+    screens: Optional[List[Dict[str, Any]]] = None
+
+    def widget_candidates(self) -> Optional[List[Dict[str, Any]]]:
+        if self.widgets is not None:
+            return self.widgets
+        if not self.window:
+            return None
+        return [{"tooltip": "Freehand Brush Tool", "text": "", "object_name": "KritaShape/KisToolBrush",
+                 "rect": {"x": 12, "y": 140, "w": 32, "h": 32}, "visible": True, "enabled": True}]
+
+    def screen_rects(self) -> List[Dict[str, Any]]:
+        return self.screens if self.screens is not None else [{"x": 0, "y": 0, "w": 1728, "h": 1117}]
+
     def canvas_rect(self) -> Optional[Dict[str, Any]]: return self.canvas or None
     def window_rect(self) -> Optional[Dict[str, Any]]: return self.window or None
 

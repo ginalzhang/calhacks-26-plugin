@@ -79,6 +79,10 @@ class Adapter:
     # geometry (global screen points)
     def canvas_rect(self) -> Optional[Dict[str, Any]]: raise NotImplementedError
     def window_rect(self) -> Optional[Dict[str, Any]]: raise NotImplementedError
+    # P4 numbered overlay: raw clickable-widget candidates, or None if there is no main window.
+    # Each: {"tooltip", "text", "object_name", "rect": {x,y,w,h}, "visible", "enabled"}.
+    def widget_candidates(self) -> Optional[List[Dict[str, Any]]]: raise NotImplementedError
+    def screen_rects(self) -> List[Dict[str, Any]]: raise NotImplementedError
 
 
 class CmdError(Exception):
@@ -212,6 +216,70 @@ def split_shortcuts(portables: List[str], targets: Dict[str, str]) -> "tuple[Lis
         else:
             hit.append(k)
     return keep, hit
+
+
+WIDGETS_DEFAULT_MAX = 40
+WIDGETS_HARD_MAX = 200
+_MIN_WIDGET_PX = 8
+_LABEL_MAX = 60
+_TAG_RE = re.compile(r"<[^>]*>")
+
+
+def widget_label(cand: Dict[str, Any]) -> str:
+    """toolTip, then text, then objectName; HTML, mnemonics and whitespace cleaned."""
+    for key in ("tooltip", "text", "object_name"):
+        raw = cand.get(key) or ""
+        txt = _TAG_RE.sub(" ", str(raw)).replace("&nbsp;", " ").replace("&amp;", "&&")
+        txt = " ".join(strip_mnemonic(txt).split())
+        if txt:
+            return txt if len(txt) <= _LABEL_MAX else txt[: _LABEL_MAX - 1].rstrip() + "…"
+    return ""
+
+
+def _on_screen(rect: Dict[str, Any], screens: List[Dict[str, Any]]) -> bool:
+    if not screens:
+        return True  # nothing to check against
+    cx, cy = rect["x"] + rect["w"] / 2.0, rect["y"] + rect["h"] / 2.0
+    return any(s["x"] <= cx < s["x"] + s["w"] and s["y"] <= cy < s["y"] + s["h"] for s in screens)
+
+
+def order_widgets(cands: List[Dict[str, Any]], screens: List[Dict[str, Any]], max_n: int) -> List[Dict[str, Any]]:
+    """Filter (visible, enabled, on screen, >= 8 px, has a label), dedupe, reading order, number 1..max_n.
+
+    Reading order: widgets are grouped into rows (a widget joins the current row if its vertical
+    centre lies within half the row's first widget height of that widget's centre), rows top to
+    bottom, left to right within a row.
+    """
+    keep, seen = [], set()
+    for c in cands:
+        r = c.get("rect") or {}
+        if not c.get("visible", True) or not c.get("enabled", True):
+            continue
+        if not all(isinstance(r.get(k), (int, float)) for k in ("x", "y", "w", "h")):
+            continue
+        if r["w"] < _MIN_WIDGET_PX or r["h"] < _MIN_WIDGET_PX or not _on_screen(r, screens):
+            continue
+        label = widget_label(c)
+        if not label:
+            continue
+        rect = {k: int(round(r[k])) for k in ("x", "y", "w", "h")}
+        key = (label, rect["x"], rect["y"], rect["w"], rect["h"])
+        if key in seen:
+            continue
+        seen.add(key)
+        keep.append({"label": label, "rect": rect})
+    keep.sort(key=lambda w: (w["rect"]["y"] + w["rect"]["h"] / 2.0, w["rect"]["x"]))
+    rows: List[List[Dict[str, Any]]] = []
+    for w in keep:
+        cy = w["rect"]["y"] + w["rect"]["h"] / 2.0
+        if rows:
+            head = rows[-1][0]["rect"]
+            if abs(cy - (head["y"] + head["h"] / 2.0)) <= head["h"] / 2.0:
+                rows[-1].append(w)
+                continue
+        rows.append([w])
+    ordered = [w for row in rows for w in sorted(row, key=lambda w: w["rect"]["x"])]
+    return [{"n": i + 1, "label": w["label"], "rect": w["rect"]} for i, w in enumerate(ordered[:max_n])]
 
 
 def _num(value: Any) -> bool:
@@ -373,6 +441,16 @@ def _h_window_rect(c: dict, k: Adapter) -> dict:
     return {"rect": {key: rect[key] for key in ("x", "y", "w", "h")}}
 
 
+def _h_list_widgets(c: dict, k: Adapter) -> dict:
+    max_n = c.get("max", WIDGETS_DEFAULT_MAX)
+    if not _num(max_n) or max_n < 1 or int(max_n) != max_n:
+        raise CmdError("bad_args", message="max must be a positive integer")
+    cands = k.widget_candidates()
+    if cands is None:
+        raise CmdError("no_window")
+    return {"widgets": order_widgets(cands, k.screen_rects(), min(int(max_n), WIDGETS_HARD_MAX))}
+
+
 def _h_list_actions(c: dict, k: Adapter) -> dict:
     return {"actions": k.list_actions()}
 
@@ -457,6 +535,7 @@ HANDLERS: Dict[str, Callable[[dict, Adapter], dict]] = {
     "window_rect": _h_window_rect,
     "list_actions": _h_list_actions,
     "list_presets": _h_list_presets,
+    "list_widgets": _h_list_widgets,
     "smoothing": _h_smoothing,
     "clear_shortcuts": _h_clear_shortcuts,
     "session_init": _h_session_init,

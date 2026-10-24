@@ -69,6 +69,26 @@ class QOpenGLWidget(QWidget):
     pass
 
 
+class QAbstractButton(QWidget):
+    def __init__(self, cls, x, y, w, h, tip="", text="", name="", visible=True, enabled=True, clipped=False):
+        super().__init__(cls, x, y, w, h, visible)
+        self.tip, self.txt, self.name, self.en, self.clipped = tip, text, name, enabled, clipped
+
+    def toolTip(self): return self.tip
+    def text(self): return self.txt
+    def objectName(self): return self.name
+    def isEnabled(self): return self.en
+    def visibleRegion(self): return types.SimpleNamespace(isEmpty=lambda: self.clipped)
+
+
+class QTabBar(QWidget):
+    pass
+
+
+class QAbstractItemView(QWidget):
+    pass
+
+
 class Rect:
     def __init__(self, x, y, w, h): self.v = (x, y, w, h)
     def x(self): return self.v[0]
@@ -208,6 +228,10 @@ def adapter_mod(monkeypatch):
     gui.QColor, gui.QKeySequence = QColor, QKeySequence
     wid = types.ModuleType("PyQt5.QtWidgets")
     wid.QWidget, wid.QOpenGLWidget = QWidget, QOpenGLWidget
+    wid.QAbstractButton, wid.QAbstractItemView, wid.QTabBar = QAbstractButton, QAbstractItemView, QTabBar
+    core.Qt = types.SimpleNamespace(ToolTipRole=3, DisplayRole=0, ItemIsEnabled=32)
+    gui.QGuiApplication = types.SimpleNamespace(
+        screens=lambda: [types.SimpleNamespace(geometry=lambda: Rect(0, 0, 1728, 1117))])
     kr = types.ModuleType("krita")
     kr.ManagedColor = ManagedColor
     for name, mod in {"PyQt5": pyqt, "PyQt5.QtCore": core, "PyQt5.QtGui": gui, "PyQt5.QtWidgets": wid,
@@ -315,3 +339,22 @@ def test_no_document(adapter_mod):
     assert dispatch({"id": "1", "cmd": "color", "hex": "#ffffff"}, a)["error"] == "no_view"
     r = dispatch({"id": "2", "cmd": "session_init", "keys": ["f5"]}, a)
     assert r["ok"] and r["smoothing_pending"] is True
+
+
+@pytest.mark.P4
+def test_list_widgets_real_adapter(adapter_mod):
+    from steady.dispatch import dispatch
+
+    widgets = WIDGETS + [
+        QAbstractButton("QToolButton", 300, 40, 28, 28, tip="Save", name="file_save"),
+        QAbstractButton("KoToolBoxButton", 12, 140, 32, 32, tip="<b>Freehand Brush Tool</b> (B)"),
+        QAbstractButton("KoToolBoxButton", 48, 140, 32, 32, tip="", text="", name="KritaShape/KisToolLine"),
+        QAbstractButton("KoToolBoxButton", 12, 176, 32, 32, tip="Hidden", visible=False),
+        QAbstractButton("KoToolBoxButton", 48, 176, 32, 32, tip="Clipped", clipped=True),
+        QAbstractButton("KoDockWidgetTitleBarButton", 1500, 100, 16, 16, tip="Close", enabled=False),
+    ]
+    r = dispatch({"id": "w", "cmd": "list_widgets"}, adapter_mod.KritaAdapter(App(widgets)))
+    assert r["ok"]
+    assert [(w["n"], w["label"]) for w in r["widgets"]] == [
+        (1, "Save"), (2, "Freehand Brush Tool (B)"), (3, "KritaShape/KisToolLine")]
+    assert r["widgets"][1]["rect"] == {"x": 12, "y": 140, "w": 32, "h": 32}

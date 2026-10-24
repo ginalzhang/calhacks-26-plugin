@@ -351,7 +351,7 @@ def test_adapter_exception_becomes_internal_error():
 def test_handlers_cover_protocol_table():
     doc = (PYKRITA.parents[1] / "docs" / "PROTOCOL.md").read_text()
     section = doc.split("## helper ↔ Krita plugin", 1)[1].split("## Fake helper", 1)[0]
-    table_cmds = set(re.findall(r"^\| `([a-z_]+)` \|", section, re.M))
+    table_cmds = set(re.findall(r"^\| `([a-z_]+)`[^|]*\|", section, re.M))
     assert table_cmds and table_cmds == set(HANDLERS)
 
 
