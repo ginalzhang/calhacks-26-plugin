@@ -182,7 +182,7 @@ HELPER_TO_WORKER: Dict[str, Spec] = {
             "krita_window_rect": _rect_or_null,
             "paused": _bool,
         },
-        {},
+        {"visible_frame": _rect_or_null},
     ),
     "krita_window_rect": ({"rect": _rect_or_null, "frontmost": _bool}, {}),
     "hotkey": ({"key": _enum(*HOTKEYS)}, {}),
@@ -195,6 +195,10 @@ HELPER_TO_WORKER: Dict[str, Spec] = {
     "pong": ({}, {}),
     "ack": ({"ok": _bool}, {"error": _str}),
     "warning": ({"code": _str, "message": _str}, {}),
+    "released": (
+        {"reason": _enum("watchdog", "pause", "hotkey", "ptt", "exception", "other"), "button": _enum("left", "middle")},
+        {},
+    ),
 }
 
 #: Known warning codes (protocol.ts types `code` as a plain string).
@@ -275,6 +279,10 @@ def krita_window_rect(rect: Optional[Msg], frontmost: bool) -> Msg:
 
 def warning(code: str, message: str) -> Msg:
     return {"t": "warning", "id": new_id(), "code": code, "message": message}
+
+
+def released(reason: str, button: str) -> Msg:
+    return {"t": "released", "id": new_id(), "reason": reason, "button": button}
 
 
 def krita_reply(req_id: str, ok: bool, via: Optional[str] = None, error: Optional[str] = None, **payload: Any) -> Msg:

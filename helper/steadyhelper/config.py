@@ -4,6 +4,8 @@ WS_HOST = "127.0.0.1"
 WS_PORT = 8765
 ALLOWED_ORIGIN = "http://localhost:3000"
 BAD_ORIGIN_CLOSE_CODE = 4003
+#: Close code sent to the older Worker when a newer one connects (one Worker at a time).
+REPLACED_CLOSE_CODE = 4001
 
 PLUGIN_HOST = "127.0.0.1"
 PLUGIN_PORT = 8766

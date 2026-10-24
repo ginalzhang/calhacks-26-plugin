@@ -31,7 +31,7 @@ async def test_release_after_300ms_silence():
             assert "up" not in r.mouse.kinds()
             assert await wait_until(lambda: not r.server.pointer.is_down, timeout=0.5)
             assert r.mouse.kinds()[-1] == "up"
-            assert r.server.watchdog.fired == 1
+            assert await wait_until(lambda: r.server.watchdog.fired == 1)  # counter bumps just after release
 
 
 @pytest.mark.asyncio

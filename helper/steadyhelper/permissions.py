@@ -158,10 +158,12 @@ def check_permissions(
     ax_trusted_prompt: Optional[Callable[[], bool]] = None,
     listen_trusted: Optional[Callable[[], bool]] = None,
     app_name: Optional[str] = None,
+    prompt: bool = True,
 ) -> PermissionState:
-    """Real checks unless callables are injected (tests)."""
+    """Real checks unless callables are injected (tests). prompt=False (--no-input): read the
+    grants with AXIsProcessTrusted / CGPreflightListenEventAccess only; nothing is requested."""
     if request_listen is None or ax_trusted_prompt is None or listen_trusted is None:
-        real = _real_checks()
+        real = _real_checks(prompt)
         request_listen = request_listen or real[0]
         ax_trusted_prompt = ax_trusted_prompt or real[1]
         listen_trusted = listen_trusted or real[2]
@@ -182,13 +184,19 @@ def check_permissions(
     return PermissionState(ax, im, app_name or launching_app_name())
 
 
-def _real_checks() -> Tuple[Callable[[], object], Callable[[], bool], Callable[[], bool]]:
+def _real_checks(prompt: bool = True) -> Tuple[Callable[[], object], Callable[[], bool], Callable[[], bool]]:
     def request_listen():
+        if not prompt:
+            return None
         import Quartz
 
         return Quartz.CGRequestListenEventAccess()
 
     def ax_prompt():
+        if not prompt:
+            from ApplicationServices import AXIsProcessTrusted
+
+            return AXIsProcessTrusted()
         from ApplicationServices import AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt
 
         return AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})

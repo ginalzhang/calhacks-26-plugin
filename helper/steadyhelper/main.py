@@ -69,7 +69,16 @@ def parse_args(argv=None, env=None) -> argparse.Namespace:
     )
     ap.add_argument("--plugin-port", type=int, default=PLUGIN_PORT)
     ap.add_argument("--no-hotkeys", action="store_true", help="do not install the global key tap")
-    ap.add_argument("--no-pointer", action="store_true", help="pointer-less mode (never post mouse events)")
+    ap.add_argument(
+        "--no-pointer",
+        action="store_true",
+        help="pointer-less mode: never post mouse events, never post keys, never activate apps",
+    )
+    ap.add_argument(
+        "--no-input",
+        action="store_true",
+        help="no input at all: as --no-pointer, plus no global key tap and no permission prompts or requests",
+    )
     ap.add_argument("--no-overlay", action="store_true", help="no ring overlay window (P3); the side panel still shows state")
     ap.add_argument(
         "--app",
@@ -111,12 +120,16 @@ async def _serve(args, pointer: Pointer, perms, warnings=None, overlay=None, on_
         host=args.host,
         port=args.port,
         allowed_origins=args.origins,
+        allow_keys=not (args.no_pointer or args.no_input),
+        allow_activation=not (args.no_pointer or args.no_input),
         warnings=warnings,
         overlay=overlay,
     )
     await server.start()
     listener = None
-    if not args.no_hotkeys and perms.input_monitoring:
+    if args.no_input:
+        pass  # never install the key tap
+    elif not args.no_hotkeys and perms.input_monitoring:
         listener = start_listener(server.router, os.getpid())
     elif not args.no_hotkeys:
         print("Global F-keys are OFF until Input Monitoring is granted (see above).", flush=True)
@@ -149,7 +162,8 @@ def main(argv=None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
-    perms = check_permissions()
+    # --no-input: read the grants without prompting or requesting anything.
+    perms = check_permissions(prompt=not args.no_input)
     print(f"Steady helper {VERSION}. Launched from: {perms.app_name}.", flush=True)
     if not perms.accessibility:
         print("\n!! " + accessibility_message(perms.app_name), flush=True)
@@ -167,7 +181,11 @@ def main(argv=None) -> int:
     for _code, note in warnings:
         print("Warning: " + note, flush=True)
 
-    if args.no_pointer or not perms.accessibility:
+    if args.no_input:
+        print("--no-input: Steady will not move the pointer, post keys, switch apps or listen to keys.", flush=True)
+    elif args.no_pointer:
+        print("--no-pointer: Steady will not move the pointer, post keys or switch apps.", flush=True)
+    if args.no_pointer or args.no_input or not perms.accessibility:
         from .fakes import FakeMouse
 
         mouse = FakeMouse()  # records only; nothing is posted

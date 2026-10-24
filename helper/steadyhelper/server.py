@@ -16,7 +16,9 @@ from websockets.exceptions import ConnectionClosed
 
 from . import VERSION
 from . import protocol as P
+from .macos import usable_at
 from .config import (
+    REPLACED_CLOSE_CODE,
     ACTIVATE_POLL_S,
     ACTIVATE_WAIT_S,
     ALLOWED_ORIGIN,
@@ -57,6 +59,8 @@ class HelperServer:
         reactivate_delay: float = REACTIVATE_DELAY_S,
         warnings: Optional[List[Tuple[str, str]]] = None,
         overlay=None,
+        allow_keys: bool = True,
+        allow_activation: bool = True,
     ) -> None:
         self.pointer = pointer
         self.system = system
@@ -75,6 +79,10 @@ class HelperServer:
         self.warnings: List[Tuple[str, str]] = list(warnings or [])
         #: ring.OverlayController or None (P3 ring overlay; --no-overlay or not available).
         self.overlay = overlay
+        #: --no-pointer / --no-input: never post keys, never activate apps (review H1/H2).
+        self.allow_keys = allow_keys
+        self.allow_activation = allow_activation
+        pointer.on_release = self._on_pointer_release
         if overlay is not None:
             overlay._on_disabled = self._on_overlay_disabled
 
@@ -229,6 +237,7 @@ class HelperServer:
             krita_running=running,
             krita_window_rect=rect,
             paused=self.pointer.paused,
+            visible_frame=self._visible_frame(),
         )
 
     def permission_errors(self) -> list:
@@ -246,6 +255,13 @@ class HelperServer:
             log.warning("refused connection with Origin %r", origin)
             await ws.close(BAD_ORIGIN_CLOSE_CODE, "origin not allowed")
             return
+        # One Worker at a time (review R2): newest wins, so a reload always works. The old
+        # socket's buttons are released now; its own close path then does nothing.
+        for old in list(self.clients):
+            self.clients.discard(old)
+            log.warning("a newer Steady window connected; closing the old connection")
+            self.pointer.release("replaced")
+            self._spawn(old.close(REPLACED_CLOSE_CODE, "replaced by a newer Steady window"))
         self.clients.add(ws)
         try:
             await self._send(ws, self.hello_msg())
@@ -254,13 +270,17 @@ class HelperServer:
             for code, message in self.warnings:
                 await self._send(ws, P.warning(code, message))
             async for raw in ws:
+                if ws not in self.clients:
+                    break  # replaced: ignore anything it still sends
                 await self.handle_raw(ws, raw)
         except ConnectionClosed:
             pass
         finally:
+            was_active = ws in self.clients
             self.clients.discard(ws)
-            self.pointer.release("socket closed")
-            if self.overlay is not None and not self.clients:
+            if was_active:
+                self.pointer.release("socket closed")
+            if was_active and self.overlay is not None and not self.clients:
                 self.overlay.hide()
                 self.overlay.show_numbers(None)
 
@@ -289,9 +309,7 @@ class HelperServer:
         rid = msg["id"]
         p = self.pointer
         if t == "move":
-            delay = p.move(float(msg["x"]), float(msg["y"]))
-            if delay > 0 and self._flush_handle is None:
-                self._flush_handle = asyncio.get_running_loop().call_later(delay, self._flush)
+            self._schedule_pump(p.move(float(msg["x"]), float(msg["y"])))
         elif t == "ping":
             await self._send(ws, P.pong(rid))
         elif t == "down":
@@ -299,17 +317,21 @@ class HelperServer:
                 await self._send(ws, self._permission_error(rid))
                 return
             try:
-                p.down()
+                self._schedule_pump(p.down())
             except Refused as r:
                 await self._send(ws, P.error(rid, r.code, str(r)))
         elif t == "up":
-            p.up()
+            self._schedule_pump(p.up())
         elif t == "click":
             if not p.enabled:
                 await self._send(ws, self._permission_error(rid))
                 return
+            x, y = float(msg["x"]), float(msg["y"])
+            if not self.click_usable(x, y):
+                await self._send(ws, P.ack(rid, False, "outside_usable"))
+                return
             try:
-                p.click(float(msg["x"]), float(msg["y"]))
+                p.click(x, y)
             except Refused as r:
                 await self._send(ws, P.error(rid, r.code, str(r)))
                 return
@@ -337,11 +359,11 @@ class HelperServer:
                 await self._send(ws, self._permission_error(rid))
                 return
             try:
-                p.middle_down()
+                self._schedule_pump(p.middle_down())
             except Refused as r:
                 await self._send(ws, P.error(rid, r.code, str(r)))
         elif t == "middle_up":
-            p.middle_up()
+            self._schedule_pump(p.middle_up())
         elif t == "ring":
             if self.overlay is not None:
                 self.overlay.submit(msg)
@@ -374,15 +396,77 @@ class HelperServer:
     def _permission_error(self, rid: str) -> Dict[str, Any]:
         return P.error(rid, "permission", accessibility_message(self.permissions.app_name), which="accessibility")
 
-    def _flush(self) -> None:
+    def _schedule_pump(self, delay: float) -> None:
+        if delay > 0 and self._flush_handle is None:
+            self._flush_handle = asyncio.get_running_loop().call_later(delay, self._pump)
+
+    def _pump(self) -> None:
+        """Drain the pointer's queue / coalesced point at ≤ 120 Hz (never blocks the watchdog)."""
         self._flush_handle = None
         try:
-            self.pointer.flush()
+            delay = self.pointer.pump()
         except Exception:
-            log.exception("move flush failed")
-            self.pointer.release("exception in flush")
+            log.exception("pointer pump failed")
+            self.pointer.release("exception in pump")
+            return
+        self._schedule_pump(delay)
+
+    # ------------------------------------------------------------------ released / usable area
+    @staticmethod
+    def released_reason(raw: str) -> Optional[str]:
+        """Pointer release reason → `released.reason`, or None when the Worker asked for it
+        (up, middle_up, swapping buttons) or no Worker is left to tell (socket closed, replaced, exit)."""
+        if raw in ("up", "middle_up", "down", "pan", "socket closed", "replaced", "shutdown", "exit"):
+            return None
+        if raw.startswith(("signal", "event loop")):
+            return None
+        if raw.startswith("watchdog"):
+            return "watchdog"
+        if raw == "pause":
+            return "pause"
+        if raw == "hotkey ptt_down":
+            return "ptt"
+        if raw.startswith("hotkey"):
+            return "hotkey"
+        if "exception" in raw:
+            return "exception"
+        return "other"
+
+    def _on_pointer_release(self, raw: str, button: str) -> None:
+        """Any thread (watchdog, key tap, asyncio). Tell the connected Worker (review R7)."""
+        reason = self.released_reason(raw)
+        if reason is None or not self.clients:
+            return
+        loop = self.loop
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(self.broadcast, P.released(reason, button))
+
+    def _screens(self):
+        try:
+            return self.system.screens()
+        except Exception:
+            log.exception("screen lookup failed")
+            return None
+
+    def _visible_frame(self):
+        try:
+            return self.system.visible_frame()
+        except Exception:
+            log.exception("visible frame lookup failed")
+            return None
+
+    def click_usable(self, x: float, y: float) -> bool:
+        """Clicks only inside the usable area (no menu bar, no Dock) of the screen under the point
+        (review R8). Unknown screen geometry → allowed (logged), so Resume stays reachable."""
+        ok = usable_at(x, y, self._screens())
+        if ok is None:
+            log.warning("screen geometry unknown; allowing click at (%s, %s)", x, y)
+            return True
+        return ok
 
     def _reactivate_krita(self) -> None:
+        if not self.allow_activation:
+            return
         try:
             if self.system.krita_pid() is not None:
                 self.system.activate_krita()
@@ -392,6 +476,8 @@ class HelperServer:
     # ------------------------------------------------------------------ keys / krita
     async def post_keys(self, combo: str):
         """Activate Krita (≤ activate_wait), then post the combo. Returns (ok, error)."""
+        if not self.allow_keys:
+            return False, "input_disabled"
         stroke = try_parse(combo)
         if stroke is None:
             return False, "bad_combo"

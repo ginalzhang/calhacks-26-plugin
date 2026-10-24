@@ -120,3 +120,14 @@ class FakeSystem:
 
     def screen(self) -> Dict[str, float]:
         return {"w": 1728.0, "h": 1117.0, "scale": 2.0}
+
+    #: [(frame, visible_frame)]: menu bar 25 pt on top, Dock 72 pt at the bottom.
+    screen_list = [
+        ({"x": 0.0, "y": 0.0, "w": 1728.0, "h": 1117.0}, {"x": 0.0, "y": 25.0, "w": 1728.0, "h": 1020.0}),
+    ]
+
+    def screens(self):
+        return list(self.screen_list)
+
+    def visible_frame(self) -> Optional[Dict[str, float]]:
+        return dict(self.screen_list[0][1]) if self.screen_list else None

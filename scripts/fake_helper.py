@@ -150,6 +150,7 @@ class FakeHelper:
             "krita_running": True,
             "krita_window_rect": {"x": 0, "y": 25, "w": 1400, "h": 1060},
             "paused": paused,
+            "visible_frame": {"x": 0, "y": 25, "w": 1728, "h": 1020},
         }
         msg.update(overrides)
         return msg

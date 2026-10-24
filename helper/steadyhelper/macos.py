@@ -51,6 +51,25 @@ def pick_main_window(windows: Iterable[Dict[str, Any]], pid: int) -> Optional[Re
     return best
 
 
+def usable_at(x: float, y: float, screens) -> Optional[bool]:
+    """Is (x, y) inside the usable area (visibleFrame: no menu bar, no Dock) of the screen that
+    contains it? `screens` = [(frame, visible_frame)] in Quartz points. None = unknown geometry.
+    A point on no screen is not usable."""
+    if not screens:
+        return None
+    for frame, visible in screens:
+        fx, fy, fw, fh = frame["x"], frame["y"], frame["w"], frame["h"]
+        if fx <= x < fx + fw and fy <= y < fy + fh:
+            vx, vy, vw, vh = visible["x"], visible["y"], visible["w"], visible["h"]
+            return vx <= x < vx + vw and vy <= y < vy + vh
+    return False
+
+
+def cocoa_to_quartz(x: float, y: float, w: float, h: float, primary_h: float) -> Rect:
+    """Cocoa rect (bottom-left origin of the primary screen, y up) → Quartz (top-left, y down)."""
+    return {"x": float(x), "y": float(primary_h - (y + h)), "w": float(w), "h": float(h)}
+
+
 # --- pointer ----------------------------------------------------------------------------
 
 class QuartzMouse:
@@ -167,6 +186,30 @@ class MacSystem:
             Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements, Q.kCGNullWindowID
         )
         return pick_main_window([dict(w) for w in (infos or [])], pid)
+
+    def screens(self):
+        """[(frame, visible_frame)] for every display, Quartz points."""
+        A = self._A
+        ss = A.NSScreen.screens()
+        if not ss or not len(ss):
+            return []
+        h0 = float(ss[0].frame().size.height)
+
+        def conv(r):
+            return cocoa_to_quartz(r.origin.x, r.origin.y, r.size.width, r.size.height, h0)
+
+        return [(conv(s.frame()), conv(s.visibleFrame())) for s in ss]
+
+    def visible_frame(self) -> Optional[Rect]:
+        """NSScreen.mainScreen().visibleFrame() in Quartz points (hello.visible_frame)."""
+        A = self._A
+        ss = A.NSScreen.screens()
+        main = A.NSScreen.mainScreen()
+        if main is None or not ss or not len(ss):
+            return None
+        h0 = float(ss[0].frame().size.height)
+        r = main.visibleFrame()
+        return cocoa_to_quartz(r.origin.x, r.origin.y, r.size.width, r.size.height, h0)
 
     def screen(self) -> Dict[str, float]:
         Q = self._Q
