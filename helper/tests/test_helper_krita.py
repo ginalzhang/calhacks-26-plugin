@@ -218,3 +218,32 @@ def test_pick_main_window_largest_layer0_of_pid():
     ]
     assert pick_main_window(wins, 42) == {"x": 0.0, "y": 25.0, "w": 1400.0, "h": 1060.0}
     assert pick_main_window(wins, 99) is None
+
+
+@pytest.mark.asyncio
+async def test_relay_handles_large_list_actions_and_passes_extra_fields_through():
+    plugin = await FakePlugin().start()
+    big = [{"id": f"action_{i}", "text": f"Some Krita Action Number {i}"} for i in range(3000)]  # ~150 KB line
+    plugin.replies["list_actions"] = {"actions": big}
+    plugin.replies["action"] = {"checked": True, "smoothing_changed": True, "warning": "w"}
+    try:
+        async with rig(plugin_port=plugin.port) as r:
+            assert await wait_until(lambda: r.server.relay.connected)
+            async with r.client() as c:
+                rid = mid()
+                await c.send({"t": "krita", "id": rid, "cmd": "list_actions"})
+                m = await c.recv_id(rid, timeout=3)
+                assert m["ok"] is True and len(m["actions"]) == 3000
+                assert r.server.relay.connected
+                rid = mid()
+                await c.send({"t": "krita", "id": rid, "cmd": "action", "action": "erase_action"})
+                m = await c.recv_id(rid)
+                assert m["checked"] is True and m["smoothing_changed"] is True and m["warning"] == "w"
+    finally:
+        await plugin.stop()
+
+
+def test_backspace_fallback_parses():
+    from steadyhelper.keys import parse_combo
+
+    assert parse_combo("backspace").keycode == 51

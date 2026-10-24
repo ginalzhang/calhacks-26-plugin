@@ -63,6 +63,7 @@ const path = require("path");
 const OUT = process.env.OUT;
 const PHASES = ["P0", "P1", "P2a", "P2b", "P3"];
 const upto = PHASES.slice(0, PHASES.indexOf(process.env.N) + 1);
+const inScope = new RegExp(`@(${upto.join("|")})\\b`);
 
 // ---- collect results: [{suite, title, status: "pass"|"fail"|"skip"}] ----
 const results = [];
@@ -173,7 +174,9 @@ for (const ph of upto) {
     }
     const matched = [];
     for (const p of proxies) {
-      const hits = results.filter((r) => r.suite === p.suite && p.re.test(r.title));
+      // Vitest/Playwright titles carry their phase tag; tests tagged above N were filtered out (shown as
+      // skipped) and do not count. pytest is already filtered by -m and its names carry no tag.
+      const hits = results.filter((r) => r.suite === p.suite && p.re.test(r.title) && (r.suite === "pytest" || inScope.test(r.title)));
       matched.push(...hits);
     }
     const failed = matched.filter((r) => r.status !== "pass");
@@ -188,8 +191,9 @@ for (const ph of upto) {
     }
   }
 }
-const n = (s) => results.filter((r) => r.status === s).length;
-console.log(`\ntotals: ${n("pass")} passed, ${n("fail")} failed, ${n("skip")} skipped (vitest+pytest+playwright)`);
+const scoped = results.filter((r) => r.suite === "pytest" || inScope.test(r.title));
+const n = (s) => scoped.filter((r) => r.status === s).length;
+console.log(`\ntotals (tags ≤ ${process.env.N}): ${n("pass")} passed, ${n("fail")} failed, ${n("skip")} skipped (vitest+pytest+playwright)`);
 console.log(fails ? `\ndemo-check ${process.env.N}: FAIL (${fails} item(s))` : `\ndemo-check ${process.env.N}: PASS`);
 process.exit(fails ? 1 : 0);
 NODE

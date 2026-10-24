@@ -15,6 +15,9 @@ from .config import PLUGIN_HOST, PLUGIN_PORT, PLUGIN_RECONNECT_S, PLUGIN_REPLY_T
 
 log = logging.getLogger("steady.krita")
 
+#: StreamReader line limit. list_actions replies are ~38 KB, close to asyncio's 64 KiB default.
+READ_LIMIT = 1 << 20
+
 
 class PluginDown(Exception):
     pass
@@ -84,7 +87,7 @@ class KritaRelay:
     async def _run(self) -> None:
         while not self._stopping:
             try:
-                reader, writer = await asyncio.open_connection(self.host, self.port)
+                reader, writer = await asyncio.open_connection(self.host, self.port, limit=READ_LIMIT)
             except (OSError, asyncio.TimeoutError):
                 await asyncio.sleep(self.reconnect_s)
                 continue
@@ -96,8 +99,9 @@ class KritaRelay:
                     if not line:
                         break
                     self._on_line(line)
-            except (OSError, asyncio.IncompleteReadError, ValueError):
-                log.info("plugin socket error", exc_info=True)
+            except (OSError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ValueError):
+                # ValueError/LimitOverrunError: a line longer than READ_LIMIT; drop and reconnect
+                log.warning("plugin socket error; reconnecting", exc_info=True)
             finally:
                 self._close_writer()
                 self._fail_pending()

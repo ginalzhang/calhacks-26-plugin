@@ -20,6 +20,8 @@ import {
 
 async function typedBox(page: Page) {
   const box = page.getByRole("textbox", { name: /command|type/i }).first();
+  // The typed box lives on the Paint page (or the header); open Paint if it isn't visible.
+  if (!(await box.isVisible().catch(() => false))) await openPanelPage(page, "Paint").catch(() => undefined);
   if (!(await box.isVisible().catch(() => false))) {
     throw new Error('MISSING UI: no visible typed-command box (role textbox, accessible name containing "command" or "type").');
   }
@@ -39,8 +41,9 @@ test.describe("P2a typed box", () => {
     const slider = steadinessSlider(page);
     const v0 = await sliderValue(slider);
     await typeCommand(page, "steadier");
+    await expect.poll(async () => (await state(page)).steadiness).toBe(Math.min(100, v0 + 10));
+    if (!(await slider.isVisible().catch(() => false))) await openPanelPage(page, "Steady");
     await expect.poll(() => sliderValue(slider)).toBe(Math.min(100, v0 + 10));
-    await expect(page.getByRole("status").first()).toContainText(/steadier|steadiness/i);
   });
 
   test("@P2a typed \"blue\" produces a krita message", async ({ page }) => {

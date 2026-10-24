@@ -35,14 +35,7 @@ import {
 const KRITA_TARGET = { target: "krita" };
 const KRITA_CANVAS = { x: 400, y: 120, w: 900, h: 700 };
 
-test.describe("P1 with the fake helper", () => {
-  test.beforeEach(async ({}, testInfo) => {
-    if (testInfo.title.includes("Demo page")) return;
-    test.skip(!(await fakeHelper.available()), "fake helper not running on 127.0.0.1:18767 (scripts/fake_helper.py)");
-    await fakeHelper.reset();
-    await fakeHelper.config({ krita: true, canvas_rect: KRITA_CANVAS });
-  });
-
+test.describe("P1 without a helper", () => {
   test("@P1 Demo page shows metrics", async ({ page }) => {
     await openSteady(page, { replay: "tremor-line", helper: "off", demo: true });
     await openPanelPage(page, "Demo");
@@ -52,7 +45,7 @@ test.describe("P1 with the fake helper", () => {
     const metrics = page.locator('[aria-live="off"]');
     await expect(metrics.first(), 'a metrics region with aria-live="off"').toBeVisible();
     const text = (await metrics.allInnerTexts()).join("\n");
-    for (const re of [/deviation/i, /stroke/i, /success/i, /claude/i, /camera/i, /detection/i, /round.?trip|rtt|helper/i]) {
+    for (const re of [/deviation/i, /stroke/i, /command/i, /claude/i, /camera/i, /detection/i, /round.?trip|rtt|helper/i]) {
       expect(text, `metrics mention ${re}`).toMatch(re);
     }
     // Metrics are live numbers, not placeholders, once replay frames flow.
@@ -60,6 +53,23 @@ test.describe("P1 with the fake helper", () => {
     // Next judge is not destructive under ?demo=1: no dialog.
     await tile(page, "Next judge").click();
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  });
+
+  test("@P1 a detection outside the tracked area reads 'Hand outside the tracked area', never 'no hand'", async ({ page }) => {
+    await openSteady(page, { replay: "hand-outside-area", helper: "off" });
+    const s = await waitForState(page, (x) => x.reason === "outside_area", { timeout: 15_000, what: "reason outside_area" });
+    expect(s.tracking).toBe("Lost");
+    await expect(page.getByText(/hand outside the tracked area/i).first()).toBeVisible();
+    await waitForState(page, (x) => x.tracking !== "Lost", { timeout: 10_000, what: "re-acquire when the hand returns" });
+    expect((await state(page)).pen).toBe("HOVER");
+  });
+});
+
+test.describe("P1 with the fake helper", () => {
+  test.beforeEach(async () => {
+    test.skip(!(await fakeHelper.available()), "fake helper not reachable (scripts/fake_helper.py; started by playwright.config.ts)");
+    await fakeHelper.reset();
+    await fakeHelper.config({ krita: true, canvas_rect: KRITA_CANVAS });
   });
 
   test("@P1 page sends move/down/up in order and up on simulated tracking loss", async ({ page }, testInfo) => {
