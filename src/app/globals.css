@@ -446,6 +446,19 @@ body {
   gap: 8px;
   align-items: flex-start;
 }
+/* Narrow strip: the main area is off to the side, so the first-run privacy card floats over the panel. */
+@media (max-width: 639px) {
+  .privacy {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    width: 304px;
+    max-height: 70vh;
+    overflow-y: auto;
+    z-index: 35;
+    background: var(--panel);
+  }
+}
 .privacy h2 {
   margin: 0;
   font-size: 20px;

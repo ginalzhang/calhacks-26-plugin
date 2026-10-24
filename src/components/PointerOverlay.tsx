@@ -10,15 +10,17 @@ import type { MirrorState, PipelineOutput, Vec2 } from "../pipeline/types";
 interface Props {
   getFrame: () => PipelineOutput | null;
   getMirror: () => MirrorState | null;
+  /** Page zoom (R9): screen points = CSS px × zoom. */
+  getZoom?: () => number;
 }
 
 /** Screen points → this page's viewport px (CSS px = points at 100 % zoom). */
-export function screenToViewport(p: Vec2): Vec2 {
-  const top = window.outerHeight - window.innerHeight;
-  return { x: p.x - window.screenX, y: p.y - window.screenY - top };
+export function screenToViewport(p: Vec2, zoom = 1): Vec2 {
+  const top = Math.max(0, window.outerHeight - window.innerHeight * zoom);
+  return { x: (p.x - window.screenX) / zoom, y: (p.y - window.screenY - top) / zoom };
 }
 
-export function PointerOverlay({ getFrame, getMirror }: Props) {
+export function PointerOverlay({ getFrame, getMirror, getZoom }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export function PointerOverlay({ getFrame, getMirror }: Props) {
       const f = getFrame();
       const m = getMirror();
       if (!f || !m) return;
-      const conv = (p: Vec2) => (m.target === "krita" ? screenToViewport(p) : p);
+      const conv = (p: Vec2) => (m.target === "krita" ? screenToViewport(p, getZoom?.() ?? 1) : p);
       const lost = m.tracking === "Lost";
       const ptr = f.pointer ?? m.pointer;
       if (!ptr) return;
@@ -108,7 +110,7 @@ export function PointerOverlay({ getFrame, getMirror }: Props) {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
     };
-  }, [getFrame, getMirror]);
+  }, [getFrame, getMirror, getZoom]);
 
   return <canvas ref={ref} className="pointer-overlay" aria-hidden="true" />;
 }

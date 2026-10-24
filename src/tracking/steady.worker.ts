@@ -12,7 +12,7 @@
  */
 import { ACTIONS_BY_ID, DEFAULT_KEYS, HOTKEY_TO_ACTION } from "../actions";
 import { createCalibrator, type StepCalibrator } from "../pipeline/calibration";
-import { createPipeline, modeState, panState } from "../pipeline/pipeline";
+import { createPipeline, modeState, panState, setCalibrating } from "../pipeline/pipeline";
 import { kritaMessageFor } from "../desktop/krita";
 import { EyebrowLift, handModeConfig, headModeConfig } from "../pipeline/presets";
 import {
@@ -77,6 +77,7 @@ let pendingTarget: Target | null = null;
 let demo = false;
 let status: string | null = null;
 let windowRect: Rect | null = null; // the page viewport in screen points
+let windowZoom = 1; // page zoom: CSS px × windowZoom = screen points (R9)
 let practiceRect: Rect | null = null; // the practice canvas, viewport px
 let last: PipelineOutput | null = null;
 let lastFrameAt = 0;
@@ -98,8 +99,9 @@ function setStatus(text: string, level: "status" | "alert" = "status") {
   post({ type: "status", text, level });
 }
 
+/** Page viewport in CSS px (canvas-target units). windowRect is in screen points: divide by the page zoom. */
 function viewportRect(): Rect {
-  return { x: 0, y: 0, w: windowRect?.w ?? 1280, h: windowRect?.h ?? 800 };
+  return { x: 0, y: 0, w: (windowRect?.w ?? 1280) / windowZoom, h: (windowRect?.h ?? 800) / windowZoom };
 }
 
 function rectsFor(t: Target): PipelineRects {
@@ -108,7 +110,8 @@ function rectsFor(t: Target): PipelineRects {
     return { canvas: practiceRect, chrome: vp, krita: null, screen: vp };
   }
   const scr = helperHello ? { x: 0, y: 0, w: helperHello.screen.w, h: helperHello.screen.h } : null;
-  return { canvas: kritaCanvasRect, chrome: windowRect, krita: kritaWindowRect, screen: scr };
+  // R8: dwell-clicks only inside the usable area (no menu bar, no Dock).
+  return { canvas: kritaCanvasRect, chrome: windowRect, krita: kritaWindowRect, screen: scr, usable: helperHello?.visible_frame ?? null };
 }
 
 function applyRects() {
@@ -136,8 +139,26 @@ function sendHelper(msg: Outgoing): string | null {
   return id;
 }
 
+/** R9: page CSS px → screen points (× page zoom). */
 function viewportToScreen(x: number, y: number): { x: number; y: number } {
-  return { x: (windowRect?.x ?? 0) + x, y: (windowRect?.y ?? 0) + y };
+  return { x: (windowRect?.x ?? 0) + x * windowZoom, y: (windowRect?.y ?? 0) + y * windowZoom };
+}
+
+/** R8: a click is never sent outside the usable screen area (visible frame) or into the menu bar. */
+function clickAllowed(x: number, y: number): boolean {
+  const usable = helperHello?.visible_frame ?? null;
+  if (usable) return inside(usable, x, y);
+  return y >= 40;
+}
+
+/** Lift the Worker's pen without the 80 ms user-lift guard (refused down, helper release). */
+function forceLift(): boolean {
+  if (!pipeline || pipeline.snapshot().pen !== "DRAWING") return false;
+  // "ptt" lifts immediately for any reason that isn't the user's own dwell/key/voice.
+  const events = pipeline.action("ptt", Math.max(now(), last?.t ?? 0));
+  forwardRaw(events);
+  post({ type: "frame", out: { ...(last ?? emptyOutput()), events, pen: pipeline.snapshot().pen } });
+  return true;
 }
 
 function inside(r: Rect | null, x: number, y: number) {
@@ -147,14 +168,22 @@ function inside(r: Rect | null, x: number, y: number) {
 /** Forward pipeline pen events: to the helper for the Krita target; the page draws the practice canvas itself. */
 function forward(events: PenEvent[]) {
   afterPipelineCall();
+  forwardRaw(events);
+}
+
+function forwardRaw(events: PenEvent[]) {
   if (target !== "krita" || !helperOpen()) return;
   // Pan (P3): this batch's down/up use the MIDDLE button (filter bypassed in the pipeline).
   const pan = pipeline ? panState(pipeline).batchIsPan : false;
   for (const e of events) {
     if (e.type === "move") sendHelper({ t: "move", x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 10) / 10 });
-    else if (e.type === "down") sendHelper(pan ? { t: "middle_down" } : { t: "down" });
+    else if (e.type === "down") {
+      // R4: the helper presses where the pointer is; put it exactly at the event first.
+      sendHelper({ t: "move", x: Math.round(e.x * 10) / 10, y: Math.round(e.y * 10) / 10 });
+      sendHelper(pan ? { t: "middle_down" } : { t: "down" });
+    }
     else if (e.type === "up") sendHelper(pan ? { t: "middle_up" } : { t: "up", reason: e.reason });
-    else if (e.type === "click")
+    else if (e.type === "click" && clickAllowed(e.x, e.y))
       sendHelper({ t: "click", x: Math.round(e.x), y: Math.round(e.y), reactivate_krita: inside(windowRect, e.x, e.y) });
   }
 }
@@ -184,6 +213,27 @@ function lostReasonText(r: MirrorState["reason"]): string {
   }
 }
 
+const RELEASE_TEXT: Record<string, string> = {
+  watchdog: "the helper lost contact for 300 ms",
+  pause: "paused",
+  hotkey: "pen key",
+  ptt: "push-to-talk",
+  exception: "helper error",
+  other: "helper",
+};
+
+/** Persistent alert (not overwritten by routine status; the page keeps alerts until cleared). */
+let lastRefused = "";
+function refusedAlert(text: string) {
+  if (text === lastRefused) return;
+  lastRefused = text;
+  setStatus(text, "alert");
+}
+function clearAlert() {
+  lastRefused = "";
+  post({ type: "status", text: "", level: "alert" });
+}
+
 // ----------------------------------------------------------------------------- frames
 function onFrame(frame: LandmarkFrame) {
   if (!pipeline) return;
@@ -208,7 +258,7 @@ function handleOutput(out: PipelineOutput, frame: LandmarkFrame | null) {
     const res = calibrator.result();
     if (res) {
       calibrator = null;
-      pipeline?.setSettings({ inputs: settings.inputs });
+      if (pipeline) setCalibrating(pipeline, false);
       calibration = res;
       pipeline?.setCalibration(res);
       post({ type: "calibration", calibration: res });
@@ -224,7 +274,10 @@ function handleOutput(out: PipelineOutput, frame: LandmarkFrame | null) {
   // Tracking transitions → status / alert.
   if (out.tracking !== lastTracking) {
     if (out.tracking === "Lost" && everTracked) setStatus(lostReasonText(out.reason), "alert");
-    else if (lastTracking === "Lost" && out.tracking !== "Lost" && everTracked) setStatus("Tracking back. Pen is up.");
+    else if (lastTracking === "Lost" && out.tracking !== "Lost" && everTracked) {
+      if (!lastRefused) clearAlert();
+      setStatus("Tracking back. Pen is up.");
+    }
     if (out.tracking !== "Lost") everTracked = true;
     lastTracking = out.tracking;
   }
@@ -239,7 +292,7 @@ function handleOutput(out: PipelineOutput, frame: LandmarkFrame | null) {
   const d = out.dwell;
   if (d.kind === "click" && d.progress >= 1 && lastClickProgress < 1 && target === "canvas" && helperOpen() && !d.gated) {
     const s = viewportToScreen(d.x, d.y);
-    sendHelper({ t: "click", x: Math.round(s.x), y: Math.round(s.y) });
+    if (clickAllowed(s.x, s.y)) sendHelper({ t: "click", x: Math.round(s.x), y: Math.round(s.y) });
   }
   lastClickProgress = d.kind === "click" ? d.progress : 0;
 
@@ -286,7 +339,31 @@ function mirror(): MirrorState {
 let lastCalibProgress = 0;
 let lastCalibStep: number | null = null;
 
-setInterval(() => post({ type: "state", state: mirror() }), 33);
+setInterval(() => {
+  post({ type: "state", state: mirror() });
+  sendRing();
+}, 33);
+
+/** P3 ring overlay in the helper (≤ 30 Hz, only on change); hidden while paused or on the practice target. */
+let lastRing = "";
+function sendRing() {
+  if (!helperOpen() || !pipeline) return;
+  const snap = pipeline.snapshot();
+  const o = last;
+  let state: "hover" | "drawing" | "outside" | "lost" | "hidden";
+  if (snap.paused || target !== "krita" || !o?.pointer) state = "hidden";
+  else if (o.tracking === "Lost") state = "lost";
+  else if (snap.pen === "DRAWING") state = "drawing";
+  else if (o.dwell.gated || o.dwell.kind === "click") state = "outside";
+  else state = "hover";
+  const x = Math.round(o?.pointer?.x ?? 0);
+  const y = Math.round(o?.pointer?.y ?? 0);
+  const progress = Math.round((o?.dwell.progress ?? 0) * 50) / 50;
+  const key = state === "hidden" ? "hidden" : `${state}|${progress}|${x}|${y}`;
+  if (key === lastRing) return;
+  lastRing = key;
+  sendHelper({ t: "ring", state, progress, x, y });
+}
 
 // Loss timer when frames stop entirely (camera stall), and the 100 ms keep-alive ping.
 setInterval(() => {
@@ -319,6 +396,7 @@ function runAction(id: string, variant?: string, arg?: number | null) {
       setStatus("Paused. The pen is up and the pointer stays in Steady. Resume to draw.");
     } else {
       sendHelper({ t: "resume" });
+      if (lastRefused.startsWith("Helper is paused")) clearAlert();
       setStatus("Resumed. Pen is up.");
     }
   }
@@ -345,7 +423,8 @@ function startCalibration(steps: Array<1 | 2 | 3>) {
   const allowed = steps.length ? steps : CALIBRATION_STEPS;
   calibratorSteps = allowed;
   const targetRect = rectsFor(target).canvas ?? rectsFor(target).screen ?? viewportRect();
-  pipeline?.setSettings({ inputs: { ...settings.inputs, dwell: false } });
+  // R3: pen-down from any source is refused while calibrating; a pen that is down is lifted.
+  if (pipeline) setCalibrating(pipeline, true);
   calibrator = createCalibrator({ steps: allowed, targetWidth: targetRect.w, prior: calibration, now: Date.now() });
   lastCalibProgress = 0;
   lastCalibStep = null;
@@ -424,17 +503,27 @@ function connectHelper(url: string) {
 
 function onHelperMessage(msg: HelperToWorker) {
   switch (msg.t) {
-    case "hello":
+    case "hello": {
       helperHello = msg;
       kritaConnected = msg.krita;
       kritaWindowRect = msg.krita_window_rect;
       if (!msg.accessibility || !msg.input_monitoring) {
         const which = !msg.accessibility ? "Accessibility" : "Input Monitoring";
-        setStatus(`Helper needs ${which} permission for the terminal that launched it.`, "alert");
-      }
+        refusedAlert(`Krita isn't receiving the pen: grant ${which} to the terminal that runs the helper.`);
+      } else if (lastRefused) clearAlert();
+      // R6: the helper's pause flag survives reconnects; make it match the Worker's.
+      const workerPaused = pipeline?.snapshot().paused ?? false;
+      if (msg.paused !== workerPaused) sendHelper(workerPaused ? { t: "pause" } : { t: "resume" });
       if (msg.krita) initKrita();
       applyRects();
       break;
+    }
+    case "released": {
+      // R7: the helper let go on its own (watchdog, socket, exception…): lift our pen to match.
+      const wasDrawing = forceLift();
+      if (wasDrawing) setStatus(`Pen released: ${RELEASE_TEXT[msg.reason] ?? msg.reason}.`, "alert");
+      break;
+    }
     case "krita_window_rect":
       kritaWindowRect = msg.rect;
       applyRects();
@@ -453,6 +542,15 @@ function onHelperMessage(msg: HelperToWorker) {
       setStatus(msg.message ?? msg.code);
       break;
     case "error":
+      // R6/H5: a refused down must not leave the Worker showing a pen that isn't down.
+      if (msg.code === "paused" || msg.code === "permission") {
+        forceLift();
+        refusedAlert(
+          msg.code === "paused"
+            ? "Helper is paused: press Resume (F9) to draw in Krita."
+            : `Krita isn't receiving the pen: grant ${msg.which === "input_monitoring" ? "Input Monitoring" : "Accessibility"} to the terminal that runs the helper.`,
+        );
+      }
       if (msg.code === "permission") {
         setStatus(
           `Helper needs ${msg.which === "input_monitoring" ? "Input Monitoring" : "Accessibility"} permission for the terminal that launched it.`,
@@ -637,7 +735,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
         switchCameraKind(m.settings.trackingSource);
       if (m.settings.stickerRange && mediapipe?.kind === "colorcap") mediapipe.setRange(m.settings.stickerRange);
       pipeline?.setSettings(
-        calibrator && m.settings.inputs ? { ...m.settings, inputs: { ...settings.inputs, dwell: false } } : m.settings,
+        m.settings,
       );
       break;
     case "window_rect": {
@@ -648,6 +746,11 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
         windowRect.w !== m.rect.w ||
         windowRect.h !== m.rect.h;
       windowRect = m.rect;
+      const z = m.zoom && Number.isFinite(m.zoom) && m.zoom > 0 ? m.zoom : 1;
+      if (z !== windowZoom) {
+        windowZoom = z;
+        applyRects();
+      }
       if (changed) {
         applyRects();
         sendHelper({ t: "chrome_rect", rect: m.rect });
@@ -669,7 +772,10 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       switchTarget(m.target);
       break;
     case "action":
-      if (m.action === "pick_sticker_colour") {
+      if (m.action === "connect_helper") {
+        // R1: the page sends this only after the first-run privacy screen was acknowledged.
+        if (!helper && m.variant) connectHelper(m.variant);
+      } else if (m.action === "pick_sticker_colour") {
         void pickStickerColour();
       } else if (m.action === "recalibrate" || m.action === "next_judge") {
         runAction(m.action);
@@ -685,7 +791,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       break;
     case "use_calibration":
       calibration = m.calibration;
-      if (calibrator) pipeline?.setSettings({ inputs: settings.inputs });
+      if (calibrator && pipeline) setCalibrating(pipeline, false);
       calibrator = null;
       pipeline?.setCalibration(m.calibration);
       setStatus("Using your last setup.");

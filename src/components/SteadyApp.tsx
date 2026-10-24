@@ -215,25 +215,64 @@ interface Params {
   target: "canvas" | "krita";
 }
 
-function readParams(): Params {
+/**
+ * R1: test-only URL params (`source=replay`, `replay=`, `target=krita`, `helper=`, `privacy=pending`) are
+ * honoured ONLY in a test build (NEXT_PUBLIC_STEADY_TEST=1, set by the Playwright/integration web servers).
+ * Otherwise any website could open localhost:3000 with a replay + Krita target and drive the real pointer.
+ * `demo=1` is always allowed.
+ */
+export const TEST_BUILD = process.env.NEXT_PUBLIC_STEADY_TEST === "1";
+
+function readParams(): Params & { privacyPending: boolean } {
   const q = new URLSearchParams(window.location.search);
+  const demo = q.get("demo") === "1";
+  if (!TEST_BUILD) {
+    return { demo, source: "camera", replay: null, helperUrl: HELPER_URL, target: "canvas", privacyPending: false };
+  }
   const helper = q.get("helper");
   const source = q.get("source") === "replay" ? "replay" : "camera";
   return {
-    demo: q.get("demo") === "1",
+    demo,
     source,
     replay: source === "replay" ? (q.get("replay") ?? "dev-circle") : null,
     helperUrl: helper === "off" ? null : helper || HELPER_URL,
     target: q.get("target") === "krita" ? "krita" : "canvas",
+    privacyPending: q.get("privacy") === "pending",
   };
 }
 
+/** The first-run privacy screen gates the helper connection (R1). Test builds skip it unless ?privacy=pending. */
+function privacyAcknowledged(params: { privacyPending: boolean }): boolean {
+  if (TEST_BUILD && !params.privacyPending) return true;
+  return privacySeen();
+}
+
+/**
+ * R9: Chrome page zoom. devicePixelRatio = screen backing scale × page zoom, so zoom = dpr / base, with
+ * base = the helper's `hello.screen.scale` when known, else a guess (2 on a Retina-class dpr ≥ 1.5, 1 below).
+ * (outerWidth/innerWidth is wrong with side panels or DevTools docked; visualViewport.scale is pinch zoom.)
+ */
+let baseScale: number | null = null;
+export function setBaseScale(s: number | null) {
+  baseScale = s && s > 0 ? s : null;
+}
+export function pageZoom(): number {
+  const dpr = window.devicePixelRatio || 1;
+  const base = baseScale ?? (dpr >= 1.5 ? 2 : 1);
+  const z = dpr / base;
+  return Number.isFinite(z) && z > 0 ? Math.round(z * 100) / 100 : 1;
+}
+
+/** The page viewport in screen points (outer* are points; inner* are CSS px × zoom). */
 function viewportScreenRect() {
+  const z = pageZoom();
+  const w = window.innerWidth * z;
+  const h = window.innerHeight * z;
   return {
     x: window.screenX,
-    y: window.screenY + (window.outerHeight - window.innerHeight),
-    w: window.innerWidth,
-    h: window.innerHeight,
+    y: window.screenY + Math.max(0, window.outerHeight - h),
+    w,
+    h,
   };
 }
 
@@ -565,7 +604,9 @@ export default function SteadyApp() {
       const kw = m?.kritaWindowRect;
       const top = 0;
       // Dwell-click rules: only inside Krita's window, never the menu bar.
-      if (y < top + MENU_BAR_PT || (kw && !(x >= kw.x && y >= kw.y && x <= kw.x + kw.w && y <= kw.y + kw.h))) {
+      const usable = m?.helperHello?.visible_frame ?? null;
+      const inR = (r: { x: number; y: number; w: number; h: number }) => x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h;
+      if (y < top + MENU_BAR_PT || (kw && !inR(kw)) || (usable && !inR(usable))) {
         say(`Number ${n} is outside Krita's window.`);
         return;
       }
@@ -938,7 +979,7 @@ export default function SteadyApp() {
     bridgeRef.current = bridge;
     const calib = null as Calibration | null;
     setHasLastSetup(!!lastCalibration());
-    setShowPrivacy(!privacySeen());
+    setShowPrivacy(!privacyAcknowledged(params));
     setSkinHex(loadSkin());
     let lastPush = 0;
     let lastClick = 0;
@@ -955,11 +996,9 @@ export default function SteadyApp() {
           break;
         }
         case "status":
+          // Alerts persist until the Worker clears them (empty alert) — routine status never hides one.
           if (m.level === "alert") setAlert(m.text);
-          else {
-            setStatus(m.text);
-            setAlert("");
-          }
+          else setStatus(m.text);
           break;
         case "error":
           setAlert(m.text);
@@ -976,6 +1015,10 @@ export default function SteadyApp() {
           break;
         case "helper": {
           const msg = m.msg;
+          if (msg.t === "hello") {
+            setBaseScale(msg.screen.scale);
+            report();
+          }
           if (msg.t === "krita_reply") {
             const acts = (msg as Record<string, unknown>).actions;
             if (Array.isArray(acts)) lookupsRef.current = buildLookups(acts as Array<{ id: string; text: string }>);
@@ -1041,7 +1084,7 @@ export default function SteadyApp() {
       type: "init",
       settings: s,
       calibration: calib,
-      helperUrl: params.helperUrl,
+      helperUrl: privacyAcknowledged(params) ? params.helperUrl : null,
       source: params.source,
       replayUrl: params.replay ? `/replay/${params.replay}.json` : undefined,
       demo: params.demo,
@@ -1065,7 +1108,7 @@ export default function SteadyApp() {
     let lastWindowRect: ReturnType<typeof viewportScreenRect> | null = null;
     const report = () => {
       lastWindowRect = viewportScreenRect();
-      bridge.post({ type: "window_rect", rect: lastWindowRect });
+      bridge.post({ type: "window_rect", rect: lastWindowRect, zoom: pageZoom() });
       const r = canvasRef.current?.el?.getBoundingClientRect();
       if (r && r.width > 0)
         bridge.post({ type: "canvas_rect", target: "canvas", rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
@@ -1285,6 +1328,13 @@ export default function SteadyApp() {
     },
     [params.source, startCamera, update],
   );
+
+  /** R1: only now may the Worker connect to the helper. */
+  const acknowledgePrivacy = useCallback(() => {
+    markPrivacySeen();
+    setShowPrivacy(false);
+    if (params.helperUrl) bridgeRef.current?.post({ type: "action", action: "connect_helper", variant: params.helperUrl, source: "tile" });
+  }, [params.helperUrl]);
 
   const chooseCamera = useCallback((id: string) => void startCamera(id), [startCamera]);
   const nextCamera = useCallback(() => {
@@ -1551,10 +1601,7 @@ export default function SteadyApp() {
                 <button
                   type="button"
                   className="tile tile-default"
-                  onClick={() => {
-                    markPrivacySeen();
-                    setShowPrivacy(false);
-                  }}
+                  onClick={acknowledgePrivacy}
                 >
                   <span className="tile-label">Got it</span>
                 </button>
@@ -1566,7 +1613,7 @@ export default function SteadyApp() {
           <PracticeCanvas ref={canvasRef} store={strokes} demo={params.demo} getMirror={getMirror} />
         </div>
       </main>
-      <PointerOverlay getFrame={getFrame} getMirror={getMirror} />
+      <PointerOverlay getFrame={getFrame} getMirror={getMirror} getZoom={pageZoom} />
     </div>
   );
 }
