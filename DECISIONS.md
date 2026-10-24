@@ -361,3 +361,80 @@ totals (tags ≤ P2b): 606 passed, 0 failed, 0 skipped (vitest+pytest+playwright
 demo-check P2b: PASS
 ```
   @P3 (not in either gate): Sketch/Ink mode/Shade test fails only because those tiles render disabled at BUILD_PHASE P2b.
+- 15:40 lead: P2b gate PASS (606/0, run by F at 15:39). BUILD_PHASE → P3.
+
+### P3 gate — 2026-10-24 15:43 PDT
+```
+================ definition of done ================
+PASS        step: typecheck
+PASS        step: vitest
+PASS        step: pytest
+PASS        step: playwright
+
+--- P0 ---
+PASS        Pointer cursor on Steady's practice canvas (ReplaySource)  — 1 test(s)
+PASS        Hold still to start drawing (pen-down dwell)  — 23 test(s)
+PASS        Draws a stroke (a word shape) on the practice canvas  — 1 test(s)
+PASS        Hold still to stop (pen-up dwell; slow stroke never lifts)  — 8 test(s)
+PASS        A resting hand toggles the pen at most once  — 1 test(s)
+PASS        The Undo key undoes  — 1 test(s)
+PASS        Steadiness slider and its ± tiles change the result  — 5 test(s)
+PASS        Calibration steps 1–2 complete  — 1 test(s)
+PASS        Each P0 page fits 320×900 at 100 % (Steady, Setup, Timing)  — 3 test(s)
+PASS        axe report produced at 100 % and 200 % (hard gate only with AXE_GATE=1)  — 2 test(s)
+PASS        Pipeline acceptance targets + every @P0 Vitest  — 52 test(s)
+NEEDS HUMAN Real webcam: within 60 s of npm run dev a resting hand moves the cursor (knuckle landmark)  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real webcam: a person writes a legible word and the Steadiness change is visible  — see NEEDS-HUMAN.md
+
+--- P1 ---
+PASS        Demo page: Simulate tremor, metrics, Next judge  — 2 test(s)
+PASS        Worker sends move/down/up to the helper in order (stroke reaches the helper)  — 1 test(s)
+PASS        Covering the camera mid-stroke ends the stroke with no scribble (score-0.5 replay)  — 9 test(s)
+PASS        Helper releases the button (watchdog 300 ms, socket close, exception) — fake mouse  — 9 test(s)
+PASS        F9 releases everything; helper is the single key source (page ignores F-keys)  — 35 test(s)
+PASS        Resume tile reachable by dwell (click inside Chrome's rect, no self-trigger)  — 1 test(s)
+PASS        Every @P1 Vitest (mapping, clamp, rect gating, hand lock, protocol round-trip)  — 145 test(s)
+PASS        Every @P1 pytest (helper §5)  — 292 test(s)
+NEEDS HUMAN Real Krita: the same resting hand paints a stroke in Krita via the helper  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Krita: covering the camera mid-stroke ends the Krita stroke cleanly  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: F9 pauses and the Resume tile works by dwell with Krita focused  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: Chrome strip beside Krita keeps the fps counter running while Krita is focused  — see NEEDS-HUMAN.md
+
+--- P2a ---
+PASS        Typed "steadier" moves the slider  — 1 test(s)
+PASS        Typed "blue" produces a krita message  — 1 test(s)
+PASS        Keys do nothing inside the typed box  — 1 test(s)
+PASS        P2a pages fit 320×900 (Paint, Colour, View, Layers)  — 4 test(s)
+PASS        Grammar, keyterms, zod, Claude log (every @P2a Vitest)  — 84 test(s)
+PASS        Krita plugin dispatcher (every @P2a pytest)  — 292 test(s)
+NEEDS HUMAN Real Krita 5.3.x: plugin loads, "blue" changes the colour, F5/F6 no longer open popups  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Krita: dwell-click hits an enlarged toolbox button  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real mic + keys: Cartesia Ink 2 hears "blue", "bigger", "undo that"; Claude moment works  — see NEEDS-HUMAN.md
+
+--- P2b ---
+PASS        Hatch tile toggles Hatch; status "Hatch: forward passes only"  — 1 test(s)
+PASS        Hatch/Dots pipeline (forward passes only, look-ahead buffer, stationary hand never inks)  — 8 test(s)
+PASS        Quiet mode turns the mic (and TTS, earcons) off  — 1 test(s)
+PASS        Aliases: "alias fluffy" stored; a colliding alias is refused ("That word is taken")  — 13 test(s)
+PASS        Destructive confirm: alertdialog, focus on Cancel, Esc cancels, typed "yes" confirms  — 1 test(s)
+PASS        Break nudge after 20 min, non-blocking, "Later" dismisses  — 1 test(s)
+PASS        Every @P2b Vitest  — 26 test(s)
+PASS        Every @P2b Playwright  — 5 test(s)
+NEEDS HUMAN Real Krita: Hatch over the parallel ruler inks forward passes only  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: Sonic TTS speaks "Saved"/"New layer" and never while the mic is open  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real mic: "call this brush fluffy", then "fluffy" selects that preset in Krita  — see NEEDS-HUMAN.md
+
+--- P3 ---
+PASS        Sketch / Ink mode / Shade tiles set Steadiness 25 / 70 / 10  — 1 test(s)
+PASS        Dash / Repeat / pan / pick pipeline  — 16 test(s)
+PASS        Every @P3 Vitest  — 45 test(s)
+PASS        Every @P3 Playwright  — 1 test(s)
+PASS        Every @P3 pytest (ring overlay, middle-button pan, keymap)  — 292 test(s)
+NEEDS HUMAN Real Mac: ring overlay visible over Krita; Krita's brush outline still shows through it  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real hand in a glove/brace: Colour cap sticker is tracked and paints  — see NEEDS-HUMAN.md
+NEEDS HUMAN Real Mac: self-hosted MediaPipe assets load with the network off  — see NEEDS-HUMAN.md
+
+totals (tags ≤ P3): 674 passed, 0 failed, 0 skipped (vitest+pytest+playwright)
+
+demo-check P3: PASS
+```
