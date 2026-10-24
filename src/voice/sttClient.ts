@@ -59,6 +59,8 @@ export class SttConnection {
   private interim = "";
   private pending: { resolve: (t: string) => void; timer: ReturnType<typeof setTimeout> } | null = null;
   closed = false;
+  /** True once the socket has opened; a close before that means Cartesia is unreachable/refused. */
+  opened = false;
   readonly url: string;
 
   constructor(token: string, keyterms: string[], private handlers: SttHandlers = {}, factory?: WsFactory) {
@@ -67,6 +69,7 @@ export class SttConnection {
     this.ws = make(this.url);
     this.ws.binaryType = "arraybuffer";
     this.ws.onopen = () => {
+      this.opened = true;
       for (const b of this.queue) this.ws.send(b);
       this.queue = [];
       if (this.finalizeQueued) {

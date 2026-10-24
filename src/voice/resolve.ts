@@ -1,7 +1,8 @@
 /**
  * Command resolution (§8), the same path for a voice transcript and for the typed box:
- *   (0) "undo that undo that …" coalesces into N undo commands (B's dispatcher runs them 50 ms apart);
- *   (1) the local grammar (A's parseCommand);
+ *   (1) the local grammar (A's parseCommand; it also coalesces "undo that undo that …" into one
+ *       {action:"undo", arg:N}, which B's dispatcher runs N times 50 ms apart, and puts a word
+ *       argument such as the alias in "call this brush fluffy" into `variant`);
  *   (2) only on no match, and never while a dialog/clarify prompt is open, POST /api/command with
  *       the text plus exactly the privacy-rule context fields; ids are compared case-insensitively;
  *   on timeout / invalid output / offline / key missing → kind "none" with the two closest grammar
@@ -16,7 +17,6 @@ import { logClaudeCall, markClaudeOutcome, type ClaudeOutcome } from "./claudeLo
 
 /** Server times out at 2500 ms; allow for the round trip before the client gives up. */
 export const CLIENT_TIMEOUT_MS = 4000;
-export const UNDO_COALESCE_MAX = 20;
 
 export interface ResolveOptions {
   mode: "voice" | "typed";
@@ -61,22 +61,6 @@ export function pickContext(c: CommandContext): CommandContext {
   };
 }
 
-/** "undo that undo that undo that" → 3 (voice); typed also accepts bare "undo". 0 if not a pure undo run. */
-export function undoRunCount(text: string, mode: "voice" | "typed"): number {
-  const t = text.toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
-  if (!t) return 0;
-  const unit = mode === "typed" ? /^(undo that|undo)(?: |$)/ : /^undo that(?: |$)/;
-  let rest = t;
-  let n = 0;
-  while (rest.length) {
-    const m = unit.exec(rest);
-    if (!m) return 0;
-    n++;
-    rest = rest.slice(m[0].length);
-  }
-  return Math.min(n, UNDO_COALESCE_MAX);
-}
-
 let lastClarifyLogId: string | null = null;
 /** B calls this when a Claude clarify prompt closes: a picked option = accepted, cancel = rejected. */
 export function resolveClarify(accepted: boolean): void {
@@ -98,14 +82,6 @@ export async function resolveText(text: string, opts: ResolveOptions, depsIn?: P
   const deps: ResolveDeps = { ...defaultDeps(), ...depsIn };
   const heard = text.trim();
   if (!heard) return { kind: "noop", heard };
-
-  // (0) "undo that" ×N
-  if (!opts.dialogOpen) {
-    const n = undoRunCount(heard, opts.mode);
-    if (n >= 2) {
-      return { kind: "commands", commands: Array.from({ length: n }, () => ({ action: "undo" })), heard, via: "grammar" };
-    }
-  }
 
   // (1) grammar
   const parsed = deps.parse(heard, { mode: opts.mode, dialogOpen: opts.dialogOpen, aliases: opts.aliases });
@@ -130,6 +106,7 @@ export async function resolveText(text: string, opts: ResolveOptions, depsIn?: P
   // (2) Claude fallback
   if (!deps.online()) {
     log("offline", 0, false, "offline");
+    opts.onStatus?.("Offline: only exact commands work. Tiles, keys and the typed box still work.", "status");
     return none("offline");
   }
 
@@ -174,6 +151,8 @@ export async function resolveText(text: string, opts: ResolveOptions, depsIn?: P
       const commands: ParsedCommand[] = [];
       for (const a of [first, second]) {
         if (!a) continue;
+        // Word arguments (alias names) must come from the user verbatim, never from Claude.
+        if (a.arg === "word") continue;
         if (a.arg === "number") {
           if (a !== argOwner || arg === null) continue; // a size/opacity with no number is meaningless
           commands.push({ action: a.id, arg });

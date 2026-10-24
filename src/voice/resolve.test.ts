@@ -10,7 +10,7 @@ vi.mock("../pipeline/grammar", () => ({
 
 import type { CommandContext, ParseResult } from "../pipeline/types";
 import { readClaudeLog, setClaudeLogStorage } from "./claudeLog";
-import { pickContext, resolveClarify, resolveText, undoRunCount, type ResolveDeps } from "./resolve";
+import { pickContext, resolveClarify, resolveText, type ResolveDeps } from "./resolve";
 import { FakeStorage } from "./testStorage";
 
 const context: CommandContext = {
@@ -137,29 +137,41 @@ describe("resolveText fallbacks: closest two grammar matches", () => {
   });
 });
 
-describe('"undo that" ×N coalescing', () => {
-  it("@P2a counts repeated phrases", () => {
-    expect(undoRunCount("undo that undo that undo that", "voice")).toBe(3);
-    expect(undoRunCount("Undo that, undo that.", "voice")).toBe(2);
-    expect(undoRunCount("undo that", "voice")).toBe(1);
-    expect(undoRunCount("undo undo", "voice")).toBe(0); // bare "undo" is not a voice phrase
-    expect(undoRunCount("undo undo undo", "typed")).toBe(3);
-    expect(undoRunCount("undo that blue", "voice")).toBe(0);
-  });
-
-  it("@P2a returns N undo commands without consulting grammar or Claude", async () => {
-    const { d, parse, fetchImpl } = deps();
+describe("grammar-owned arguments pass through unchanged", () => {
+  it('@P2a "undo that" ×N arrives as one {action:"undo", arg:N} from the grammar, never via Claude', async () => {
+    const parse = vi.fn((): ParseResult => ({ kind: "match", commands: [{ action: "undo", arg: 5 }], fuzzy: false }));
+    const { d, fetchImpl } = deps({ parse });
     const r = await resolveText("undo that undo that undo that undo that undo that", { mode: "voice", dialogOpen: false, context }, d);
-    expect(r).toMatchObject({ kind: "commands", via: "grammar" });
-    expect(r.kind === "commands" && r.commands).toEqual(Array.from({ length: 5 }, () => ({ action: "undo" })));
-    expect(parse).not.toHaveBeenCalled();
+    expect(r).toEqual({ kind: "commands", commands: [{ action: "undo", arg: 5 }], heard: "undo that undo that undo that undo that undo that", via: "grammar" });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("@P2a is not applied inside dialogs", async () => {
-    const { d, parse } = deps();
-    await resolveText("undo that undo that", { mode: "voice", dialogOpen: true, context }, d);
-    expect(parse).toHaveBeenCalled();
+  it("@P2b word arguments (alias names) keep the grammar's variant", async () => {
+    const parse = vi.fn((): ParseResult => ({ kind: "match", commands: [{ action: "name_brush", variant: "fluffy" }], fuzzy: false }));
+    const { d } = deps({ parse });
+    const r = await resolveText("call this brush fluffy", { mode: "voice", dialogOpen: false, context }, d);
+    expect(r).toMatchObject({ kind: "commands", commands: [{ action: "name_brush", variant: "fluffy" }], via: "grammar" });
+  });
+
+  it("@P2b Claude never supplies a word argument: name_brush from Claude is dropped", async () => {
+    const { d } = deps({ api: { kind: "actions", first: "name_brush", second: null, arg: null, latencyMs: 1, mock: false } });
+    const r = await resolveText("name it fluffy please", { mode: "voice", dialogOpen: false, context }, d);
+    expect(r).toMatchObject({ kind: "none", reason: "invalid" });
+    const { d: d2 } = deps({ api: { kind: "actions", first: "name_brush", second: "bigger", arg: null, latencyMs: 1, mock: false } });
+    expect(await resolveText("x", { mode: "voice", dialogOpen: false, context }, d2)).toMatchObject({ kind: "commands", commands: [{ action: "bigger" }] });
+  });
+});
+
+describe("network down (§13)", () => {
+  it("@P2a offline: grammar still resolves; Claude is skipped with a clear status", async () => {
+    const statuses: string[] = [];
+    const hit = deps({ online: () => false, parse: vi.fn((): ParseResult => ({ kind: "match", commands: [{ action: "colour_blue" }], fuzzy: false })) });
+    expect(await resolveText("blue", { mode: "typed", dialogOpen: false, context, onStatus: (t) => statuses.push(t) }, hit.d)).toMatchObject({ kind: "commands", via: "grammar" });
+    const miss = deps({ online: () => false });
+    const r = await resolveText("make it thinner", { mode: "typed", dialogOpen: false, context, onStatus: (t) => statuses.push(t) }, miss.d);
+    expect(r).toMatchObject({ kind: "none", reason: "offline" });
+    expect(miss.fetchImpl).not.toHaveBeenCalled();
+    expect(statuses.join(" ")).toMatch(/Offline: only exact commands work/);
   });
 });
 

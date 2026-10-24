@@ -11,7 +11,10 @@
  *   ("undo that" ×N arrives as N undo commands; B's dispatcher runs them serially).
  * - Quiet mode / disabled: the tile is disabled and any open mic is cancelled.
  * - Mic revoked / denied: a role="alert" banner; tiles, keys and the typed box remain the path.
- * - No Cartesia key: the tile does not open; status "Voice needs a Cartesia key…".
+ * - No Cartesia key / token error / socket failure: falls back to the browser's Web Speech API only
+ *   if `allowWebSpeech` (settings.webSpeechFallback, opt-in) and the browser has it (P3; same open/close semantics; status says so, and the first time that Chrome sends the
+ *   audio to Google); otherwise the tile does not open and the status says why.
+ * - Offline (§13): voice is off with a clear message; tiles, keys and the typed box still work.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MicTileProps } from "../pipeline/types";
@@ -19,6 +22,10 @@ import { autoCloseReason, newMicTiming, noteActivity, VOICE_LEVEL, type MicTimin
 import { resolveText } from "./resolve";
 import { tts } from "./ttsClient";
 import { VoiceSession } from "./voiceSession";
+import { WEB_SPEECH_NOTICE, WEB_SPEECH_STATUS, webSpeechCtor } from "./webSpeech";
+
+/** Web Speech privacy notice: shown in full the first time per page load, short after that. */
+let webSpeechNoticeShown = false;
 
 type Banner = null | { kind: "revoked" | "denied" | "no_device" | "unsupported" | "error"; text: string };
 
@@ -65,7 +72,16 @@ export default function MicTile(props: MicTileProps) {
       try {
         const transcript = (await session().close()).trim();
         if (!transcript) {
-          status(why === "cap" ? "Mic closed at the time limit. Didn't hear a command." : "Didn't hear anything.");
+          if (session().cartesiaFailed) {
+            status(
+              propsRef.current.allowWebSpeech && webSpeechCtor()
+                ? "Couldn't reach the voice service. Next time Steady uses the browser's speech recognition."
+                : "Couldn't reach the voice service. Tiles, keys and the typed box still work.",
+              "alert",
+            );
+          } else {
+            status(why === "cap" ? "Mic closed at the time limit. Didn't hear a command." : "Didn't hear anything.");
+          }
           return;
         }
         status(`Heard: ${transcript}`);
@@ -100,6 +116,9 @@ export default function MicTile(props: MicTileProps) {
       p.onMicOpen(); // B lifts the pen (push-to-talk start lifts the pen)
       status("Listening…");
       const res = await session().open({
+        onActivity: () => {
+          if (openRef.current && timingRef.current) timingRef.current = noteActivity(timingRef.current, Date.now());
+        },
         onDelta: (full) => {
           if (!openRef.current || !timingRef.current) return;
           timingRef.current = noteActivity(timingRef.current, Date.now());
@@ -118,11 +137,17 @@ export default function MicTile(props: MicTileProps) {
           status(reason === "revoked" ? "Microphone access was turned off." : "Microphone stopped.", "alert");
         },
         onError: (m) => status(`Voice: ${m}`, "alert"),
-      });
+      }, { allowWebSpeech: p.allowWebSpeech === true });
+      if (res.ok && res.engine === "webspeech" && openRef.current) {
+        status(webSpeechNoticeShown ? WEB_SPEECH_STATUS : WEB_SPEECH_NOTICE);
+        webSpeechNoticeShown = true;
+      }
       if (!res.ok) {
         if (!openRef.current) return; // closed or cancelled meanwhile
         finishOpen();
-        if (res.reason === "key_missing") {
+        if (res.reason === "offline") {
+          status("Voice is off: no network connection. Tiles, keys and the typed box still work.", "alert");
+        } else if (res.reason === "key_missing") {
           status("Voice needs a Cartesia key (key missing). Use the tiles or type the command.");
         } else if (res.reason === "token_failed") {
           status("Voice is unavailable (no connection to the voice service). Tiles, keys and the typed box still work.", "alert");
@@ -165,6 +190,15 @@ export default function MicTile(props: MicTileProps) {
       status(quiet ? "Quiet mode: mic off." : "Mic off.");
     }
   }, [quiet, disabled, finishOpen, status]);
+
+  // Spoken-reply problems ("voice unavailable", "key missing") surface in the status line.
+  useEffect(
+    () =>
+      tts.onStatus((st, text) => {
+        if (st !== "ok" && text) status(text);
+      }),
+    [status],
+  );
 
   // Unmount: release everything.
   useEffect(

@@ -24,6 +24,8 @@ export const CLAUDE_ACTION_IDS: string[] = ACTIONS.filter(
     a.page !== "dialog" &&
     a.page !== "demo" &&
     !NEVER_CLAUDE.has(a.id) &&
+    // Word arguments (alias names, e.g. name_brush) must come from the user verbatim, not Claude.
+    a.arg !== "word" &&
     phaseAtMost(a.phase, CLAUDE_PHASE),
 ).map((a) => a.id);
 

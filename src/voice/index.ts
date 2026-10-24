@@ -4,13 +4,14 @@
  *   resolveText(text, {mode, dialogOpen, context})   typed box + voice share this path
  *   resolveClarify(accepted)                 call when a Claude clarify prompt closes
  *   prewarmClaude()                          once at app start
- *   tts.speak("Saved") / tts.setEnabled / tts.setQuiet / cancelSpeech()
+ *   speakConfirmation(kind, heard?)          "saved" | "new_layer" | "didnt_catch" | "needs_plugin" | "skin_saved" | "brush_named" | "word_taken"
+ *   tts.setEnabled / tts.setQuiet / tts.onStatus / cancelSpeech()
  *   claude log: readClaudeLog / summariseClaudeLog / onClaudeLogChange / markLastClaudeRejected / clearClaudeLog
  */
 export { default as MicTile } from "./MicTile";
 export { resolveText, resolveClarify, pickContext } from "./resolve";
 export { prewarmClaude } from "./prewarm";
-export { tts, cancelSpeech } from "./ttsClient";
+export { tts, cancelSpeech, speakConfirmation, confirmationText, type ConfirmationKind, type TtsStatus } from "./ttsClient";
 export {
   readClaudeLog,
   summariseClaudeLog,

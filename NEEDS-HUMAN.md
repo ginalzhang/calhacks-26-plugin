@@ -54,6 +54,7 @@ Voice and Claude run on mocks until keys exist; none of the items below was veri
 4. **Quiet speech / headset:** speak softly: does Ink 2 still transcribe (gain normalisation)? Connect a Bluetooth headset mid-session: the next utterance should still transcribe (sample rate re-read).
 5. **Mic revoked:** while the mic is open, revoke the mic in Chrome's site settings: a yellow banner appears and tiles/typed box still work.
 6. **Sonic (P2b):** check that `sonic-3.6` is accepted by the TTS socket (the SDK's model list only names up to sonic-3.5).
+7. **Web Speech fallback (no Cartesia key):** in Chrome, tap Mic and say "blue": the status should read "Using the browser's speech recognition. Chrome sends this audio to Google…" and "Heard: blue". Hold F10 for 20 s with pauses: recognition must keep going until release. Decide whether this fallback may ship given the privacy text (DECISIONS.md › Agent E).
 
 ## Agent C
 Nothing here has been run against the real pointer; the helper's tests use a fake mouse, fake key poster and fake app/window provider.
@@ -87,3 +88,12 @@ Nothing here has been run against the real pointer; the helper's tests use a fak
 4. **Occluded window:** with `npm run demo-chrome` as a 320 px strip beside Krita and Krita focused, the header fps keeps counting (Worker path). If the status says "keep this window visible", MediaStreamTrackProcessor was missing.
 5. **Window rect at zoom ≠ 100 %:** Pause clamp and dwell-click coordinates assume 100 % page zoom; check that a dwell on the Resume tile (helper running) clicks the tile, not beside it.
 6. **Low light warning** appears when the desk is dark (main-thread luma < 50).
+
+### Agent F (round 2: P2b / P3 real-hardware checks)
+- [ ] **Colour cap with a glove or brace:** put a bright sticker on the back of a glove (or a thumb brace), Setup › Colour cap, rest the hand: the tracking word reads "Tracking" and a stroke lands on the practice canvas and in Krita.
+- [ ] **Ring overlay over Krita:** the dwell ring follows the pointer over Krita, fills on a dwell, and Krita's own brush outline is still visible when hovering through the ring; clicks pass through it.
+- [ ] **Hatch in Krita:** with Krita's parallel ruler assistant, say/press "hatch" and scribble back and forth: only forward passes leave ink.
+- [ ] **Sonic TTS** (if keys present): "save" is answered "Saved"; nothing is spoken on pen toggles or while the mic is open.
+- [ ] **Offline tracking:** with Wi-Fi off, reload Steady: hand tracking still starts (self-hosted MediaPipe assets).
+- [ ] **Web Speech fallback** (only if shipped): with the Cartesia key removed, the status bar says speech goes via Google while the mic is open.
+- [ ] **Record the fallback video** first at 22:00 (`docs/demo-video.md` › Fallback video: Chrome + camera only).

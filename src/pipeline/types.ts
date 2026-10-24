@@ -107,6 +107,8 @@ export interface SteadySettings {
   micCapMs: number; // 15000–60000, default 15000
   quiet: boolean;
   tts: boolean;
+  /** P3 opt-in: when Cartesia is unavailable, use Chrome's Web Speech API (sends audio to Google). Off by default so §0 rule 9 stays true. */
+  webSpeechFallback: boolean;
   earcons: boolean;
   /** Input methods switch off independently (§0 rule 4). */
   inputs: { camera: boolean; voice: boolean; dwell: boolean; keys: boolean };
@@ -131,6 +133,7 @@ export const DEFAULT_SETTINGS: SteadySettings = {
   micCapMs: 15000,
   quiet: false,
   tts: true,
+  webSpeechFallback: false,
   earcons: true,
   inputs: { camera: true, voice: true, dwell: true, keys: true },
   keymap: {},
@@ -431,4 +434,6 @@ export interface MicTileProps {
   dialogOpen: boolean;
   micSilenceMs: number;
   micCapMs: number;
+  /** Settings.webSpeechFallback: only then may the Mic tile fall back to Chrome's Web Speech API. */
+  allowWebSpeech?: boolean;
 }
