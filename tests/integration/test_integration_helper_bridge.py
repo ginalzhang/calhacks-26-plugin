@@ -45,17 +45,25 @@ LOG_DIR = Path(os.environ.get("STEADY_INTEG_OUT", "/tmp/steady-integration"))
 BLOCKED = "INTEGRATION-BLOCKED"
 
 
+_PORT_BASE = int(os.environ.get("STEADY_INTEG_PORT_BASE", "28875"))
+_next_port = [_PORT_BASE]
+
+
 def free_port(preferred: Optional[int] = None) -> int:
-    if preferred:
+    """`preferred` if free, else the next free port from STEADY_INTEG_PORT_BASE (28875) upward (wraps at +500)."""
+    cands = ([preferred] if preferred else []) + [
+        _PORT_BASE + (i - _PORT_BASE) % 500 for i in range(_next_port[0], _next_port[0] + 500)
+    ]
+    for p in cands:
         with socket.socket() as s:
             try:
-                s.bind(("127.0.0.1", preferred))
-                return preferred
+                s.bind(("127.0.0.1", p))
             except OSError:
-                pass
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+                continue
+        if p != preferred:
+            _next_port[0] = p + 1
+        return p
+    raise RuntimeError("no free port")
 
 
 def wait_until(pred: Callable[[], Any], timeout: float, what: str, step: float = 0.02):
@@ -332,18 +340,18 @@ def test_krita_state_toggles_and_fallback_keys_when_bridge_down(helper, plugin):
             r["ok"] is False and r["error"] == "plugin_down"
         ), r
 
-        # fallback_keys path with an unparseable combo: proves the route (via:"keys") and returns
-        # before ANY system call (bad_combo is checked first in post_keys).
+        # fallback_keys path with an unparseable combo: proves the route (via:"keys") and returns before
+        # ANY system call (--no-input/--no-pointer answer input_disabled first; older helpers bad_combo).
         rid = c.send({"t": "krita", "cmd": "action", "action": "edit_undo", "fallback_keys": "notakey"})
         r = c.reply(rid)
-        assert r["via"] == "keys" and r["ok"] is False and r["error"] == "bad_combo", r
+        assert r["via"] == "keys" and r["ok"] is False and r["error"] in ("input_disabled", "bad_combo"), r
 
-        # a real combo: the shim seals the key poster/activation; the helper refuses earlier
-        # (no Accessibility for the test runner -> "permission"; Krita not running -> "krita_not_running").
+        # a real combo: --no-input refuses it ("input_disabled"); the shim seals the key poster/activation
+        # anyway (older helpers: no Accessibility -> "permission"; Krita not running -> "krita_not_running").
         rid = c.send({"t": "krita", "cmd": "action", "action": "edit_undo", "fallback_keys": "cmd+z"})
         r = c.reply(rid)
         assert r["via"] == "keys" and r["ok"] is False, r
-        assert r["error"] in ("permission", "krita_not_running", "krita_not_frontmost"), r
+        assert r["error"] in ("input_disabled", "permission", "krita_not_running", "krita_not_frontmost"), r
 
         # Krita comes back on the same port: the relay reconnects (every 2 s) and says so.
         plugin.start()

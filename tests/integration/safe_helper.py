@@ -119,7 +119,7 @@ def _patch_helper() -> None:
     macos.MacSystem.activate_krita = blocked_activate
     hotkeys.start_listener = blocked_listener
 
-    def non_prompting_checks():
+    def non_prompting_checks(prompt: bool = True, *_a, **_k):  # helper calls _real_checks(prompt); never prompt
         import Quartz
         from ApplicationServices import AXIsProcessTrusted
 

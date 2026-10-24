@@ -13,7 +13,7 @@
 # SAFETY: the helper always runs through tests/integration/safe_helper.py, which seals CGEventPost, the key
 # poster, Krita activation, the global key tap and the permission prompts, and requires
 # --no-pointer --no-hotkeys --no-overlay. Nothing here moves the pointer, clicks, posts keys or opens windows.
-# Ports: app $INTEG_APP_PORT (first free from 3200, never 3000; dev server runs with NEXT_PUBLIC_STEADY_TEST=1), helper/plugin: free ephemeral ports. Every process
+# Ports: helper/plugin 28865+ (pytest 28875+), app $INTEG_APP_PORT (first free from 3200, never 3000; dev server runs with NEXT_PUBLIC_STEADY_TEST=1), helper/plugin: free ephemeral ports. Every process
 # is stopped by PID by its owner (pytest fixtures / Playwright webServer). Owner: agent H.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -25,7 +25,15 @@ OUT=$(mktemp -d "${TMPDIR:-/tmp}/steady-integration.XXXXXX")
 export INTEG_OUT="$OUT"
 echo "integration-check  ($(date '+%Y-%m-%d %H:%M:%S %Z'))  results: $OUT"
 
-free_port() { "$PY" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])'; }
+free_port() { # first port >= $1 that is free on 127.0.0.1 (default range 28865+)
+  "$PY" -c 'import socket,sys
+p=int(sys.argv[1])
+while True:
+    s=socket.socket()
+    try:
+        s.bind(("127.0.0.1",p)); s.close(); print(p); break
+    except OSError:
+        p+=1' "${1:-28865}"; }
 listener_cwd() { # port -> cwd of the listener ("" if none)
   local pid; pid=$(lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1)
   [ -n "$pid" ] && lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'
@@ -40,9 +48,10 @@ if [ -z "$APP" ]; then
   done
 fi
 export INTEG_APP_PORT=$APP STEADY_INTEG_APP_PORT=$APP
-export INTEG_HELPER_PORT=${INTEG_HELPER_PORT:-$(free_port)}
-export INTEG_PLUGIN_PORT=${INTEG_PLUGIN_PORT:-$(free_port)}
-[ "$INTEG_HELPER_PORT" = "$INTEG_PLUGIN_PORT" ] && export INTEG_PLUGIN_PORT=$(free_port)
+export INTEG_HELPER_PORT=${INTEG_HELPER_PORT:-$(free_port 28865)}
+export INTEG_PLUGIN_PORT=${INTEG_PLUGIN_PORT:-$(free_port $((INTEG_HELPER_PORT + 1)))}
+# pytest's own helpers/bridges: 28875+ (each test picks the first free one; never the Playwright pair)
+export STEADY_INTEG_PORT_BASE=${STEADY_INTEG_PORT_BASE:-28875}
 export STEADY_INTEG_OUT="$OUT/pytest-logs"
 echo "ports: app $INTEG_APP_PORT  helper $INTEG_HELPER_PORT  plugin $INTEG_PLUGIN_PORT"
 

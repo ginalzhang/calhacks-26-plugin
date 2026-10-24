@@ -45,7 +45,8 @@ function listenerCwd(port: number): string | null {
   }
 }
 
-if (!process.env.NO_WEBSERVER) {
+// Only in the runner process: workers re-load this config while our own server already listens.
+if (!process.env.NO_WEBSERVER && process.env.TEST_WORKER_INDEX === undefined) {
   const cwd = listenerCwd(APP_PORT);
   if (cwd !== null) {
     throw new Error(
