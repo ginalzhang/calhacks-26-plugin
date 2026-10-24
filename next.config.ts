@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The dev-mode "N" badge sits over the side panel's bottom-left tiles.
+  devIndicators: false,
   // Steady drives the real pointer: no other site may frame it (clickjacking / hidden-iframe control).
   async headers() {
     return [
