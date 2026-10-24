@@ -44,7 +44,7 @@ import type { MediaPipeSource } from "./MediaPipeSource";
 import type { ColorCapSource } from "./ColorCapSource";
 
 type CameraSource = MediaPipeSource | ColorCapSource;
-import { SENT_CHANNEL, type SentRecord } from "./sentChannel";
+import { SENT_CHANNEL, WORKER_EVENTS_CHANNEL, type SentRecord, type WorkerEvent } from "./sentChannel";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -88,6 +88,8 @@ let everTracked = false;
 
 const sentLog: SentRecord[] = [];
 const sentChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(SENT_CHANNEL) : null;
+/** Worker → page events WorkerToPage has no message for (the picked sticker range, to persist in settings). */
+const workerEvents = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(WORKER_EVENTS_CHANNEL) : null;
 
 // ----------------------------------------------------------------------------- helpers
 function setStatus(text: string, level: "status" | "alert" = "status") {
@@ -525,7 +527,10 @@ async function startCameraSource(kind: "hand" | "colorcap") {
   let src: CameraSource;
   if (kind === "colorcap") {
     const { ColorCapSource } = await import("./ColorCapSource");
-    src = new ColorCapSource(events, { handedness: calibration?.handedness ?? "Right" });
+    src = new ColorCapSource(events, {
+      handedness: calibration?.handedness ?? "Right",
+      range: settings.stickerRange ?? undefined,
+    });
   } else {
     const mod = await import("./MediaPipeSource");
     src = new mod.MediaPipeSource(events);
@@ -539,6 +544,12 @@ async function startCameraSource(kind: "hand" | "colorcap") {
   }
 }
 
+function switchCameraKind(want: "hand" | "colorcap") {
+  cameraKind = want;
+  if (sourceKind === "camera") void startCameraSource(want).catch((err) => post({ type: "error", text: String(err) }));
+  setStatus(want === "colorcap" ? "Tracking a coloured sticker." : "Tracking your hand.");
+}
+
 async function pickStickerColour() {
   if (cameraKind !== "colorcap" || !mediapipe || mediapipe.kind !== "colorcap") {
     setStatus("Pick sticker colour works with the Colour cap source (Setup page).");
@@ -547,6 +558,10 @@ async function pickStickerColour() {
   setStatus("Hold the sticker in the middle of the camera view.");
   const r = await mediapipe.pickColourFromCentre();
   setStatus(r.message);
+  if (r.ok) {
+    settings = { ...settings, stickerRange: r.range };
+    workerEvents?.postMessage({ kind: "sticker_range", range: r.range } satisfies WorkerEvent);
+  }
 }
 
 let pendingReadable: ReadableStream<VideoFrame> | null = null;
@@ -557,6 +572,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
   switch (m.type) {
     case "init": {
       settings = { ...DEFAULT_SETTINGS, ...m.settings };
+      cameraKind = settings.trackingSource ?? "hand";
       calibration = m.calibration;
       demo = m.demo;
       pipeline = createPipeline({
@@ -581,6 +597,8 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
     case "settings":
       settings = { ...settings, ...m.settings, inputs: { ...settings.inputs, ...(m.settings.inputs ?? {}) } };
       if (m.settings.keymap) sendKeymap();
+      if (m.settings.trackingSource && m.settings.trackingSource !== cameraKind) switchCameraKind(m.settings.trackingSource);
+      if (m.settings.stickerRange && mediapipe?.kind === "colorcap") mediapipe.setRange(m.settings.stickerRange);
       pipeline?.setSettings(
         calibrator && m.settings.inputs ? { ...m.settings, inputs: { ...settings.inputs, dwell: false } } : m.settings,
       );
@@ -614,14 +632,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       switchTarget(m.target);
       break;
     case "action":
-      if (m.action === "set_source") {
-        const want = m.variant === "colorcap" ? "colorcap" : "hand";
-        if (want !== cameraKind) {
-          cameraKind = want;
-          if (sourceKind === "camera") void startCameraSource(want).catch((err) => post({ type: "error", text: String(err) }));
-          setStatus(want === "colorcap" ? "Tracking a coloured sticker." : "Tracking your hand.");
-        }
-      } else if (m.action === "pick_sticker_colour") {
+      if (m.action === "pick_sticker_colour") {
         void pickStickerColour();
       } else if (m.action === "recalibrate" || m.action === "next_judge") {
         runAction(m.action);

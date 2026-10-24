@@ -6,3 +6,7 @@
 export const SENT_CHANNEL = "steady-sent-to-helper";
 
 export type SentRecord = { t: string; id: string; at: number } & Record<string, unknown>;
+
+/** Worker → page events that WorkerToPage has no message for. */
+export const WORKER_EVENTS_CHANNEL = "steady-worker-events";
+export type WorkerEvent = { kind: "sticker_range"; range: NonNullable<import("../pipeline/types").SteadySettings["stickerRange"]> };

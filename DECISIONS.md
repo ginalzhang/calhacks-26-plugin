@@ -339,3 +339,4 @@ totals (tags ≤ P2a): 564 passed, 0 failed, 0 skipped (vitest+pytest+playwright
 demo-check P2a: PASS
 ```
 - 15:25 lead: BUILD_PHASE → P2b. Added settings.trackingSource, settings.stickerRange, MicTileProps.aliases (B requests).
+- 15:26 B: tracking source and sticker range now live in `SteadySettings.trackingSource` / `stickerRange` (page-local `set_source` action and `steady.trackSource.v1` removed). The Worker switches source on a `settings` change and reports a picked range on `BroadcastChannel("steady-worker-events")` (WorkerToPage has no message for it); the page saves it into settings. `aliases` is passed to `<MicTile>`; E's MicTile does not forward it to resolveText yet, so B's page-side alias match after a voice no-match stays as the fallback.

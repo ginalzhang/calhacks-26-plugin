@@ -20,6 +20,7 @@ import type {
 } from "../pipeline/types";
 import { feedWorker, defaultMirrorFor, listCameras, openCamera, pickDefaultCamera, type CameraInfo } from "../tracking/camera";
 import { WorkerBridge, type SendMsg } from "../tracking/workerBridge";
+import { WORKER_EVENTS_CHANNEL, type WorkerEvent } from "../tracking/sentChannel";
 import { buildLookups, kritaMessageFor } from "../desktop/krita";
 import { validateAlias } from "../pipeline/grammar";
 import { mirrorCalibration } from "../pipeline/calibration";
@@ -126,15 +127,6 @@ const WORKER_ACTIONS = new Set([
 
 const STEADIER_DEBOUNCE_MS = 1000;
 const BREAK_EVERY_MS = 20 * 60 * 1000;
-
-const TRACK_SOURCE_KEY = "steady.trackSource.v1";
-function loadTrackSource(): "hand" | "colorcap" {
-  try {
-    return localStorage.getItem(TRACK_SOURCE_KEY) === "colorcap" ? "colorcap" : "hand";
-  } catch {
-    return "hand";
-  }
-}
 
 function loadAliases(): Record<string, string> {
   try {
@@ -285,8 +277,8 @@ export default function SteadyApp() {
     if (snooze) setStatus("Break reminder: later.");
   }, []);
   const aliasesRef = useRef<Record<string, string>>({});
-  const [trackSource, setTrackSourceState] = useState<"hand" | "colorcap">(() => loadTrackSource());
-  const trackSourceRef = useRef(trackSource);
+  const trackSource = settings.trackingSource ?? "hand";
+  const [aliases, setAliases] = useState<Record<string, string>>({});
   const [exposureLocked, setExposureLocked] = useState(false);
   const exposureLockedRef = useRef(false);
   /** Exposure lock (P3) on the ORIGINAL camera track (the Worker gets a clone). */
@@ -413,6 +405,7 @@ export default function SteadyApp() {
       const all = { ...loadAliases(), [word]: preset };
       saveAliases(all);
       aliasesRef.current = all;
+      setAliases(all);
       say(`Say ${word} to pick ${preset}.`);
       speak("brush_named");
     },
@@ -813,7 +806,17 @@ export default function SteadyApp() {
       demo: params.demo,
     });
     if (params.target === "krita") bridge.post({ type: "set_target", target: "krita" });
-    if (trackSourceRef.current === "colorcap") bridge.post({ type: "action", action: "set_source", variant: "colorcap", source: "system" });
+    // The picked sticker range comes back from the Worker; persist it with the settings.
+    const evCh = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(WORKER_EVENTS_CHANNEL) : null;
+    if (evCh)
+      evCh.onmessage = (ev: MessageEvent<WorkerEvent>) => {
+        if (ev.data?.kind === "sticker_range") {
+          const next = { ...settingsRef.current, stickerRange: ev.data.range };
+          settingsRef.current = next;
+          setSettings(next);
+          saveSettings(next);
+        }
+      };
     const kc = loadKritaCanvas();
     if (kc) bridge.post({ type: "canvas_rect", target: "krita", rect: kc });
 
@@ -846,6 +849,7 @@ export default function SteadyApp() {
       clearInterval(iv);
       window.removeEventListener("resize", report);
       bridge.terminate();
+      evCh?.close();
       bridgeRef.current = null;
       feedStopRef.current?.();
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -856,6 +860,7 @@ export default function SteadyApp() {
   // Aliases from storage.
   useEffect(() => {
     aliasesRef.current = loadAliases();
+    setAliases(aliasesRef.current);
   }, []);
 
   // Break nudge timer (P2b; not in Demo mode). Shown only while the pen is up.
@@ -1008,18 +1013,11 @@ export default function SteadyApp() {
 
   const setTrackSource = useCallback(
     (k: "hand" | "colorcap") => {
-      trackSourceRef.current = k;
-      setTrackSourceState(k);
-      try {
-        localStorage.setItem(TRACK_SOURCE_KEY, k);
-      } catch {
-        /* ignore */
-      }
-      bridgeRef.current?.post({ type: "action", action: "set_source", variant: k, source: "tile" });
+      update({ trackingSource: k });
       // The new source needs a fresh camera stream.
       if (params.source === "camera") void startCamera(settingsRef.current.cameraDeviceId);
     },
-    [params.source, startCamera],
+    [params.source, startCamera, update],
   );
 
   const chooseCamera = useCallback((id: string) => void startCamera(id), [startCamera]);
@@ -1190,6 +1188,7 @@ export default function SteadyApp() {
                     micSilenceMs={settings.micSilenceMs}
                     micCapMs={settings.micCapMs}
                     allowWebSpeech={settings.webSpeechFallback}
+                    aliases={aliases}
                   />
                 </div>
               ) : (
