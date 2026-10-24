@@ -177,3 +177,7 @@ errors into DECISIONS.md. Tags in brackets say which agent wrote the item (A–G
 9. **(round 3) Head mode on a real face:** Input › Head mode: the pointer follows the nose tip (gain 6×). Eyebrow lift: raising the eyebrows while drawing lifts the pen and never lowers it.
 10. **(round 3) Numbers over Krita:** View › Show numbers draws badges over Krita's buttons (helper overlay); "click 3" clicks the third; moving Krita's window hides them.
 11. **(round 3) Page fit at 320×900** was computed, not measured, this round (B ran no Playwright): F's page-fit spec should cover the new Modes / Input / Krita pages.
+
+## Agent H
+1. **Unsealed real helper vs real Krita (cannot be automated safely):** `scripts/integration-check.sh` proves page ↔ real helper ↔ real bridge with every input path sealed. Before the demo, run `npm run helper` (Accessibility granted) with Krita open. Check that a plugin-down fallback (quit Krita's plugin, say "undo") posts cmd+z **into Krita only**. Note that with `--no-pointer` the helper still posts keys and activates Krita (DECISIONS.md, Agent H, gap 1). Do not rely on `--no-pointer` as a "safe" mode.
+2. **macOS permission prompts:** the first real `npm run helper` from a new terminal app can open the Accessibility and Input Monitoring dialogs. This happens even with `--no-pointer --no-hotkeys`. Grant them before demoing.
