@@ -35,3 +35,21 @@ describe("resolveText with A's real grammar", () => {
     setClaudeLogStorage(null);
   });
 });
+
+describe("aliases with A's real grammar", () => {
+  it("@P2b a voice alias matches in the grammar before Claude (variant = preset name)", async () => {
+    setClaudeLogStorage(new FakeStorage());
+    let called = 0;
+    const fetchImpl = (async () => {
+      called++;
+      return new Response(JSON.stringify({ kind: "noop", latencyMs: 1, mock: true }));
+    }) as unknown as typeof fetch;
+    const ctx = { tool: null, preset: null, size: null, opacity: null, color: null, steadiness: 50, lastActions: [] };
+    const r = await resolveText("fluffy", { mode: "voice", dialogOpen: false, context: ctx, aliases: { fluffy: "c) Pencil-2 Soft" } }, { fetchImpl, online: () => true });
+    expect(r).toMatchObject({ kind: "commands", via: "grammar", commands: [{ variant: "c) Pencil-2 Soft" }] });
+    expect(called).toBe(0);
+    await resolveText("fluffy", { mode: "voice", dialogOpen: false, context: ctx }, { fetchImpl, online: () => true });
+    expect(called).toBe(1); // without the alias map the word goes to Claude
+    setClaudeLogStorage(null);
+  });
+});

@@ -90,6 +90,7 @@ export default function MicTile(props: MicTileProps) {
           mode: "voice",
           dialogOpen: p.dialogOpen,
           context: p.getContext(),
+          aliases: p.aliases,
           onStatus: (t, l) => status(t, l),
         });
         propsRef.current.onResolution(r);
