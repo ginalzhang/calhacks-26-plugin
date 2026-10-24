@@ -15,7 +15,9 @@
  * - `arg: "number"` actions take digits or number words ("twenty", "fifty five");
  * - voice mode matches voice phrases; typed mode also matches `typed` forms;
  * - rows whose phase is later than opts.phase (default BUILD_PHASE) are excluded;
- * - user aliases (P2b) match exactly as { action: "alias", variant: presetName }.
+ * - user aliases (P2b) match exactly as { action: "alias", variant: presetName };
+ * - `arg: "word"` (name_brush: "call this brush fluffy", typed "alias fluffy") puts the word in
+ *   `variant`; a word refused by validateAlias returns a no-match with `refused` (isAliasRefusal).
  */
 import { ACTIONS, BUILD_PHASE, EXTRA_KEYTERMS, phaseAtMost, STOPLIST, type Action, type Phase } from "../actions";
 import type { ParsedCommand, ParseOptions, ParseResult } from "./types";
@@ -154,6 +156,19 @@ export function parseNumberAt(tokens: string[], i: number): { value: number; use
 
 // ---------------------------------------------------------------- matching
 
+/**
+ * A `name_brush` command whose word is taken ("call this brush blue") is a no-match that also
+ * carries `refused`, so the caller says "That word is taken" instead of asking Claude.
+ * `ParseResult` is unchanged; narrow with `isAliasRefusal(r)`.
+ */
+export type AliasRefusal = Extract<ParseResult, { kind: "nomatch" }> & {
+  refused: { reason: "alias_taken"; word: string };
+};
+
+export function isAliasRefusal(r: ParseResult): r is AliasRefusal {
+  return r.kind === "nomatch" && "refused" in r && (r as AliasRefusal).refused?.reason === "alias_taken";
+}
+
 interface Segment {
   cmd: ParsedCommand;
   fuzzy: boolean;
@@ -245,7 +260,21 @@ export function parseCommand(text: string, opts: ParseOptions): ParseResult {
     i += k;
     const cmd: ParsedCommand = { action: entry.action.id };
     if (entry.variant) cmd.variant = entry.variant;
-    if (entry.action.arg === "number") {
+    if (entry.action.arg === "word") {
+      // "call this brush fluffy" / "alias fluffy": the next non-filler token is the word.
+      while (i < tokens.length && stop.has(tokens[i])) i++;
+      const word = tokens[i];
+      if (word === undefined) {
+        cmd.arg = null; // no word: the caller opens the "Name this brush" text field
+      } else {
+        i++;
+        if (validateAlias(word) === "taken") {
+          const r: AliasRefusal = { kind: "nomatch", closest: [entry.action.id], refused: { reason: "alias_taken", word } };
+          return r;
+        }
+        cmd.variant = word;
+      }
+    } else if (entry.action.arg === "number") {
       const n = parseNumberAt(tokens, i);
       if (n) {
         cmd.arg = n.value;

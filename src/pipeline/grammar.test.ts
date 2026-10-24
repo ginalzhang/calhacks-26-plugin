@@ -4,6 +4,7 @@ import {
   closestActions,
   fuzzyEligible,
   fuzzyPick,
+  isAliasRefusal,
   fuzzyThreshold,
   keyterms,
   levenshtein,
@@ -196,5 +197,46 @@ describe("grammar (§6)", () => {
       kind: "match",
       commands: [{ action: "alias", variant: "Soft Fluffy Brush" }, { action: "bigger" }],
     });
+  });
+});
+
+describe("name_brush (aliases)", () => {
+  const V2: ParseOptions = { mode: "voice", phase: "P2b" };
+  const T2: ParseOptions = { mode: "typed", phase: "P2b" };
+  it("@P2b 'call this brush fluffy' and typed 'alias fluffy' → name_brush with the word in variant", () => {
+    expect(parseCommand("Call this brush fluffy.", V2)).toEqual({
+      kind: "match",
+      commands: [{ action: "name_brush", variant: "fluffy" }],
+      fuzzy: false,
+    });
+    expect(parseCommand("alias fluffy", T2)).toMatchObject({ kind: "match", commands: [{ action: "name_brush", variant: "fluffy" }] });
+    expect(parseCommand("alias fluffy", V2).kind).toBe("nomatch"); // "alias" is the typed form only
+    // Not the "brush" preset: longest-first.
+    expect(parseCommand("call this brush scratchy bigger", V2)).toMatchObject({
+      commands: [{ action: "name_brush", variant: "scratchy" }, { action: "bigger" }],
+    });
+  });
+
+  it("@P2b a taken word is refused with a reason (never stored, never sent to Claude)", () => {
+    for (const w of ["blue", "bigge", "the", "twenty"]) {
+      const r = parseCommand(`call this brush ${w} please`.replace(" please", ""), V2);
+      if (w === "the") {
+        // filler skipped; no word left → opens the text field
+        expect(r).toMatchObject({ kind: "match", commands: [{ action: "name_brush", arg: null }] });
+        continue;
+      }
+      expect(r.kind).toBe("nomatch");
+      expect(isAliasRefusal(r)).toBe(true);
+      if (isAliasRefusal(r)) expect(r.refused).toEqual({ reason: "alias_taken", word: w });
+    }
+    expect(isAliasRefusal(parseCommand("banana", V2))).toBe(false);
+  });
+
+  it("@P2b without a word, name_brush returns arg null (the caller opens the text field)", () => {
+    expect(parseCommand("call this brush", V2)).toMatchObject({ kind: "match", commands: [{ action: "name_brush", arg: null }] });
+  });
+
+  it("@P2b name_brush is excluded before P2b", () => {
+    expect(parseCommand("call this brush fluffy", { mode: "voice", phase: "P2a" }).kind).toBe("nomatch");
   });
 });

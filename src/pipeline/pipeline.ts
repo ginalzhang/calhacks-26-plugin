@@ -37,7 +37,7 @@ import {
 } from "./mapping";
 import { OneEuro2D } from "./oneEuro";
 import { clamp, steadinessParams } from "./steadiness";
-import { HatchEngine } from "./strokeModes";
+import { DASH_PAUSE_DEFAULT_MS, DashEngine, HatchEngine, offsetStroke } from "./strokeModes";
 import { medianRecent, Tracker, type TrackUpdate } from "./tracking";
 import { TremorSim } from "./tremorSim";
 import {
@@ -78,6 +78,38 @@ export interface PipelineOptions {
   phase?: Phase;
 }
 
+/** Smoothing presets (§2, P3): Steadiness value and optional lazy-radius cap. */
+export const SMOOTHING_PRESETS: Record<string, { name: "sketch" | "ink" | "shade"; steadiness: number; radiusCap: number | null }> = {
+  smoothing_sketch: { name: "sketch", steadiness: 25, radiusCap: null },
+  smoothing_ink: { name: "ink", steadiness: 70, radiusCap: null },
+  smoothing_shade: { name: "shade", steadiness: 10, radiusCap: 5 },
+};
+
+/**
+ * Pipeline state beyond the `Pipeline.snapshot()` contract (P3 modes). Read with modeState(p).
+ * `batch*` flags describe the events returned by the most recent step()/tick()/action()/setTarget().
+ */
+export interface ModeState {
+  /** `pan` was said: the next pen-down drags with the MIDDLE button. */
+  panArmed: boolean;
+  /** A pan drag is in progress (events are middle-button, filter bypassed). */
+  panning: boolean;
+  /** The last returned down/move/up events belong to a pan drag: send middle_down/middle_up. */
+  batchIsPan: boolean;
+  /** `pick` was said: the next dwell inside the canvas sends one click (Krita samples). */
+  pickArmed: boolean;
+  /** One-shot: the last returned batch contains the sampling click; the caller returns to brush. */
+  batchPickSampled: boolean;
+  /** Active smoothing preset, null once Steadiness is changed any other way. */
+  preset: "sketch" | "ink" | "shade" | null;
+  /** Lazy radius currently applied (target units). */
+  lazyRadius: number;
+  /** Dash: the button is physically down (a mark is being inked). */
+  dashButtonDown: boolean;
+  /** Last inked stroke (target units), for Repeat. */
+  lastStroke: Vec2[] | null;
+}
+
 interface Rearm {
   anchor: Vec2 | null;
   radius: number;
@@ -105,9 +137,20 @@ class SteadyPipeline implements Pipeline {
   private dwell = new DwellDetector();
   private tremor: TremorSim;
   private hatch = new HatchEngine();
+  private dash = new DashEngine();
+
+  // P3 modes
+  private radiusCap: number | null = null;
+  private preset: ModeState["preset"] = null;
+  private panArmed = false;
+  private panning = false;
+  private pickArmed = false;
+  private batch = { pan: false, pickSampled: false };
+  private ink = { down: false, pts: [] as Vec2[], pan: false };
+  private lastStroke: Vec2[] | null = null;
 
   /** Steadiness actually applied to the filters (deferred while a stroke is in progress). */
-  private applied: { steadiness: number; minCutoff: number; lazyRadius: number };
+  private applied: { steadiness: number; cap: number | null; minCutoff: number; lazyRadius: number };
 
   private pen: PenState = "HOVER";
   private paused = false;
@@ -142,7 +185,7 @@ class SteadyPipeline implements Pipeline {
     this.helperConnected = config.helperConnected;
     this.phase = opts.phase ?? BUILD_PHASE;
     const sp = steadinessParams(this.settings.steadiness);
-    this.applied = { steadiness: this.settings.steadiness, ...sp };
+    this.applied = { steadiness: this.settings.steadiness, cap: null, ...sp };
     this.euro = new OneEuro2D({ ...ONE_EURO_DEFAULTS, minCutoff: sp.minCutoff });
     this.lazy = new LazyBrush(sp.lazyRadius);
     this.tremor = new TremorSim(config.seed ?? 1);
@@ -206,9 +249,10 @@ class SteadyPipeline implements Pipeline {
 
   private applySteadinessIfIdle(): void {
     if (this.pen === "DRAWING") return;
-    if (this.applied.steadiness === this.settings.steadiness) return;
+    if (this.applied.steadiness === this.settings.steadiness && this.applied.cap === this.radiusCap) return;
     const sp = steadinessParams(this.settings.steadiness);
-    this.applied = { steadiness: this.settings.steadiness, ...sp };
+    if (this.radiusCap !== null) sp.lazyRadius = Math.min(sp.lazyRadius, this.radiusCap);
+    this.applied = { steadiness: this.settings.steadiness, cap: this.radiusCap, ...sp };
     this.euro.setParams({ minCutoff: sp.minCutoff });
     this.lazy.radius = sp.lazyRadius;
   }
@@ -225,8 +269,9 @@ class SteadyPipeline implements Pipeline {
 
   private lower(t: number, atPointer: Vec2, events: PenEvent[]): boolean {
     if (this.pen === "DRAWING") return false;
-    const hatching = this.mode === "hatch" || this.mode === "hatch_alternate";
-    const at = hatching && this.lastPre ? { ...this.lastPre } : atPointer;
+    const hatching = !this.panArmed && (this.mode === "hatch" || this.mode === "hatch_alternate");
+    const dashing = !this.panArmed && this.mode === "dash";
+    const at = (hatching || dashing) && this.lastPre ? { ...this.lastPre } : atPointer;
     if (!this.inkAllowedAt(at)) return false;
     this.pen = "DRAWING";
     this.downT = t;
@@ -234,6 +279,16 @@ class SteadyPipeline implements Pipeline {
     this.upArmed = false;
     this.rearm = null;
     this.dwell.cancel();
+    if (this.panArmed) {
+      this.panning = true;
+      this.batch.pan = true;
+    }
+    if (dashing) {
+      // Dash: the pen is armed; the engine presses the button only while the hand moves.
+      this.dash.start(at, t);
+      this.lastEmitted = { ...at };
+      return true;
+    }
     events.push({ type: "down", x: at.x, y: at.y });
     if (hatching) {
       this.hatch.start(at, t);
@@ -246,11 +301,25 @@ class SteadyPipeline implements Pipeline {
     if (this.pen !== "DRAWING") return false;
     if (USER_LIFTS.includes(reason) && t - this.downT < IGNORE_LIFT_AFTER_DOWN_MS) return false;
     const p = at ?? this.lastEmitted ?? this.lastPre ?? { x: 0, y: 0 };
-    if (this.hatch.isActive) events.push(...this.hatch.stop(t));
+    let buttonDown = true;
+    if (this.hatch.isActive) {
+      buttonDown = this.hatch.isButtonDown;
+      events.push(...this.hatch.stop(t));
+    }
+    if (this.dash.isActive) {
+      buttonDown = this.dash.isButtonDown;
+      events.push(...this.dash.stop(t));
+    }
     this.pen = "HOVER";
     this.lastStrokeMs = t - this.downT;
     this.dwell.cancel();
-    events.push({ type: "up", x: p.x, y: p.y, reason });
+    if (this.panning) {
+      // Pan exits on lift.
+      this.batch.pan = true;
+      this.panning = false;
+      this.panArmed = false;
+    }
+    if (buttonDown) events.push({ type: "up", x: p.x, y: p.y, reason });
     this.setRearm(t, REARM_AFTER_UP_MS, this.lastPre);
     this.applySteadinessIfIdle();
     return true;
@@ -264,6 +333,7 @@ class SteadyPipeline implements Pipeline {
     this.frameW = frame.width || CAMERA_W;
     this.frameH = frame.height || CAMERA_H;
     const events: PenEvent[] = [];
+    this.beginBatch();
     if (this.pendingLift) {
       this.pendingLift = false;
       this.lift(t, "mode_change", events);
@@ -330,11 +400,20 @@ class SteadyPipeline implements Pipeline {
     this.pushTrail(this.smoothTrail, t, pointer);
 
     // Leaving the canvas lifts before the pointer is moved out.
-    const inkPt = this.hatch.isActive ? pre : pointer;
+    const engine = this.hatch.isActive || this.dash.isActive;
+    const rawTarget = this.toTarget(sim);
+    const inkPt = engine ? pre : this.panning ? rawTarget : pointer;
     if (this.pen === "DRAWING" && !this.inkAllowedAt(inkPt)) this.lift(t, "left_canvas", events, this.lastEmitted);
 
-    let movePoints: Vec2[] = [pointer];
-    if (this.pen === "DRAWING" && this.hatch.isActive) {
+    // Pan drags bypass the filter (raw landmark mapped to target units).
+    let movePoints: Vec2[] = [this.panning ? rawTarget : pointer];
+    if (this.pen === "DRAWING" && this.dash.isActive) {
+      const dev = this.dash.feed(pre, rawTarget, t, { pauseMs: this.dashPauseMs(), startR: this.rIn() / 2 });
+      events.push(...dev);
+      movePoints = [];
+      const lastMove = [...dev].reverse().find((e) => e.type === "move" || e.type === "down");
+      if (lastMove) this.lastEmitted = { x: lastMove.x, y: lastMove.y };
+    } else if (this.pen === "DRAWING" && this.hatch.isActive) {
       // Hatch: the look-ahead buffer decides what is forwarded (moves, ups and downs). It works
       // on the pre-lazy-brush point so turning points are not shifted by the dead zone.
       const hev = this.hatch.feed(pre, t, {
@@ -356,12 +435,14 @@ class SteadyPipeline implements Pipeline {
       }
     }
 
+    if (this.panning) this.batch.pan = true;
     const dwell = this.runDwell(t, pre, pointer, events);
     return this.output(t, { raw: sim, filtered, pre, pointer, events, dwell, upd, score });
   }
 
   tick(t: number): PipelineOutput {
     this.lastT = t;
+    this.beginBatch();
     const upd = this.tracker.tick(t);
     return this.noFrame(t, upd, [], 0);
   }
@@ -413,7 +494,11 @@ class SteadyPipeline implements Pipeline {
     let params: DwellParams | null = null;
     let kind: DwellView["kind"] = null;
     let gated = false;
-    if (inCanvas) {
+    if (inCanvas && this.pen === "HOVER" && this.pickArmed) {
+      // Pick: the next dwell inside the canvas is one sampling click.
+      kind = "click";
+      if (!this.rearm && t >= this.suppressClicksUntil) params = { kind, ms: this.settings.dwellDownMs, rIn, tight: false };
+    } else if (inCanvas) {
       if (this.pen === "HOVER") {
         kind = "pen_down";
         if (!this.rearm) params = { kind, ms: this.settings.dwellDownMs, rIn, tight: false };
@@ -443,6 +528,12 @@ class SteadyPipeline implements Pipeline {
         }
       } else if (params.kind === "pen_up") {
         this.lift(t, "dwell", events, pointer);
+      } else if (params.kind === "click" && this.pickArmed && inCanvas) {
+        // Sampling click: Krita's sampler (target krita, via the helper) or the practice canvas.
+        if (this.target === "canvas" || this.helperConnected) events.push({ type: "click", x: pointer.x, y: pointer.y });
+        this.pickArmed = false;
+        this.batch.pickSampled = true;
+        this.setRearm(t, 0, pre);
       } else if (params.kind === "click") {
         if (this.helperConnected && this.target === "krita") events.push({ type: "click", x: pointer.x, y: pointer.y });
         this.setRearm(t, 0, pre);
@@ -470,6 +561,7 @@ class SteadyPipeline implements Pipeline {
       score: number;
     },
   ): PipelineOutput {
+    this.trackInk(o.events);
     return {
       t,
       raw: o.raw,
@@ -490,6 +582,7 @@ class SteadyPipeline implements Pipeline {
 
   action(id: string, t: number, opts: { variant?: string; arg?: number | null } = {}): PenEvent[] {
     const events: PenEvent[] = [];
+    this.beginBatch();
     this.lastT = Math.max(this.lastT, t);
     const pointer = this.currentPointer();
     const def = ACTIONS_BY_ID[id];
@@ -541,9 +634,37 @@ class SteadyPipeline implements Pipeline {
         this.lastSteadierT = t;
         const d = id === "steadier" ? STEADIER_STEP : -STEADIER_STEP;
         this.settings.steadiness = clamp(this.settings.steadiness + d, 0, 100);
+        this.radiusCap = null;
+        this.preset = null;
         this.applySteadinessIfIdle();
         break;
       }
+      case "smoothing_sketch":
+      case "smoothing_ink":
+      case "smoothing_shade": {
+        // Applied at the next pen-up, like steadier/looser.
+        const pr = SMOOTHING_PRESETS[id];
+        this.settings.steadiness = pr.steadiness;
+        this.radiusCap = pr.radiusCap;
+        this.preset = pr.name;
+        this.applySteadinessIfIdle();
+        break;
+      }
+      case "dash":
+        this.lift(t, "mode_change", events);
+        this.mode = this.mode === "dash" ? "normal" : "dash";
+        break;
+      case "repeat":
+        this.stampRepeat(t, pointer, events);
+        break;
+      case "pan":
+        this.lift(t, "mode_change", events);
+        this.panArmed = !this.panArmed;
+        break;
+      case "pick":
+        this.lift(t, "mode_change", events);
+        this.pickArmed = true;
+        break;
       case "simulate_tremor":
         this.settings.simulateTremor = !this.settings.simulateTremor;
         this.tremor.reset();
@@ -585,13 +706,73 @@ class SteadyPipeline implements Pipeline {
       default:
         break;
     }
+    this.trackInk(events);
     return events;
+  }
+
+  private dashPauseMs(): number {
+    const v = (this.settings as Partial<{ dashPauseMs: number }>).dashPauseMs;
+    return typeof v === "number" && v > 0 ? v : DASH_PAUSE_DEFAULT_MS;
+  }
+
+  /** Repeat stroke: stamp a copy of the last stroke with its first point at the cursor. */
+  private stampRepeat(t: number, cursor: Vec2 | null, events: PenEvent[]): void {
+    if (this.pen === "DRAWING" || !cursor || !this.lastStroke || this.tracker.phase !== "tracking") return;
+    const pts = offsetStroke(this.lastStroke, cursor);
+    if (!this.inkAllowedAt(pts[0])) return;
+    events.push({ type: "down", x: pts[0].x, y: pts[0].y });
+    let last = pts[0];
+    for (const q of pts.slice(1)) {
+      if (!this.inkAllowedAt(q)) break; // ink stays inside the canvas rect
+      events.push({ type: "move", x: q.x, y: q.y });
+      last = q;
+    }
+    events.push({ type: "up", x: last.x, y: last.y, reason: "pen_key" });
+    // The next frame moves the pointer back to the cursor (button up).
+    this.lastEmitted = { ...last };
+    this.setRearm(t, REARM_AFTER_UP_MS, this.lastPre);
+  }
+
+  private beginBatch(): void {
+    this.batch = { pan: this.panning, pickSampled: false };
+  }
+
+  /** Record the inked path (any source: normal, Hatch, Dash, Dots, Repeat; not pan) for Repeat. */
+  private trackInk(events: PenEvent[]): void {
+    for (const e of events) {
+      if (e.type === "down") {
+        this.ink = { down: true, pts: [{ x: e.x, y: e.y }], pan: this.batch.pan };
+      } else if (e.type === "move" && this.ink.down) {
+        this.ink.pts.push({ x: e.x, y: e.y });
+      } else if (e.type === "up" && this.ink.down) {
+        if (!this.ink.pan && this.ink.pts.length) this.lastStroke = this.ink.pts;
+        this.ink = { down: false, pts: [], pan: false };
+      }
+    }
+  }
+
+  modeState(): ModeState {
+    return {
+      panArmed: this.panArmed,
+      panning: this.panning,
+      batchIsPan: this.batch.pan,
+      pickArmed: this.pickArmed,
+      batchPickSampled: this.batch.pickSampled,
+      preset: this.preset,
+      lazyRadius: this.applied.lazyRadius,
+      dashButtonDown: this.dash.isButtonDown,
+      lastStroke: this.lastStroke ? this.lastStroke.map((p) => ({ ...p })) : null,
+    };
   }
 
   setSettings(s: Partial<SteadySettings>): void {
     const prev = this.settings;
     this.settings = { ...prev, ...s, inputs: { ...prev.inputs, ...(s.inputs ?? {}) } };
     if (s.simulateTremor !== undefined && s.simulateTremor !== prev.simulateTremor) this.tremor.reset();
+    if (s.steadiness !== undefined && s.steadiness !== prev.steadiness) {
+      this.radiusCap = null;
+      this.preset = null;
+    }
     const geometryChanged =
       (s.landmark !== undefined && s.landmark !== prev.landmark) ||
       (s.mirrorCamera !== undefined && s.mirrorCamera !== prev.mirrorCamera) ||
@@ -622,6 +803,7 @@ class SteadyPipeline implements Pipeline {
 
   setTarget(target: Target): PenEvent[] {
     const events: PenEvent[] = [];
+    this.beginBatch();
     if (target === this.target) return events;
     this.lift(this.lastT, "mode_change", events);
     this.target = target;
@@ -629,6 +811,7 @@ class SteadyPipeline implements Pipeline {
     this.dwell.reset();
     this.suppressClicks(this.lastT);
     this.setRearm(this.lastT, 0, null);
+    this.trackInk(events);
     return events;
   }
 
@@ -678,6 +861,17 @@ class SteadyPipeline implements Pipeline {
 
 export function createPipeline(config: PipelineConfig, opts: PipelineOptions = {}): Pipeline {
   return new SteadyPipeline(config, opts);
+}
+
+/** P3 mode state of a pipeline made by createPipeline (null for any other Pipeline). */
+export function modeState(p: Pipeline): ModeState | null {
+  return p instanceof SteadyPipeline ? p.modeState() : null;
+}
+
+/** Pan helper for the Worker: true when the last returned events must use the MIDDLE button. */
+export function panState(p: Pipeline): { armed: boolean; active: boolean; batchIsPan: boolean } {
+  const m = modeState(p);
+  return { armed: m?.panArmed ?? false, active: m?.panning ?? false, batchIsPan: m?.batchIsPan ?? false };
 }
 
 export { rectCenter };

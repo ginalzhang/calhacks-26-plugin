@@ -32,6 +32,26 @@ export interface CalibratorOptions {
   prior?: Calibration | null;
   /** Injected creation time (ms) for `createdAt`. */
   now?: number;
+  /**
+   * Other hand (P2b): `prior` is the OTHER hand's calibration; it is mirrored (mirrorCalibration)
+   * and used for every value the steps run now do not measure (usually steps 1–2 rerun).
+   */
+  mirrorPrior?: boolean;
+  /** Camera frame width for mirroring (default 640). */
+  frameW?: number;
+}
+
+/**
+ * The other hand's calibration as a starting point: the active box is mirrored about the
+ * frame's vertical centre line, handedness swapped; jitter, gain and camera flips are kept
+ * (flipX/flipY describe the camera, not the hand).
+ */
+export function mirrorCalibration(c: Calibration, frameW = CAMERA_W): Calibration {
+  return {
+    ...c,
+    box: { x: frameW - (c.box.x + c.box.w), y: c.box.y, w: c.box.w, h: c.box.h },
+    handedness: c.handedness === "Left" ? "Right" : "Left",
+  };
 }
 
 function rmsAboutMean(pts: Vec2[]): number {
@@ -87,7 +107,8 @@ export class StepCalibrator implements Calibrator {
   private opts: CalibratorOptions;
 
   constructor(opts: CalibratorOptions) {
-    this.opts = opts;
+    this.opts =
+      opts.mirrorPrior && opts.prior ? { ...opts, prior: mirrorCalibration(opts.prior, opts.frameW ?? CAMERA_W) } : opts;
     this.steps = [...new Set(opts.steps)].sort() as Array<1 | 2 | 3>;
     if (this.steps.length === 0) this.finish();
   }

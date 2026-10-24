@@ -218,3 +218,154 @@ export class HatchEngine {
     return this.moves(sent);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Dash mode (P3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Speed hysteresis (target units/s). Speed is measured on the RAW mapped landmark over
+ * DASH_SPEED_WINDOW_MS: the One Euro output lags ~250 ms at slow speeds, so a 300 ms pause
+ * would never show in it. Ink still follows the One Euro output.
+ */
+export const DASH_SPEED_ON = 25;
+export const DASH_SPEED_OFF = 10;
+export const DASH_SPEED_WINDOW_MS = 100;
+/** Look-back used to start a mark where the motion started (One Euro points). */
+export const DASH_WINDOW_MS = 150;
+export const DASH_PAUSE_DEFAULT_MS = 200; // slider 100–600
+
+/**
+ * While the pen is held down in Dash mode, ink appears only while the hand moves. The button
+ * starts UP. A mark starts when the raw speed exceeds DASH_SPEED_ON AND the One Euro point has
+ * left its rest anchor by more than `startR` (so tremor on a resting hand never inks); it starts
+ * at the oldest One Euro point of the last DASH_WINDOW_MS, which is replayed. When the raw speed
+ * falls below DASH_SPEED_OFF the following points are held back; if the pause lasts `pauseMs`
+ * the mark ends at the last inked point and the held (dwell) points are trimmed; if motion
+ * resumes first, the held points are flushed and the mark continues.
+ */
+export class DashEngine {
+  private active = false;
+  private buttonDown = false;
+  private histPre: TimedPoint[] = [];
+  private histRaw: TimedPoint[] = [];
+  private held: TimedPoint[] = [];
+  private slowSince: number | null = null;
+  private lastSent: Vec2 | null = null;
+  private restAnchor: Vec2 = { x: 0, y: 0 };
+  marks = 0;
+
+  get isActive(): boolean {
+    return this.active;
+  }
+
+  get isButtonDown(): boolean {
+    return this.buttonDown;
+  }
+
+  /** Pen armed (pipeline DRAWING) at `at`; the button stays up until the hand moves. */
+  start(at: Vec2, t: number): void {
+    this.active = true;
+    this.buttonDown = false;
+    this.histPre = [{ t, x: at.x, y: at.y }];
+    this.histRaw = [];
+    this.held = [];
+    this.slowSince = null;
+    this.lastSent = { ...at };
+    this.restAnchor = { ...at };
+    this.marks = 0;
+  }
+
+  stop(_t: number): PenEvent[] {
+    this.active = false;
+    this.buttonDown = false;
+    this.held = [];
+    this.slowSince = null;
+    return [];
+  }
+
+  /** Raw speed over the last DASH_SPEED_WINDOW_MS (target units/s). */
+  speed(): number {
+    const h = this.histRaw;
+    if (h.length < 2) return 0;
+    const a = h[0];
+    const b = h[h.length - 1];
+    const dt = (b.t - a.t) / 1000;
+    return dt > 0 ? Math.hypot(b.x - a.x, b.y - a.y) / dt : 0;
+  }
+
+  private send(out: PenEvent[], e: PenEvent): void {
+    out.push(e);
+    if (e.type !== "up") this.lastSent = { x: e.x, y: e.y };
+  }
+
+  private static trim(h: TimedPoint[], t: number, windowMs: number): void {
+    while (h.length > 2 && h[1].t <= t - windowMs) h.shift();
+  }
+
+  feed(p: Vec2, raw: Vec2, t: number, o: { pauseMs: number; startR: number }): PenEvent[] {
+    if (!this.active) return [];
+    const out: PenEvent[] = [];
+    this.histPre.push({ t, x: p.x, y: p.y });
+    this.histRaw.push({ t, x: raw.x, y: raw.y });
+    DashEngine.trim(this.histPre, t, DASH_WINDOW_MS);
+    DashEngine.trim(this.histRaw, t, DASH_SPEED_WINDOW_MS);
+    const v = this.speed();
+    if (!this.buttonDown) {
+      const away = Math.hypot(p.x - this.restAnchor.x, p.y - this.restAnchor.y) > o.startR;
+      if (v > DASH_SPEED_ON && away) {
+        const [first, ...rest] = this.histPre;
+        this.send(out, { type: "move", x: first.x, y: first.y });
+        this.send(out, { type: "down", x: first.x, y: first.y });
+        for (const q of rest) this.send(out, { type: "move", x: q.x, y: q.y });
+        this.buttonDown = true;
+        this.slowSince = null;
+        this.held = [];
+        this.marks++;
+      } else {
+        this.send(out, { type: "move", x: p.x, y: p.y }); // hover, button up
+      }
+      return out;
+    }
+    if (this.slowSince === null) {
+      if (v < DASH_SPEED_OFF) {
+        this.slowSince = t;
+        this.held = [{ t, x: p.x, y: p.y }];
+      } else {
+        this.send(out, { type: "move", x: p.x, y: p.y });
+      }
+      return out;
+    }
+    if (v > DASH_SPEED_ON) {
+      // Motion resumed before the pause elapsed: same mark continues.
+      for (const q of this.held) this.send(out, { type: "move", x: q.x, y: q.y });
+      this.send(out, { type: "move", x: p.x, y: p.y });
+      this.held = [];
+      this.slowSince = null;
+      return out;
+    }
+    this.held.push({ t, x: p.x, y: p.y });
+    if (t - this.slowSince >= o.pauseMs) {
+      const end = this.lastSent ?? p;
+      out.push({ type: "up", x: end.x, y: end.y, reason: "dash" });
+      this.buttonDown = false;
+      this.held = []; // dwell points trimmed
+      this.slowSince = null;
+      this.restAnchor = { x: end.x, y: end.y };
+      this.send(out, { type: "move", x: p.x, y: p.y });
+    }
+    return out;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Repeat stroke (P3)
+// ---------------------------------------------------------------------------
+
+/** Copy of `stroke` with its first point moved to `cursor` (every point offset identically). */
+export function offsetStroke(stroke: Vec2[], cursor: Vec2): Vec2[] {
+  if (stroke.length === 0) return [];
+  const dx = cursor.x - stroke[0].x;
+  const dy = cursor.y - stroke[0].y;
+  return stroke.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+}

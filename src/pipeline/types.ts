@@ -103,6 +103,8 @@ export interface SteadySettings {
   cameraDeviceId: string | null;
   simulateTremor: boolean;
   hatchLagMs: number;
+  /** Dash mode pause that ends a mark (slider 100–600). */
+  dashPauseMs: number;
   micSilenceMs: number; // 1000–8000, default 2000
   micCapMs: number; // 15000–60000, default 15000
   quiet: boolean;
@@ -129,6 +131,7 @@ export const DEFAULT_SETTINGS: SteadySettings = {
   cameraDeviceId: null,
   simulateTremor: false,
   hatchLagMs: HATCH_LAG_DEFAULT_MS,
+  dashPauseMs: 200,
   micSilenceMs: 2000,
   micCapMs: 15000,
   quiet: false,
@@ -386,7 +389,7 @@ export interface ParsedCommand {
 
 export type ParseResult =
   | { kind: "match"; commands: ParsedCommand[]; fuzzy: boolean }
-  | { kind: "nomatch"; closest: string[] /* up to 2 action ids */ };
+  | { kind: "nomatch"; closest: string[] /* up to 2 action ids */; refused?: { reason: "alias_taken"; word: string } };
 
 export interface ParseOptions {
   mode: "voice" | "typed";

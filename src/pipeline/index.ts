@@ -1,13 +1,15 @@
 /**
  * Public entry points of the pointer pipeline (agent A). Pure modules: no DOM, no React.
  */
-export { createPipeline, type PipelineOptions } from "./pipeline";
-export { createCalibrator, STEP_MS, STEP_PROMPTS, type CalibratorOptions } from "./calibration";
+export { createPipeline, modeState, panState, SMOOTHING_PRESETS, type ModeState, type PipelineOptions } from "./pipeline";
+export { createCalibrator, mirrorCalibration, STEP_MS, STEP_PROMPTS, type CalibratorOptions } from "./calibration";
 export {
   parseCommand,
   keyterms,
   closestActions,
   validateAlias,
+  isAliasRefusal,
+  type AliasRefusal,
   normalize,
   ALIAS_ACTION,
   MAX_COMMANDS,
@@ -18,4 +20,4 @@ export { OneEuro, OneEuro2D } from "./oneEuro";
 export { LazyBrush } from "./lazyBrush";
 export { TremorSim } from "./tremorSim";
 export { clickZone, dwellRIn } from "./dwell";
-export { hatchMargin } from "./strokeModes";
+export { hatchMargin, offsetStroke, DASH_PAUSE_DEFAULT_MS } from "./strokeModes";
