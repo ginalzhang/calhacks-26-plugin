@@ -33,7 +33,17 @@ import {
 } from "../voice";
 import { ActionTile, tileAvailable } from "./ActionTile";
 import { ConfirmDialog, type DialogSpec } from "./ConfirmDialog";
-import { ColourPage, DemoPage, PaintPage, SetupPage, SimplePage, SteadyPage, TimingPage, type DemoMetrics, type PageCtx } from "./Pages";
+import {
+  ColourPage,
+  DemoPage,
+  PaintPage,
+  SetupPage,
+  SimplePage,
+  SteadyPage,
+  TimingPage,
+  type DemoMetrics,
+  type PageCtx,
+} from "./Pages";
 import {
   lastCalibration,
   loadCameraPrefs,
@@ -51,6 +61,7 @@ import {
 } from "./persist";
 import { PointerOverlay, screenToViewport } from "./PointerOverlay";
 import { PracticeCanvas, type PracticeCanvasHandle } from "./PracticeCanvas";
+import { playEarcon } from "./earcons";
 import { StrokeStore } from "./strokes";
 import { Tile } from "./Tile";
 
@@ -102,6 +113,8 @@ interface Params {
   source: "camera" | "replay";
   replay: string | null;
   helperUrl: string | null;
+  /** ?target=krita forces the Krita target as soon as a helper is connected (P1 tests with the fake helper). */
+  target: "canvas" | "krita";
 }
 
 function readParams(): Params {
@@ -113,6 +126,7 @@ function readParams(): Params {
     source,
     replay: source === "replay" ? (q.get("replay") ?? "dev-circle") : null,
     helperUrl: helper === "off" ? null : helper || HELPER_URL,
+    target: q.get("target") === "krita" ? "krita" : "canvas",
   };
 }
 
@@ -157,7 +171,11 @@ export default function SteadyApp() {
   const [skinHex, setSkinHex] = useState<string | null>(null);
   const [lowLight, setLowLight] = useState(false);
   const [fallbackWarning, setFallbackWarning] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<DemoMetrics>({ commandsTried: 0, commandsOk: 0, claude: { calls: 0, accepted: 0, timeouts: 0 } });
+  const [metrics, setMetrics] = useState<DemoMetrics>({
+    commandsTried: 0,
+    commandsOk: 0,
+    claude: { calls: 0, accepted: 0, timeouts: 0 },
+  });
   const metricsBase = useRef(0); // claude log length at the last Next judge
 
   const canvasRef = useRef<PracticeCanvasHandle | null>(null);
@@ -166,7 +184,13 @@ export default function SteadyApp() {
   const feedStopRef = useRef<(() => void) | null>(null);
   const lastSteadierRef = useRef(0);
   const lastActionsRef = useRef<string[]>([]);
-  const kritaCtxRef = useRef<{ tool: string | null; preset: string | null; size: number | null; opacity: number | null; color: string | null }>({
+  const kritaCtxRef = useRef<{
+    tool: string | null;
+    preset: string | null;
+    size: number | null;
+    opacity: number | null;
+    color: string | null;
+  }>({
     tool: null,
     preset: null,
     size: null,
@@ -237,7 +261,13 @@ export default function SteadyApp() {
       const r = await bridge.request(msg);
       if (r.t === "timeout") say("Krita did not answer.");
       else if ((r.t === "krita_reply" || r.t === "ack") && !r.ok) {
-        say(r.error === "plugin_down" ? "That needs the Krita plugin." : r.error === "krita_not_running" ? "Krita is not running." : `Krita: ${r.error ?? "failed"}`);
+        say(
+          r.error === "plugin_down"
+            ? "That needs the Krita plugin."
+            : r.error === "krita_not_running"
+              ? "Krita is not running."
+              : `Krita: ${r.error ?? "failed"}`,
+        );
       } else if (r.t === "error") {
         say(`Krita: ${r.code}`);
       } else {
@@ -285,13 +315,21 @@ export default function SteadyApp() {
         setDialog(null);
         if (id === "no" || id === "cancel") dlg.onCancel?.();
         if (id === "yes" && dlg.kind === "confirm") dlg.onConfirm?.();
-        if (id.startsWith("choice_") && dlg.kind === "choose") dlg.options?.[["choice_one", "choice_two", "choice_three"].indexOf(id)]?.run();
+        if (id.startsWith("choice_") && dlg.kind === "choose")
+          dlg.options?.[["choice_one", "choice_two", "choice_three"].indexOf(id)]?.run();
         return;
       }
 
       const viaClaude = source === "claude";
       if (id === "undo" && lastViaClaudeRef.current && !viaClaude) markLastClaudeRejected();
       lastViaClaudeRef.current = viaClaude;
+
+      if ((id === "undo" || id === "redo") && opts.arg != null && opts.arg > 1) {
+        // Coalesced "undo that undo that": run serially 50 ms apart.
+        const n = Math.min(20, Math.round(opts.arg));
+        for (let i = 0; i < n; i++) setTimeout(() => dispatchRef.current(id, { source }), i * 50);
+        return;
+      }
 
       switch (id) {
         case "undo":
@@ -343,7 +381,13 @@ export default function SteadyApp() {
             setLastUndo(null);
             say("Practice canvas cleared.");
           };
-          setDialog({ kind: "confirm", title: "Clear the practice canvas?", body: "This removes every practice stroke.", onConfirm: run, returnFocus: opts.el ?? null });
+          setDialog({
+            kind: "confirm",
+            title: "Clear the practice canvas?",
+            body: "This removes every practice stroke.",
+            onConfirm: run,
+            returnFocus: opts.el ?? null,
+          });
           return;
         }
         case "quiet":
@@ -357,9 +401,16 @@ export default function SteadyApp() {
         default:
           break;
       }
-      if (WORKER_ACTIONS.has(id)) bridge.post({ type: "action", action: id, variant: opts.variant, arg: opts.arg ?? null, source });
+      if (WORKER_ACTIONS.has(id))
+        bridge.post({ type: "action", action: id, variant: opts.variant, arg: opts.arg ?? null, source });
       if (a.destructive && a.krita) {
-        setDialog({ kind: "confirm", title: `${a.label}?`, body: "Krita's Undo can bring it back.", onConfirm: () => void kritaDispatch(a, opts.arg), returnFocus: opts.el ?? null });
+        setDialog({
+          kind: "confirm",
+          title: `${a.label}?`,
+          body: "Krita's Undo can bring it back.",
+          onConfirm: () => void kritaDispatch(a, opts.arg),
+          returnFocus: opts.el ?? null,
+        });
         return;
       }
       if (a.krita && (a.scope === "krita" || target === "krita")) void kritaDispatch(a, opts.arg);
@@ -373,17 +424,27 @@ export default function SteadyApp() {
 
   // ---------------------------------------------------------------------------- voice / typed
   const getContext = useCallback(
-    (): CommandContext => ({ ...kritaCtxRef.current, steadiness: settingsRef.current.steadiness, lastActions: lastActionsRef.current.slice(-3) }),
+    (): CommandContext => ({
+      ...kritaCtxRef.current,
+      steadiness: settingsRef.current.steadiness,
+      lastActions: lastActionsRef.current.slice(-3),
+    }),
     [],
   );
 
   const onResolution = useCallback(
     (r: Resolution, source: InputSource = "voice") => {
-      setMetrics((mm) => ({ ...mm, commandsTried: mm.commandsTried + 1, commandsOk: mm.commandsOk + (r.kind === "commands" ? 1 : 0) }));
+      setMetrics((mm) => ({
+        ...mm,
+        commandsTried: mm.commandsTried + 1,
+        commandsOk: mm.commandsOk + (r.kind === "commands" ? 1 : 0),
+      }));
       if (r.kind === "commands") {
         say(`Heard: ${r.heard}`);
         const src: InputSource = r.via === "claude" ? "claude" : source;
-        r.commands.forEach((c, i) => setTimeout(() => dispatchRef.current(c.action, { variant: c.variant, arg: c.arg, source: src }), i * 50));
+        r.commands.forEach((c, i) =>
+          setTimeout(() => dispatchRef.current(c.action, { variant: c.variant, arg: c.arg, source: src }), i * 50),
+        );
       } else if (r.kind === "noop") {
         say(`Heard: ${r.heard}`);
       } else {
@@ -423,7 +484,12 @@ export default function SteadyApp() {
         return;
       }
       say(`Heard: ${text}`);
-      const r = await resolveText(text, { mode: "typed", dialogOpen: !!dlg, context: getContext(), onStatus: (t, l) => say(t, l) });
+      const r = await resolveText(text, {
+        mode: "typed",
+        dialogOpen: !!dlg,
+        context: getContext(),
+        onStatus: (t, l) => say(t, l),
+      });
       onResolution(r, "typed");
     },
     [getContext, onResolution, say],
@@ -481,7 +547,8 @@ export default function SteadyApp() {
             // The Worker handled pen / pause / latch / recenter / ptt_down itself.
             if (msg.key === "undo") dispatchRef.current("undo", { source: "hotkey" });
             else if (msg.key === "redo") dispatchRef.current("redo", { source: "hotkey" });
-            else if (msg.key === "other_hand" && tileAvailable("other_hand")) dispatchRef.current("other_hand", { source: "hotkey" });
+            else if (msg.key === "other_hand" && tileAvailable("other_hand"))
+              dispatchRef.current("other_hand", { source: "hotkey" });
             else if (msg.key === "ptt_down") setPttHeld(true);
             else if (msg.key === "ptt_up") setPttHeld(false);
           }
@@ -494,6 +561,9 @@ export default function SteadyApp() {
 
     const offFrame = bridge.onFrame((out) => {
       frameRef.current = out;
+      if (settingsRef.current.earcons && !settingsRef.current.quiet) {
+        for (const e of out.events) if (e.type === "down" || e.type === "up") playEarcon(e.type);
+      }
       const m = mirrorRef.current;
       const target = m?.target ?? "canvas";
       if (target === "canvas" && strokes.feed(out)) setLastUndo("Stroke");
@@ -539,14 +609,18 @@ export default function SteadyApp() {
       replayUrl: params.replay ? `/replay/${params.replay}.json` : undefined,
       demo: params.demo,
     });
+    if (params.target === "krita") bridge.post({ type: "set_target", target: "krita" });
     const kc = loadKritaCanvas();
     if (kc) bridge.post({ type: "canvas_rect", target: "krita", rect: kc });
 
     // Window rect on load, resize and every 1 s; practice canvas rect alongside.
+    let lastWindowRect: ReturnType<typeof viewportScreenRect> | null = null;
     const report = () => {
-      bridge.post({ type: "window_rect", rect: viewportScreenRect() });
+      lastWindowRect = viewportScreenRect();
+      bridge.post({ type: "window_rect", rect: lastWindowRect });
       const r = canvasRef.current?.el?.getBoundingClientRect();
-      if (r && r.width > 0) bridge.post({ type: "canvas_rect", target: "canvas", rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+      if (r && r.width > 0)
+        bridge.post({ type: "canvas_rect", target: "canvas", rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
     };
     report();
     window.addEventListener("resize", report);
@@ -558,6 +632,8 @@ export default function SteadyApp() {
       dispatch: (actionId, o) => dispatchRef.current(actionId, { variant: o?.variant, arg: o?.arg, source: o?.source ?? "tile" }),
       typed: (text) => typedRef.current(text),
       sentToHelper: () => bridge.sent.slice(),
+      setTarget: (t) => bridge.post({ type: "set_target", target: t }),
+      windowRect: () => lastWindowRect,
     };
 
     return () => {
@@ -710,7 +786,7 @@ export default function SteadyApp() {
     const keymap = () => ({ ...DEFAULT_KEYS, ...settingsRef.current.keymap });
     const onDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (dialogRef.current) return; // the dialog handles Esc itself
+        if (dialogRef.current || e.defaultPrevented) return; // the dialog handles Esc itself
         canvasRef.current?.focus();
         return;
       }
@@ -744,7 +820,15 @@ export default function SteadyApp() {
   const word = mirror?.tracking ?? "Lost";
   const paused = !!mirror?.paused;
   const target = mirror?.target ?? "canvas";
-  const helperText = !params.helperUrl ? "Helper off" : mirror?.helper === "open" ? (mirror.kritaConnected ? "Helper + Krita" : "Helper on") : mirror?.helper === "connecting" ? "Helper…" : "No helper";
+  const helperText = !params.helperUrl
+    ? "Helper off"
+    : mirror?.helper === "open"
+      ? mirror.kritaConnected
+        ? "Helper + Krita"
+        : "Helper on"
+      : mirror?.helper === "connecting"
+        ? "Helper…"
+        : "No helper";
   const calibrating = mirror?.calibrating ?? null;
 
   const ctx: PageCtx = {
@@ -781,27 +865,29 @@ export default function SteadyApp() {
       <aside className="panel" aria-label="Steady side panel">
         <header className="panel-header">
           <h1 className="sr-only">Steady</h1>
-          <div className="statusline">
-            <span className={`dot dot-${word.toLowerCase()}`} aria-hidden="true" />
-            <span className="tracking-word" data-testid="tracking-word">
-              {word}
-            </span>
-            <span className="fps" aria-live="off" data-testid="fps">
-              {mirror ? `${mirror.detectionFps} fps` : "– fps"}
-            </span>
-            <span className="helper-state" data-testid="helper-state">
-              {helperText}
-            </span>
-          </div>
-          <div className="undo-line" data-testid="undo-line">
-            Undo: {lastUndo ?? "nothing yet"}
-          </div>
-          <div className={`status-box${alert ? " has-alert" : ""}`}>
-            <div role="alert" className="alert-text" data-testid="alert">
-              {alert}
+          <div className="pinned">
+            <div className="statusline">
+              <span className={`dot dot-${word.toLowerCase()}`} aria-hidden="true" />
+              <span className="tracking-word" data-testid="tracking-word">
+                {word}
+              </span>
+              <span className="fps" aria-live="off" data-testid="fps">
+                {mirror ? `${mirror.detectionFps} fps` : "– fps"}
+              </span>
+              <span className="helper-state" data-testid="helper-state">
+                {helperText}
+              </span>
             </div>
-            <div role="status" className="status-text" data-testid="status">
-              {status}
+            <div className="undo-line" data-testid="undo-line">
+              Undo: {lastUndo ?? "nothing yet"}
+            </div>
+            <div className={`status-box${alert ? " has-alert" : ""}`}>
+              <div role="alert" className="alert-text" data-testid="alert">
+                {alert}
+              </div>
+              <div role="status" className="status-text" data-testid="status">
+                {status}
+              </div>
             </div>
           </div>
           <nav aria-label="Pages" className="tile-grid cols-4 tabs">
@@ -868,7 +954,10 @@ export default function SteadyApp() {
                 muted
                 playsInline
                 aria-label="Camera preview"
-                style={{ transform: `${settings.rotateCamera ? "rotate(180deg) " : ""}${settings.mirrorCamera ? "scaleX(-1)" : ""}` || undefined }}
+                style={{
+                  transform:
+                    `${settings.rotateCamera ? "rotate(180deg) " : ""}${settings.mirrorCamera ? "scaleX(-1)" : ""}` || undefined,
+                }}
               />
             ) : (
               <div className="preview replay-box">Replay: {params.replay}</div>
@@ -888,7 +977,9 @@ export default function SteadyApp() {
               </div>
             ) : (
               <p className="coach">
-                {mirror?.calibrated ? "Hold still on the canvas to lower the pen; hold still again to lift it. " : "Calibrate on the Setup page (15 s), or just rest your hand and start. "}
+                {mirror?.calibrated
+                  ? "Hold still on the canvas to lower the pen; hold still again to lift it. "
+                  : "Calibrate on the Setup page (15 s), or just rest your hand and start. "}
                 {COACHING_TEXT}
               </p>
             )}

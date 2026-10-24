@@ -168,7 +168,7 @@ Shown on the Demo page (`?demo=1`; `aria-live="off"`), reset by **Next judge**.
 
 | Metric | Formula |
 |---|---|
-| Deviation (px) | RMS distance between the raw path and the smoothed path over the last 3 s, both in target units: √( (1/N) Σᵢ ‖rawᵢ − smoothᵢ‖² ) over the N frames in the window |
+| Deviation (px) | Shake that survives smoothing: the RMS distance of the drawn (post-lazy-brush) path from its own ±100 ms moving average over the last 3 s, in target units: √( (1/N) Σᵢ ‖pᵢ − p̄ᵢ‖² ), where p̄ᵢ is the mean of the points within ±100 ms of pᵢ. It drops as Steadiness rises. |
 | Last-stroke time (ms) | t(pen up) − t(pen down) of the most recent stroke |
 | Command success rate | commands that resolved to ≥ 1 executed action (grammar or Claude) ÷ commands attempted (voice transcripts + typed submissions); fillers resolved to `noop` are excluded from both |
 | Claude calls / accepted / timeouts | calls = POSTs to `/api/command` excluding the pre-warm; accepted = results whose actions were executed (including a chosen clarify option); timeouts = calls with no answer within 2.5 s |

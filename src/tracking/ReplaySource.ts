@@ -6,22 +6,31 @@
  * with a fixed resting-hand layout so wrist / knuckle / tip all move together (the hand lock reads
  * the wrist). Frame timestamps are re-based onto the Worker's monotonic clock (performance.now()).
  */
-import type {
-  HandObservation,
-  LandmarkFrame,
-  LandmarkSource,
-  NormalizedLandmark,
-  ReplayFile,
-} from "./LandmarkSource";
+import type { HandObservation, LandmarkFrame, LandmarkSource, NormalizedLandmark, ReplayFile } from "./LandmarkSource";
 
 /** Right hand, palm down, seen from above; camera px offsets from the wrist (landmark 0). */
 const RIGHT_HAND_OFFSETS: Array<[number, number]> = [
   [0, 0],
-  [-25, -15], [-45, -35], [-58, -55], [-68, -70],
-  [-20, -70], [-22, -95], [-23, -112], [-24, -126],
-  [0, -74], [0, -102], [0, -120], [0, -135],
-  [18, -68], [20, -94], [21, -110], [22, -123],
-  [34, -58], [38, -78], [40, -92], [42, -104],
+  [-25, -15],
+  [-45, -35],
+  [-58, -55],
+  [-68, -70],
+  [-20, -70],
+  [-22, -95],
+  [-23, -112],
+  [-24, -126],
+  [0, -74],
+  [0, -102],
+  [0, -120],
+  [0, -135],
+  [18, -68],
+  [20, -94],
+  [21, -110],
+  [22, -123],
+  [34, -58],
+  [38, -78],
+  [40, -92],
+  [42, -104],
 ];
 
 export function expandCompactPoint(

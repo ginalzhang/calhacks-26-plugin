@@ -233,8 +233,10 @@ function dwellStrokeWordTrack(tr) {
   tr.mark("hold_down").still(2.5); // ≥ 800 ms dwell + warm-up + margin → pen down
   tr.mark("stroke_start").path(wordMum(start.x, start.y), 55);
   tr.mark("hold_up").still(3.5); // ≥ 1.2 s pen-up dwell (+ arming) → pen up
-  tr.mark("away").path([{ x: CX, y: CY + 60 }], 60); // move away so the 600 ms re-arm never re-lowers on the same spot
-  tr.path([{ x: CX + 40, y: CY + 60 }], 40);
+  // Move away briskly and keep circling: a dwell needs < 2·r_in of travel in 250 ms, so anything slower than
+  // ~60 camera px/s at gain 2 counts as "still" and would lower the pen again.
+  tr.mark("away").path([{ x: CX, y: CY + 70 }], 150);
+  circle(tr, 2, 30, 1);
   return tr;
 }
 
@@ -280,8 +282,9 @@ function trackingLossMidStroke() {
   tr.seg(1, () => ({ x: base.x + (rand() - 0.5) * 200, y: base.y + (rand() - 0.5) * 160, score: SCORE_LOST }), { sigma: 0 });
   tr.last = base;
   tr.mark("loss_end");
-  // Re-acquire and keep moving (never still long enough to dwell): the pen must stay up.
-  tr.path([{ x: CX + 60, y: CY - 20 }, { x: CX + 60, y: CY + 40 }], 45);
+  // Re-acquire and keep moving briskly (never still enough to dwell): the pen must stay up.
+  tr.path([{ x: CX + 60, y: CY - 20 }, { x: CX + 60, y: CY + 40 }], 150);
+  circle(tr, 2, 30, 1);
   return tr.file(
     "tracking-loss-mid-stroke",
     "Hold to lower, stroke 2 s, then 1 s of score-0.5 frames (wild positions), then re-acquire and keep moving. Expect `up` ~300 ms after loss_start and no further `down`.",
@@ -330,8 +333,17 @@ function probe() {
 /** Slow wandering (never still for a dwell), used as the lead-in of dynamic dwell-on-tile fixtures. */
 function wander() {
   const tr = new Track({ seed: 101 });
-  tr.seg(20, (_u, s) => ({ x: CX + 50 * Math.sin(2 * Math.PI * 0.11 * s), y: CY + 30 * Math.sin(2 * Math.PI * 0.07 * s) }));
-  return tr.file("wander", "20 s of slow wandering (≤ 35 px/s, never still): no dwell may fire.", { loop: true });
+  tr.last = { x: CX + 40, y: CY };
+  circle(tr, 20, 40, 0.6);
+  return tr.file("wander", "20 s of circling (r 40 px, 0.6 Hz ≈ 150 px/s, never still): no dwell may fire.", { loop: true });
+}
+
+/** Circle around the current point's left-hand centre at constant speed (radius r px, f Hz), ending where it began. */
+function circle(tr, seconds, r, f) {
+  const c = { x: tr.last.x - r, y: tr.last.y };
+  tr.seg(seconds, (_u, s) => ({ x: c.x + r * Math.cos(2 * Math.PI * f * s), y: c.y + r * Math.sin(2 * Math.PI * f * s) }));
+  tr.last = { x: c.x + r * Math.cos(2 * Math.PI * f * seconds), y: c.y + r * Math.sin(2 * Math.PI * f * seconds) };
+  return tr;
 }
 
 export const FIXTURES = [
@@ -353,8 +365,8 @@ export const FIXTURES = [
  */
 export function dwellAt(at, { leadSeconds = 3, holdSeconds = 12, seed = 7, name = "dwell-at" } = {}) {
   const tr = new Track({ seed, restSigma: 0.2 });
-  tr.seg(leadSeconds, (_u, s) => ({ x: CX + 40 * Math.sin(2 * Math.PI * 0.15 * s), y: CY + 25 * Math.sin(2 * Math.PI * 0.1 * s) }));
-  tr.last = { x: CX + 40 * Math.sin(2 * Math.PI * 0.15 * leadSeconds), y: CY + 25 * Math.sin(2 * Math.PI * 0.1 * leadSeconds) };
+  tr.last = { x: CX + 40, y: CY };
+  circle(tr, leadSeconds, 40, 0.6);
   tr.path([at], 150);
   tr.mark("hold").still(holdSeconds, at);
   return tr.file(name, `Wander ${leadSeconds} s, glide to (${r2(at.x)},${r2(at.y)}), hold ${holdSeconds} s.`);

@@ -76,8 +76,19 @@ export async function openSteady(page: Page, o: OpenOpts): Promise<void> {
   await page.goto(steadyUrl(o));
   await waitForHooks(page);
   if (o.calibrated !== false) {
-    const useLast = page.getByRole("button", { name: /use last setup/i });
-    if (await useLast.isVisible().catch(() => false)) await useLast.click();
+    // "Next launch offers Use last setup" (§2): it lives on the Setup page.
+    let useLast = page.getByRole("button", { name: /use last setup/i });
+    if (!(await useLast.isVisible().catch(() => false))) {
+      const setup = await pageTab(page, "Setup");
+      if (setup) await setup.click();
+      useLast = page.getByRole("button", { name: /use last setup/i });
+    }
+    if (await useLast.isEnabled().catch(() => false)) {
+      await useLast.click();
+      await waitForState(page, (s) => s.calibrated, { timeout: 3_000, what: "calibrated after Use last setup" }).catch(() => undefined);
+    }
+    const home = await pageTab(page, o.demo ? "Demo" : "Steady");
+    if (home) await home.click();
   }
 }
 
@@ -99,9 +110,14 @@ export async function waitForHooks(page: Page, timeout = 30_000): Promise<void> 
 // ---------------------------------------------------------------------------
 
 export async function state(page: Page): Promise<MirrorState> {
-  const s = await page.evaluate(() => (window as unknown as { __steady: SteadyTestHooks }).__steady.state());
-  if (!s) throw new Error("window.__steady.state() returned null");
-  return s;
+  // The page may re-create its Worker (e.g. after "Use last setup"); tolerate a brief null.
+  const end = Date.now() + 5_000;
+  for (;;) {
+    const s = await page.evaluate(() => (window as unknown as { __steady?: SteadyTestHooks }).__steady?.state() ?? null);
+    if (s) return s;
+    if (Date.now() > end) throw new Error("window.__steady.state() stayed null for 5 s");
+    await page.waitForTimeout(100);
+  }
 }
 
 export async function strokeCount(page: Page): Promise<number> {
@@ -437,8 +453,9 @@ export function dwellAtFixture(at: { x: number; y: number }, { leadSeconds = 6, 
     pts.push([Math.round((f * 1000) / fps), +(x + (rand() - 0.5) * 0.4).toFixed(2), +(y + (rand() - 0.5) * 0.4).toFixed(2), 0.95]);
     f++;
   };
-  const wx = (s: number) => 320 + 40 * Math.sin(2 * Math.PI * 0.15 * s);
-  const wy = (s: number) => 240 + 25 * Math.sin(2 * Math.PI * 0.1 * s);
+  // Lead-in: circle r 40 px at 0.6 Hz (≈ 150 px/s), never slow enough to count as a dwell.
+  const wx = (s: number) => 320 + 40 * Math.cos(2 * Math.PI * 0.6 * s);
+  const wy = (s: number) => 240 + 40 * Math.sin(2 * Math.PI * 0.6 * s);
   for (let i = 0; i < leadSeconds * fps; i++) push(wx(i / fps), wy(i / fps));
   const from = { x: wx(leadSeconds), y: wy(leadSeconds) };
   const glide = Math.max(1, Math.round((Math.hypot(at.x - from.x, at.y - from.y) / 150) * fps));
@@ -459,10 +476,9 @@ export async function serveWithLead(page: Page, name: string, seconds = 6): Prom
   const n = Math.round(seconds * fps);
   const lead: Array<[number, number, number, number]> = [];
   for (let i = 0; i < n; i++) {
-    // ease from a wandering offset back onto the fixture's first point (≤ ~30 px/s, never still)
-    const s = i / fps;
-    const k = 1 - i / n;
-    lead.push([Math.round((i * 1000) / fps), +(first[1] + k * 40 * Math.sin(2 * Math.PI * 0.2 * s)).toFixed(2), +(first[2] + k * 25 * Math.cos(2 * Math.PI * 0.15 * s)).toFixed(2), 0.95]);
+    // circle (r 40 px, 0.6 Hz ≈ 150 px/s, never still) that starts and ends on the fixture's first point
+    const a = 2 * Math.PI * (Math.round(0.6 * seconds) / seconds) * (i / fps);
+    lead.push([Math.round((i * 1000) / fps), +(first[1] - 40 + 40 * Math.cos(a)).toFixed(2), +(first[2] + 40 * Math.sin(a)).toFixed(2), 0.95]);
   }
   const shift = Math.round((n * 1000) / fps);
   const points = [...lead, ...f.points.map((p) => (p === null ? null : ([p[0] + shift, p[1], p[2], p[3]] as [number, number, number, number])))];

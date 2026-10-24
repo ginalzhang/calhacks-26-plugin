@@ -22,7 +22,20 @@ export interface TileProps {
   id?: string;
 }
 
-export function Tile({ label, onPress, pressed, disabled, action, span = 1, ariaLabel, title, children, variant = "default", current, id }: TileProps) {
+export function Tile({
+  label,
+  onPress,
+  pressed,
+  disabled,
+  action,
+  span = 1,
+  ariaLabel,
+  title,
+  children,
+  variant = "default",
+  current,
+  id,
+}: TileProps) {
   return (
     <button
       type="button"

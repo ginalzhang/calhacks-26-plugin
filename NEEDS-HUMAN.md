@@ -79,3 +79,11 @@ Nothing here has been run against the real pointer; the helper's tests use a fak
 
 ## Agent A
 - With a real webcam and a resting hand: run calibration and check the suggested Steadiness and gain feel right (a slow, arm-sized movement should cross the canvas); hold still 10 s on the canvas and confirm the pen lowers once and leaves no extra ink. All pipeline numbers so far come from synthetic 30 fps signals only.
+
+## Agent B
+1. **Real webcam, resting hand (P0 DoD):** `npm run dev`, open http://localhost:3000, allow the camera. Within 60 s: the header shows **Tracking** and an fps number ≥ 20; a hollow cursor moves on the practice canvas; hold still 0.8 s → filled cursor, draw a word, hold still → pen lifts; press F7 (with focus on the canvas; press Esc first) → the last stroke disappears; Steadiness up/down changes the line.
+2. **Desk View / camera picker:** Setup page › Camera lists "Desk View" (chosen by default when present); "Mirror camera" / "Rotate camera" make the pointer move the same way as the hand; settings are remembered per camera.
+3. **Calibration on a real hand:** Setup › Recalibrate: rest 3 s, circle 4 s, right-then-away 3 s; the status says if an axis was flipped; "Use last setup" after reload draws within 3 s.
+4. **Occluded window:** with `npm run demo-chrome` as a 320 px strip beside Krita and Krita focused, the header fps keeps counting (Worker path). If the status says "keep this window visible", MediaStreamTrackProcessor was missing.
+5. **Window rect at zoom ≠ 100 %:** Pause clamp and dwell-click coordinates assume 100 % page zoom; check that a dwell on the Resume tile (helper running) clicks the tile, not beside it.
+6. **Low light warning** appears when the desk is dark (main-thread luma < 50).

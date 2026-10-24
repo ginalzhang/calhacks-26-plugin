@@ -83,7 +83,34 @@ body {
   }
 }
 
+/* Short viewports (e.g. 200 % zoom): the document scrolls; the status lines stay pinned. */
+@media (max-height: 699px) {
+  .app,
+  .panel,
+  .main {
+    height: auto;
+    min-height: 100vh;
+  }
+  .panel {
+    position: relative;
+  }
+  .page {
+    overflow: visible;
+  }
+  .panel-header .pinned {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--panel);
+  }
+}
+
 /* ---------------------------------------------------------------- header */
+.pinned {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .statusline,
 .undo-line {
   display: flex;

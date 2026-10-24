@@ -93,7 +93,13 @@ export function ConfirmDialog({ spec, onClose }: { spec: DialogSpec; onClose: (h
                 </span>
               </button>
             ))}
-          <button ref={cancelRef} type="button" className="tile tile-default" data-action="cancel" onClick={() => onClose("cancel")}>
+          <button
+            ref={cancelRef}
+            type="button"
+            className="tile tile-default"
+            data-action="cancel"
+            onClick={() => onClose("cancel")}
+          >
             <span className="tile-label">Cancel</span>
           </button>
           {spec.kind === "confirm" && (

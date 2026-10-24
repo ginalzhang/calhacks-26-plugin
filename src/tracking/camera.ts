@@ -53,7 +53,11 @@ type MSTPCtor = new (init: { track: MediaStreamTrack }) => { readable: ReadableS
  * Feed the Worker. Returns a stop function and whether the Worker path is in use
  * (false = main-thread fallback; caller should warn).
  */
-export function feedWorker(stream: MediaStream, bridge: WorkerBridge, video: HTMLVideoElement | null): { stop: () => void; workerPath: boolean } {
+export function feedWorker(
+  stream: MediaStream,
+  bridge: WorkerBridge,
+  video: HTMLVideoElement | null,
+): { stop: () => void; workerPath: boolean } {
   const track = stream.getVideoTracks()[0];
   const MSTP = (globalThis as unknown as { MediaStreamTrackProcessor?: MSTPCtor }).MediaStreamTrackProcessor;
   if (track && MSTP) {

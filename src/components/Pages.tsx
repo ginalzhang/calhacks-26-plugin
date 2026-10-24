@@ -79,7 +79,15 @@ export function SteadyPage({ ctx }: { ctx: PageCtx }) {
         page="steady"
         ctx={ctx}
         pressedOf={(id) =>
-          id === "dots" ? mode === "dots" : id === "hatch" ? mode === "hatch" || mode === "hatch_alternate" : id === "dash" ? mode === "dash" : id === "quiet" ? ctx.settings.quiet : false
+          id === "dots"
+            ? mode === "dots"
+            : id === "hatch"
+              ? mode === "hatch" || mode === "hatch_alternate"
+              : id === "dash"
+                ? mode === "dash"
+                : id === "quiet"
+                  ? ctx.settings.quiet
+                  : false
         }
       />
     </>
@@ -171,7 +179,12 @@ export function SetupPage({ ctx }: { ctx: PageCtx }) {
           title={ctx.helperOpen ? undefined : "Start the helper (npm run helper) to draw in Krita."}
           onPress={() => ctx.setTarget(krita ? "canvas" : "krita")}
         />
-        <Tile label="Mark corners" onPress={ctx.markCorners} disabled={!krita} title="Dwell on Krita's canvas top-left corner, then bottom-right." />
+        <Tile
+          label="Mark corners"
+          onPress={ctx.markCorners}
+          disabled={!krita}
+          title="Dwell on Krita's canvas top-left corner, then bottom-right."
+        />
       </div>
       <SliderRow
         label="Gain"
@@ -195,16 +208,77 @@ export function TimingPage({ ctx }: { ctx: PageCtx }) {
   const sec = (v: number) => `${(v / 1000).toFixed(1)} s`;
   return (
     <>
-      <SliderRow label="Pen-down hold" value={s.dwellDownMs} min={500} max={1500} step={50} tileStep={50} format={ms} onChange={(v) => ctx.update({ dwellDownMs: v })} />
-      <SliderRow label="Pen-up hold" value={s.dwellUpMs} min={800} max={3000} step={50} tileStep={50} format={ms} onChange={(v) => ctx.update({ dwellUpMs: v })} />
-      <SliderRow label="Mic silence" value={s.micSilenceMs} min={1000} max={8000} step={50} tileStep={500} format={sec} onChange={(v) => ctx.update({ micSilenceMs: v })} />
-      <SliderRow label="Mic limit" value={s.micCapMs} min={15000} max={60000} step={50} tileStep={5000} format={sec} onChange={(v) => ctx.update({ micCapMs: v })} />
-      <SliderRow label="Hatch lag" value={s.hatchLagMs} min={80} max={250} step={10} tileStep={10} format={ms} onChange={(v) => ctx.update({ hatchLagMs: v })} />
+      <SliderRow
+        label="Pen-down hold"
+        value={s.dwellDownMs}
+        min={500}
+        max={1500}
+        step={50}
+        tileStep={50}
+        format={ms}
+        onChange={(v) => ctx.update({ dwellDownMs: v })}
+      />
+      <SliderRow
+        label="Pen-up hold"
+        value={s.dwellUpMs}
+        min={800}
+        max={3000}
+        step={50}
+        tileStep={50}
+        format={ms}
+        onChange={(v) => ctx.update({ dwellUpMs: v })}
+      />
+      <SliderRow
+        label="Mic silence"
+        value={s.micSilenceMs}
+        min={1000}
+        max={8000}
+        step={50}
+        tileStep={500}
+        format={sec}
+        onChange={(v) => ctx.update({ micSilenceMs: v })}
+      />
+      <SliderRow
+        label="Mic limit"
+        value={s.micCapMs}
+        min={15000}
+        max={60000}
+        step={50}
+        tileStep={5000}
+        format={sec}
+        onChange={(v) => ctx.update({ micCapMs: v })}
+      />
+      <SliderRow
+        label="Hatch lag"
+        value={s.hatchLagMs}
+        min={80}
+        max={250}
+        step={10}
+        tileStep={10}
+        format={ms}
+        onChange={(v) => ctx.update({ hatchLagMs: v })}
+      />
       <div className="tile-grid cols-4">
-        <Tile label="Dwell click" pressed={s.dwellClickEnabled} onPress={() => ctx.update({ dwellClickEnabled: !s.dwellClickEnabled })} />
-        <Tile label="All dwell" pressed={s.inputs.dwell} onPress={() => ctx.update({ inputs: { ...s.inputs, dwell: !s.inputs.dwell } })} />
-        <Tile label="Keys" pressed={s.inputs.keys} onPress={() => ctx.update({ inputs: { ...s.inputs, keys: !s.inputs.keys } })} />
-        <Tile label="Camera" pressed={s.inputs.camera} onPress={() => ctx.update({ inputs: { ...s.inputs, camera: !s.inputs.camera } })} />
+        <Tile
+          label="Dwell click"
+          pressed={s.dwellClickEnabled}
+          onPress={() => ctx.update({ dwellClickEnabled: !s.dwellClickEnabled })}
+        />
+        <Tile
+          label="All dwell"
+          pressed={s.inputs.dwell}
+          onPress={() => ctx.update({ inputs: { ...s.inputs, dwell: !s.inputs.dwell } })}
+        />
+        <Tile
+          label="Keys"
+          pressed={s.inputs.keys}
+          onPress={() => ctx.update({ inputs: { ...s.inputs, keys: !s.inputs.keys } })}
+        />
+        <Tile
+          label="Camera"
+          pressed={s.inputs.camera}
+          onPress={() => ctx.update({ inputs: { ...s.inputs, camera: !s.inputs.camera } })}
+        />
       </div>
     </>
   );
@@ -235,7 +309,10 @@ function TraceCanvas({ strokes, getMirror }: { strokes: StrokeStore; getMirror: 
       const smooth: Vec2[] = strokes.trail;
       const all = [...raw, ...smooth];
       if (all.length < 2) return;
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
       for (const p of all) {
         minX = Math.min(minX, p.x);
         minY = Math.min(minY, p.y);
@@ -264,12 +341,21 @@ function TraceCanvas({ strokes, getMirror }: { strokes: StrokeStore; getMirror: 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [strokes, getMirror]);
-  return <canvas ref={ref} className="trace-canvas" role="img" aria-label="Live trace: raw path in red under the smoothed path in blue" />;
+  return (
+    <canvas
+      ref={ref}
+      className="trace-canvas"
+      role="img"
+      aria-label="Live trace: raw path in red under the smoothed path in blue"
+    />
+  );
 }
 
 export function DemoPage({ ctx }: { ctx: PageCtx }) {
   const m = ctx.mirror;
-  const rate = ctx.metrics.commandsTried ? `${Math.round((100 * ctx.metrics.commandsOk) / ctx.metrics.commandsTried)} %` : "none yet";
+  const rate = ctx.metrics.commandsTried
+    ? `${Math.round((100 * ctx.metrics.commandsOk) / ctx.metrics.commandsTried)} %`
+    : "none yet";
   const c = ctx.metrics.claude;
   return (
     <>
@@ -280,13 +366,36 @@ export function DemoPage({ ctx }: { ctx: PageCtx }) {
       {ctx.settings.simulateTremor && <p className="caption">Simulated tremor</p>}
       <TraceCanvas strokes={ctx.strokes} getMirror={ctx.getMirror} />
       <dl className="metrics" aria-live="off" data-testid="metrics">
-        <div><dt>Deviation</dt><dd data-metric="deviation">{m?.deviationPx != null ? `${m.deviationPx.toFixed(1)} px` : "–"}</dd></div>
-        <div><dt>Last stroke</dt><dd data-metric="last-stroke">{m?.lastStrokeMs != null ? `${(m.lastStrokeMs / 1000).toFixed(1)} s` : "–"}</dd></div>
-        <div><dt>Commands</dt><dd data-metric="commands">{rate}</dd></div>
-        <div><dt>Claude</dt><dd data-metric="claude">{c.calls} calls, {c.accepted} ok, {c.timeouts} timeouts</dd></div>
-        <div><dt>Camera</dt><dd data-metric="camera-fps">{m ? `${m.cameraFps} fps` : "–"}</dd></div>
-        <div><dt>Detection</dt><dd data-metric="detection-fps">{m ? `${m.detectionFps} fps` : "–"}</dd></div>
-        <div><dt>Helper trip</dt><dd data-metric="helper-rtt">{m?.helperRttMs != null ? `${Math.round(m.helperRttMs)} ms` : "–"}</dd></div>
+        <div>
+          <dt>Deviation</dt>
+          <dd data-metric="deviation">{m?.deviationPx != null ? `${m.deviationPx.toFixed(1)} px` : "–"}</dd>
+        </div>
+        <div>
+          <dt>Last stroke</dt>
+          <dd data-metric="last-stroke">{m?.lastStrokeMs != null ? `${(m.lastStrokeMs / 1000).toFixed(1)} s` : "–"}</dd>
+        </div>
+        <div>
+          <dt>Commands</dt>
+          <dd data-metric="commands">{rate}</dd>
+        </div>
+        <div>
+          <dt>Claude</dt>
+          <dd data-metric="claude">
+            {c.calls} calls, {c.accepted} ok, {c.timeouts} timeouts
+          </dd>
+        </div>
+        <div>
+          <dt>Camera</dt>
+          <dd data-metric="camera-fps">{m ? `${m.cameraFps} fps` : "–"}</dd>
+        </div>
+        <div>
+          <dt>Detection</dt>
+          <dd data-metric="detection-fps">{m ? `${m.detectionFps} fps` : "–"}</dd>
+        </div>
+        <div>
+          <dt>Helper trip</dt>
+          <dd data-metric="helper-rtt">{m?.helperRttMs != null ? `${Math.round(m.helperRttMs)} ms` : "–"}</dd>
+        </div>
       </dl>
     </>
   );

@@ -64,6 +64,8 @@ let kritaConnected = false;
 let kritaWindowRect: Rect | null = null;
 let kritaCanvasRect: Rect | null = null;
 let target: Target = "canvas";
+/** Requested Krita target before the helper connected (?target=krita): applied on open. */
+let pendingTarget: Target | null = null;
 let demo = false;
 let status: string | null = null;
 let windowRect: Rect | null = null; // the page viewport in screen points
@@ -176,6 +178,7 @@ function handleOutput(out: PipelineOutput, frame: LandmarkFrame | null) {
     const res = calibrator.result();
     if (res) {
       calibrator = null;
+      pipeline?.setSettings({ inputs: settings.inputs });
       calibration = res;
       pipeline?.setCalibration(res);
       post({ type: "calibration", calibration: res });
@@ -234,9 +237,8 @@ function mirror(): MirrorState {
     steadiness: snap?.steadiness ?? settings.steadiness,
     gain: snap?.gain ?? 0,
     calibrated: !!calibration,
-    calibrating: calibrator && calibrator.step
-      ? { step: calibrator.step, progress: lastCalibProgress, prompt: calibrator.prompt }
-      : null,
+    calibrating:
+      calibrator && calibrator.step ? { step: calibrator.step, progress: lastCalibProgress, prompt: calibrator.prompt } : null,
     cameraFps: camFps,
     detectionFps: detFps,
     helper: helperState,
@@ -334,9 +336,23 @@ function startCalibration(steps: Array<1 | 2 | 3>) {
   const allowed = steps.length ? steps : CALIBRATION_STEPS;
   calibratorSteps = allowed;
   const targetRect = rectsFor(target).canvas ?? rectsFor(target).screen ?? viewportRect();
+  pipeline?.setSettings({ inputs: { ...settings.inputs, dwell: false } });
   calibrator = createCalibrator({ steps: allowed, targetWidth: targetRect.w, prior: calibration, now: Date.now() });
   lastCalibProgress = 0;
   setStatus(calibrator.prompt || "Calibrating.");
+}
+
+function switchTarget(next: Target) {
+  if (next === target) return;
+  // Lift on the old target before switching.
+  forward(pipeline?.setTarget(next) ?? []);
+  target = next;
+  applyRects();
+  if (target === "krita" && !kritaCanvasRect) {
+    setStatus("Drawing in Krita. Mark Krita's canvas corners on the Setup page so ink lands only on the canvas.");
+  } else {
+    setStatus(target === "krita" ? "Drawing in Krita. Pen is up." : "Drawing on the practice canvas. Pen is up.");
+  }
 }
 
 // ----------------------------------------------------------------------------- helper socket
@@ -350,6 +366,11 @@ function connectHelper(url: string) {
         pipeline?.setHelperConnected(true);
         if (windowRect) sendHelper({ t: "chrome_rect", rect: windowRect });
         if (pipeline?.snapshot().paused) sendHelper({ t: "pause" });
+        if (pendingTarget) {
+          const want = pendingTarget;
+          pendingTarget = null;
+          switchTarget(want);
+        }
       } else {
         pipeline?.setHelperConnected(false);
         if (was === "open") {
@@ -395,6 +416,9 @@ function onHelperMessage(msg: HelperToWorker) {
       else if (msg.key === "ptt_down") runAction("ptt");
       break;
     }
+    case "warning":
+      setStatus(msg.message ?? msg.code);
+      break;
     case "error":
       if (msg.code === "permission") {
         setStatus(
@@ -499,11 +523,17 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       break;
     case "settings":
       settings = { ...settings, ...m.settings, inputs: { ...settings.inputs, ...(m.settings.inputs ?? {}) } };
-      pipeline?.setSettings(m.settings);
+      pipeline?.setSettings(
+        calibrator && m.settings.inputs ? { ...m.settings, inputs: { ...settings.inputs, dwell: false } } : m.settings,
+      );
       break;
     case "window_rect": {
       const changed =
-        !windowRect || windowRect.x !== m.rect.x || windowRect.y !== m.rect.y || windowRect.w !== m.rect.w || windowRect.h !== m.rect.h;
+        !windowRect ||
+        windowRect.x !== m.rect.x ||
+        windowRect.y !== m.rect.y ||
+        windowRect.w !== m.rect.w ||
+        windowRect.h !== m.rect.h;
       windowRect = m.rect;
       if (changed) {
         applyRects();
@@ -516,24 +546,15 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       else kritaCanvasRect = m.rect;
       applyRects();
       break;
-    case "set_target": {
+    case "set_target":
       if (m.target === "krita" && !helperOpen()) {
+        pendingTarget = "krita";
         setStatus("Drawing in Krita needs the helper. Start it with npm run helper.");
         break;
       }
-      if (m.target === target) break;
-      const events = pipeline?.setTarget(m.target) ?? [];
-      // Lift on the old target before switching.
-      forward(events);
-      target = m.target;
-      applyRects();
-      if (target === "krita" && !kritaCanvasRect) {
-        setStatus("Drawing in Krita. Mark Krita's canvas corners on the Setup page so ink lands only on the canvas.");
-      } else {
-        setStatus(target === "krita" ? "Drawing in Krita. Pen is up." : "Drawing on the practice canvas. Pen is up.");
-      }
+      pendingTarget = null;
+      switchTarget(m.target);
       break;
-    }
     case "action":
       if (m.action === "recalibrate" || m.action === "next_judge") {
         runAction(m.action);
@@ -548,6 +569,7 @@ self.onmessage = (ev: MessageEvent<PageToWorker>) => {
       break;
     case "use_calibration":
       calibration = m.calibration;
+      if (calibrator) pipeline?.setSettings({ inputs: settings.inputs });
       calibrator = null;
       pipeline?.setCalibration(m.calibration);
       setStatus("Using your last setup.");

@@ -51,9 +51,19 @@ export class MediaPipeSource implements LandmarkSource {
   async start(onFrame: (frame: LandmarkFrame) => void): Promise<void> {
     this.onFrame = onFrame;
     this.vision = await import("@mediapipe/tasks-vision");
-    // useModule=true: in a module Worker the classic loader cannot be importScripts()ed.
-    this.fileset = await this.vision.FilesetResolver.forVisionTasks(WASM_BASE, true);
-    await this.create("GPU");
+    // The bundler may emit this Worker as a classic script (importScripts works: classic loader) or
+    // as a true module Worker (importScripts throws: the ES-module loader is needed). Try both.
+    let lastErr: unknown = null;
+    for (const useModule of [false, true]) {
+      try {
+        this.fileset = await this.vision.FilesetResolver.forVisionTasks(WASM_BASE, useModule);
+        await this.create("GPU");
+        return;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr;
   }
 
   private async create(delegate: Delegate): Promise<void> {
@@ -86,8 +96,8 @@ export class MediaPipeSource implements LandmarkSource {
       this.events.onDelegate?.(delegate);
     } catch (err) {
       if (delegate === "GPU") {
-        this.events.onWarning?.("GPU tracking unavailable; using CPU.");
         await this.create("CPU");
+        this.events.onWarning?.("GPU tracking unavailable; using CPU.");
       } else {
         throw err;
       }
