@@ -37,6 +37,8 @@ import {
 } from "./mapping";
 import { OneEuro2D } from "./oneEuro";
 import { clamp, steadinessParams } from "./steadiness";
+import { handModeConfig, handPresetSettings, headModeConfig, isHandPreset, type ExtraSettings } from "./presets";
+import { handScale, median, REBASELINE_MS, rebaselineScale, rescaleBox, SCALE_SAMPLE_MS } from "./rebaseline";
 import { DASH_PAUSE_DEFAULT_MS, DashEngine, HatchEngine, offsetStroke } from "./strokeModes";
 import { medianRecent, Tracker, type TrackUpdate } from "./tracking";
 import { TremorSim } from "./tremorSim";
@@ -108,6 +110,10 @@ export interface ModeState {
   dashButtonDown: boolean;
   /** Last inked stroke (target units), for Repeat. */
   lastStroke: Vec2[] | null;
+  /** Re-baseline (P4): current active-box scale (1 = as calibrated). */
+  boxScale: number;
+  /** Head mode (P4): the lock follows the nose tip. */
+  headMode: boolean;
 }
 
 interface Rearm {
@@ -148,6 +154,12 @@ class SteadyPipeline implements Pipeline {
   private batch = { pan: false, pickSampled: false };
   private ink = { down: false, pts: [] as Vec2[], pan: false };
   private lastStroke: Vec2[] | null = null;
+  // P4 re-baseline
+  private boxScale = 1;
+  private refScale: number | null = null;
+  private scaleSamples: TimedPoint[] = []; // x = scale
+  private lastRebaselineT: number | null = null;
+  private rebaselineDue = false;
 
   /** Steadiness actually applied to the filters (deferred while a stroke is in progress). */
   private applied: { steadiness: number; cap: number | null; minCutoff: number; lazyRadius: number };
@@ -193,14 +205,20 @@ class SteadyPipeline implements Pipeline {
 
   // ---------------------------------------------------------------- helpers
 
+  /** Gain after re-baseline: a hand that looks s× bigger moves s× more camera px for the same arm movement. */
   private gain(): number {
+    return this.baseGain() / this.boxScale;
+  }
+
+  private baseGain(): number {
     if (this.settings.gainOverride != null) return this.settings.gainOverride;
     if (this.calibration) return this.calibration.gain;
-    return calibratedGain(this.targetRect().w, this.box().w);
+    return calibratedGain(this.targetRect().w, defaultBox(this.frameW, this.frameH).w);
   }
 
   private box(): Rect {
-    const b = this.calibration?.box ?? defaultBox(this.frameW, this.frameH);
+    const b0 = this.calibration?.box ?? defaultBox(this.frameW, this.frameH);
+    const b = this.boxScale === 1 ? b0 : rescaleBox(b0, this.boxScale);
     if (!this.recenterAt) return b;
     return { x: this.recenterAt.x - b.w / 2, y: this.recenterAt.y - b.h / 2, w: b.w, h: b.h };
   }
@@ -232,7 +250,9 @@ class SteadyPipeline implements Pipeline {
   }
 
   private rIn(): number {
-    return dwellRIn(this.applied.lazyRadius, this.calibration?.restJitterRMS ?? 0, this.gain());
+    const floor = this.extra().dwellRadius;
+    const r = dwellRIn(this.applied.lazyRadius, this.calibration?.restJitterRMS ?? 0, this.gain());
+    return typeof floor === "number" && floor > r ? floor : r;
   }
 
   private inkAllowedAt(p: Vec2 | null): boolean {
@@ -345,7 +365,7 @@ class SteadyPipeline implements Pipeline {
     }
     const tf = { mirror: this.settings.mirrorCamera, rotate: this.settings.rotateCamera };
     const choice = this.settings.inputs.camera
-      ? this.lock.choose(frame.hands, tf)
+      ? this.lock.choose(frame.hands, tf, this.extra().lockLandmark ?? 0)
       : { hand: null, wrist: null, reason: null as null };
     const hand = choice.hand;
     const score = hand?.score ?? 0;
@@ -374,6 +394,7 @@ class SteadyPipeline implements Pipeline {
       if (this.wasLost) this.setRearm(t, 0, null);
     }
 
+    this.sampleScale(t, hand.landmarks);
     const raw = pickLandmark(hand, this.settings.landmark, tf, this.frameW, this.frameH);
     const sim = this.settings.simulateTremor ? this.tremor.apply(raw, t) : raw;
     const filtered = this.euro.filter(sim, t);
@@ -650,6 +671,21 @@ class SteadyPipeline implements Pipeline {
         this.applySteadinessIfIdle();
         break;
       }
+      case "eyebrow_raise":
+        // Eyebrow pen-up (P4): can only lift, never lower.
+        this.lift(t, "pen_key", events);
+        break;
+      case "head_mode": {
+        this.lift(t, "mode_change", events);
+        const on = opts.variant === "on" ? true : opts.variant === "off" ? false : !this.isHeadMode();
+        this.setSettings(on ? headModeConfig() : handModeConfig());
+        break;
+      }
+      case "rebaseline":
+        // Measure a fresh 2 s window, then rescale (still never mid-stroke).
+        this.rebaselineDue = true;
+        this.scaleSamples = [];
+        break;
       case "dash":
         this.lift(t, "mode_change", events);
         this.mode = this.mode === "dash" ? "normal" : "dash";
@@ -704,10 +740,18 @@ class SteadyPipeline implements Pipeline {
         this.lock.reset();
         break;
       default:
+        if (isHandPreset(id)) {
+          const { tip: _tip, ...ps } = handPresetSettings(id);
+          this.setSettings(ps as Partial<SteadySettings>);
+        }
         break;
     }
     this.trackInk(events);
     return events;
+  }
+
+  private extra(): ExtraSettings {
+    return this.settings as unknown as ExtraSettings;
   }
 
   private dashPauseMs(): number {
@@ -731,6 +775,39 @@ class SteadyPipeline implements Pipeline {
     // The next frame moves the pointer back to the cursor (button up).
     this.lastEmitted = { ...last };
     this.setRearm(t, REARM_AFTER_UP_MS, this.lastPre);
+  }
+
+  private isHeadMode(): boolean {
+    return (this.extra().lockLandmark ?? 0) !== 0;
+  }
+
+  /** Re-baseline: collect hand-scale samples; every 10 min (never mid-stroke) rescale the box. */
+  private sampleScale(t: number, landmarks: { x: number; y: number; z: number }[]): void {
+    const sc = handScale(landmarks, this.frameW, this.frameH);
+    if (!(sc > 0)) return;
+    this.scaleSamples.push({ t, x: sc, y: 0 });
+    while (this.scaleSamples.length && this.scaleSamples[0].t < t - SCALE_SAMPLE_MS) this.scaleSamples.shift();
+    const full = this.scaleSamples.length >= 5 && t - this.scaleSamples[0].t >= SCALE_SAMPLE_MS * 0.9;
+    if (!full) return;
+    const now = median(this.scaleSamples.map((p) => p.x));
+    if (this.refScale === null) {
+      this.refScale = now;
+      this.lastRebaselineT = t;
+      return;
+    }
+    const due = this.rebaselineDue || (this.lastRebaselineT !== null && t - this.lastRebaselineT >= REBASELINE_MS);
+    if (!due || this.pen === "DRAWING") return; // never during a stroke: retried on the next frame
+    this.boxScale = rebaselineScale(this.refScale, now, this.boxScale);
+    this.lastRebaselineT = t;
+    this.rebaselineDue = false;
+  }
+
+  private resetBaseline(): void {
+    this.boxScale = 1;
+    this.refScale = null;
+    this.scaleSamples = [];
+    this.lastRebaselineT = null;
+    this.rebaselineDue = false;
   }
 
   private beginBatch(): void {
@@ -762,6 +839,8 @@ class SteadyPipeline implements Pipeline {
       lazyRadius: this.applied.lazyRadius,
       dashButtonDown: this.dash.isButtonDown,
       lastStroke: this.lastStroke ? this.lastStroke.map((p) => ({ ...p })) : null,
+      boxScale: this.boxScale,
+      headMode: this.isHeadMode(),
     };
   }
 
@@ -776,12 +855,15 @@ class SteadyPipeline implements Pipeline {
     const geometryChanged =
       (s.landmark !== undefined && s.landmark !== prev.landmark) ||
       (s.mirrorCamera !== undefined && s.mirrorCamera !== prev.mirrorCamera) ||
-      (s.rotateCamera !== undefined && s.rotateCamera !== prev.rotateCamera);
+      (s.rotateCamera !== undefined && s.rotateCamera !== prev.rotateCamera) ||
+      ((s as ExtraSettings).lockLandmark !== undefined &&
+        (s as ExtraSettings).lockLandmark !== (prev as unknown as ExtraSettings).lockLandmark);
     if (geometryChanged) {
       // The tracked point jumps: lift, restart the filter and the warm-up gate. The lift
       // event is delivered with the next frame's events via pendingEvents.
       this.pendingLift = true;
       this.lock.reset();
+      this.resetBaseline(); // a different landmark set has a different scale
     }
     this.applySteadinessIfIdle();
   }
@@ -793,6 +875,7 @@ class SteadyPipeline implements Pipeline {
   setCalibration(c: Calibration | null): void {
     this.calibration = c;
     this.recenterAt = null;
+    this.resetBaseline();
     this.lazy.reset();
     this.lock.reset();
   }

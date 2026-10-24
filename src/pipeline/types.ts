@@ -86,6 +86,8 @@ export interface Calibration {
   flipY: boolean;
   /** clamp(round(8 × max(rest, kinetic)), 10, 90) */
   suggestedSteadiness: number;
+  /** Hand bounding-box diagonal at calibration (camera px), the re-baseline reference. */
+  handScale?: number;
   createdAt: number;
 }
 
@@ -103,6 +105,12 @@ export interface SteadySettings {
   cameraDeviceId: string | null;
   simulateTremor: boolean;
   hatchLagMs: number;
+  /** P4 hand presets: floor for the dwell radius r_in (target units). */
+  dwellRadius?: number;
+  /** P4: tiles count as hovered within this many px of their edge. */
+  tileHoverPx?: number;
+  /** Landmark the hand lock follows (wrist 0; nose 1 in Head mode). */
+  lockLandmark?: number;
   /** Landmark source: MediaPipe hand, or the P3 colour-cap sticker. */
   trackingSource: "hand" | "colorcap";
   /** Saved sticker HSV range (ColorCapSource), or null for the default neon green. */
@@ -155,6 +163,7 @@ export const STORAGE_KEYS = {
   claudeLog: "steady.claudeLog.v1",
   skin: "steady.skin.v1",
   aliases: "steady.aliases.v1",
+  profiles: "steady.profiles.v1",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -179,7 +188,8 @@ export type LiftReason =
   | "hatch_pass"
   | "dash"
   | "mode_change"
-  | "socket";
+  | "socket"
+  | "eyebrow";
 
 /** What the pipeline wants done this frame. The Worker forwards these to the helper (target krita) or the practice canvas. */
 export type PenEvent =

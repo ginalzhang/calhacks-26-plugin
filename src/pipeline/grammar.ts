@@ -16,6 +16,10 @@
  * - voice mode matches voice phrases; typed mode also matches `typed` forms;
  * - rows whose phase is later than opts.phase (default BUILD_PHASE) are excluded;
  * - user aliases (P2b) match exactly as { action: "alias", variant: presetName };
+ * - `use_profile` / `save_profile` take a multi-word name: the rest of the utterance goes in
+ *   `variant` ("use profile shaky day" → "shaky day"); such a command never chains;
+ * - an action with phraseVariants matched by its typed form takes a following variant word
+ *   ("app krita" → app_profile/krita);
  * - `arg: "word"` (name_brush: "call this brush fluffy", typed "alias fluffy") puts the word in
  *   `variant`; a word refused by validateAlias returns a no-match with `refused` (isAliasRefusal).
  */
@@ -29,6 +33,8 @@ export const KEYTERM_MAX_CHARS = 1200;
 export const ALIAS_ACTION = "alias";
 
 const COALESCE = new Set(["undo", "redo"]);
+/** `arg: "word"` actions whose argument may be several words (the rest of the utterance). */
+export const MULTI_WORD_ARG = new Set(["use_profile", "save_profile"]);
 
 interface PhraseEntry {
   phrase: string;
@@ -260,7 +266,23 @@ export function parseCommand(text: string, opts: ParseOptions): ParseResult {
     i += k;
     const cmd: ParsedCommand = { action: entry.action.id };
     if (entry.variant) cmd.variant = entry.variant;
-    if (entry.action.arg === "word") {
+    else if (entry.action.phraseVariants) {
+      // Typed form + variant word, e.g. "app krita" / "app photoshop".
+      const values = new Set(Object.values(entry.action.phraseVariants));
+      if (i < tokens.length && values.has(tokens[i])) {
+        cmd.variant = tokens[i];
+        i++;
+      }
+    }
+    if (entry.action.arg === "word" && MULTI_WORD_ARG.has(entry.action.id)) {
+      // Profile names may be several words ("use profile shaky day"): the rest of the utterance
+      // is the name (leading fillers dropped), so a profile command never chains.
+      while (i < tokens.length && stop.has(tokens[i])) i++;
+      const name = tokens.slice(i).join(" ");
+      i = tokens.length;
+      if (name) cmd.variant = name;
+      else cmd.arg = null;
+    } else if (entry.action.arg === "word") {
       // "call this brush fluffy" / "alias fluffy": the next non-filler token is the word.
       while (i < tokens.length && stop.has(tokens[i])) i++;
       const word = tokens[i];

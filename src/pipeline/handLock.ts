@@ -28,11 +28,12 @@ export class HandLock {
   }
 
   /** Choose the hand to track. Does NOT move the reference; call accept() once the frame is accepted. */
-  choose(hands: HandObservation[], t: CameraTransform): LockResult {
+  choose(hands: HandObservation[], t: CameraTransform, lockLandmark = 0): LockResult {
     if (hands.length === 0) return { hand: null, wrist: null, reason: null };
     let best: { hand: HandObservation; wrist: Vec2; d: number } | null = null;
     for (const h of hands) {
-      const w0 = h.landmarks[0];
+      // Wrist (0) in Hand mode; the nose tip (1) in Head mode.
+      const w0 = h.landmarks[lockLandmark] ?? h.landmarks[0];
       if (!w0) continue;
       const wrist = transformNormalized(w0, t);
       const d = this.ref ? Math.hypot(wrist.x - this.ref.x, wrist.y - this.ref.y) : -h.score;
