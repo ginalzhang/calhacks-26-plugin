@@ -191,6 +191,7 @@ def load_voice(app, keys: Dict[str, str]):
 
 
 async def _run(app, install_signals: bool = True) -> None:
+    app.hard_exit_on_stop = True  # real process: never hang on Stop (see TrackerApp.request_stop)
     await app.start()
     loop = asyncio.get_running_loop()
     if install_signals:

@@ -257,6 +257,23 @@ class TrackerApp:
         self.pointer.release("shutdown")
         if self.stop_event is not None:
             self.stop_event.set()
+        # Hard backstop (real app only; main.py sets hard_exit_on_stop): a camera read or MediaPipe call can
+        # block a worker thread and hang a clean shutdown (seen on the real Mac at 18:10). Buttons are
+        # already released above; exit anyway.
+        if not getattr(self, "hard_exit_on_stop", False):
+            return
+        import os
+        import threading
+
+        def _hard_exit() -> None:
+            try:
+                self.pointer.release("shutdown timeout")
+            finally:
+                os._exit(0)
+
+        t = threading.Timer(3.0, _hard_exit)
+        t.daemon = True
+        t.start()
 
     def _spawn(self, coro) -> asyncio.Task:
         task = asyncio.get_running_loop().create_task(coro)
