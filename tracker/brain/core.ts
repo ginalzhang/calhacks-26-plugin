@@ -177,6 +177,7 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
   let settings: BrainSettings = { ...DEFAULT_SETTINGS };
   let calibration: Calibration | null = null;
   const calibrations: Partial<Record<Hand, Calibration>> = {};
+  let panelRect: Rect | null = null;
   let rects: PipelineRects = { canvas: null, chrome: null, krita: null, screen: null, usable: null };
   let pipeline: Pipeline = makePipeline();
   let initialised = false;
@@ -391,6 +392,7 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
       rawTrail: trail(snap.rawTrail),
       undoLabel,
       settings: settings as SteadySettings,
+      profiles: profiles.profiles.map((p) => p.name),
     };
   }
 
@@ -963,6 +965,22 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
         else clickNumber(Number(n));
         return;
       }
+      case "use_last_setup": {
+        const hand: Hand = calibration?.handedness ?? "Right";
+        const c = calibrations[hand] ?? calibration;
+        if (!c) {
+          status("No saved setup yet: calibrate on the Setup page.");
+          return;
+        }
+        if (calibrator) {
+          calibrator = null;
+          setCalibrating(pipeline, false);
+        }
+        useCalibration(c, false); // lifts first (pipeline pendingLift), re-armed
+        status("Using your last setup.");
+        maybeState(true);
+        return;
+      }
       case "name_brush":
         if (variant) nameBrush(variant);
         else status("Say call this brush and one word, or type alias and the word.");
@@ -1042,7 +1060,11 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
   function setRects(r: Partial<PipelineRects> & { panel?: Rect | null }) {
     const next: Partial<PipelineRects> = {};
     for (const k of ["canvas", "chrome", "krita", "screen", "usable"] as const) if (k in r) next[k] = r[k] ?? null;
-    if ("panel" in r) next.chrome = r.panel ?? null; // the panel plays the old Chrome-window role
+    // The panel plays the old Chrome-window role (Pause clamps there, dwell-click allowed).
+    // Panel hidden (null) → Pause clamps to Krita's main window instead.
+    if ("panel" in r) panelRect = r.panel ?? null;
+    else if ("chrome" in r) panelRect = r.chrome ?? null;
+    if ("panel" in r || "chrome" in r || "krita" in r) next.chrome = panelRect ?? ("krita" in next ? next.krita : rects.krita) ?? null;
     if (
       numbers &&
       "krita" in next &&

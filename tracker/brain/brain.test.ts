@@ -236,6 +236,24 @@ describe("brain: pen from frames", () => {
     expect(r.lastState().paused).toBe(false);
   });
 
+  it("@PLUGIN panel hidden (rects.panel = null) → Pause clamps the pointer to Krita's main window", () => {
+    const r = new Rig();
+    r.brain.handle({ t: "rects", rects: { panel: null } });
+    r.penDown();
+    r.action("pause");
+    const j = r.mark();
+    // Far outside Krita's window on the left/top: clamped to KRITA, not to the old panel.
+    r.path(1500, (e) => ({ x: C.x - e * 1.2, y: C.y - e * 0.6 }));
+    const moves = r.since(j).flatMap((m) => (m.t === "pen" ? m.events : [])).filter((e) => e.type === "move");
+    expect(moves.length).toBeGreaterThan(10);
+    for (const e of moves) {
+      expect(e.x).toBeGreaterThanOrEqual(KRITA.x);
+      expect(e.y).toBeGreaterThanOrEqual(KRITA.y);
+      expect(e.x).toBeLessThanOrEqual(KRITA.x + KRITA.w);
+    }
+    expect(moves.some((e) => e.x < PANEL.x)).toBe(true); // not the panel any more
+  });
+
   it("@PLUGIN state is ≤ 15 Hz, only on change, rawTrail ≤ 90 points relative to the canvas", () => {
     const r = new Rig();
     const i = r.mark();
@@ -447,6 +465,36 @@ describe("brain: actions", () => {
     expect(used.profiles.active).toBe("Shaky day");
     r.action("use_profile", { variant: "nonexistent" });
     expect(r.of("status").pop()?.text).toBe("No profile called nonexistent.");
+  });
+
+  it("@PLUGIN use_last_setup → stored calibration for the current hand, or a status when none", () => {
+    const none = new Rig({ calibration: null });
+    none.action("use_last_setup");
+    expect(none.of("status").pop()?.text).toBe("No saved setup yet: calibrate on the Setup page.");
+    expect(none.lastState().calibrated).toBe(false);
+
+    const r = new Rig({ calibration: null });
+    r.brain.handle({
+      t: "init",
+      settings: DEFAULT_SETTINGS,
+      calibration: null,
+      calibrations: { Right: TEST_CAL },
+      now: r.t,
+    });
+    r.brain.handle({ t: "calibrate", steps: [1, 2], now: r.t });
+    r.action("use_last_setup");
+    expect(r.of("status").pop()?.text).toBe("Using your last setup.");
+    expect(r.lastState().calibrated).toBe(true);
+    expect(r.lastState().calibrating).toBeNull();
+    expect(r.lastState().gain).toBe(TEST_CAL.gain);
+  });
+
+  it("@PLUGIN PanelState.profiles lists the profile names", () => {
+    const r = new Rig();
+    expect(r.lastState().profiles).toEqual(["Steady day", "Shaky day"]);
+    r.action("save_profile", { variant: "evening" });
+    r.ticks(100);
+    expect(r.lastState().profiles).toEqual(["Steady day", "Shaky day", "Evening"]);
   });
 
   it("@PLUGIN name_brush → get_state → alias stored in settings.aliases", () => {
