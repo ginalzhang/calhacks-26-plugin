@@ -771,6 +771,17 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
     const panBefore = panState(pipeline).armed;
     forward(pipeline.action(id, actT(), { variant, arg }));
     const after = pipeline.snapshot();
+    // Real-Mac report (18:58 Sat): "I say down and it doesn't do anything" — the pen can't go down without a
+    // tracked hand over the canvas, but nothing said so. Explain every refused pen-down.
+    if ((id === "pen_down" || id === "pen_toggle") && before.pen === "HOVER" && after.pen === "HOVER" && !after.paused) {
+      if (lastTracking !== "Tracking" && lastTracking !== "Weak") {
+        status("Can't lower the pen: Steady can't see your hand. Put your hand in the camera view, then say down.");
+      } else if (calibrator && calibrator.step) {
+        status("The pen stays up while calibrating.");
+      } else {
+        status("Can't lower the pen here: move the pointer over Krita's canvas, then say down.");
+      }
+    }
     if (id === "latch" && after.latch !== settings.latch) {
       changeSettings({ latch: after.latch });
       status(after.latch ? "Latch on: holding still won't lift the pen." : "Latch off.");

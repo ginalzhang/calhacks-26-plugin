@@ -622,3 +622,15 @@ describe("brain: built bundle", () => {
     expect(msgs.some((m) => m.t === "error")).toBe(true);
   }, 20000);
 });
+
+describe("refused pen-down feedback (real-Mac fix)", () => {
+  it("@PLUGIN voice down with no hand in view explains why instead of doing nothing", () => {
+    const out: any[] = [];
+    const brain = createBrain((m: any) => out.push(m));
+    brain.handle({ t: "init", settings: {} as any, calibration: null, now: 0 });
+    brain.handle({ t: "action", action: "pen_down", source: "voice", now: 100 });
+    const st = out.filter((m) => m.t === "status").map((m) => m.text).join(" | ");
+    expect(st).toMatch(/can't see your hand/i);
+    expect(out.some((m) => m.t === "pen" && m.events.some((e: any) => e.type === "down"))).toBe(false);
+  });
+});
