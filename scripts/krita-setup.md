@@ -38,7 +38,7 @@ moves the mouse pointer.
 5. Click **OK**.
 6. Quit Krita (Cmd+Q) and open it again. Plugins only load when Krita starts.
 7. Check it worked: menu **Tools › Scripts › Steady: connection status**. It should say
-   **listening on 127.0.0.1:8766**. Once `npm run helper` is running it also says **helper connected**.
+   **listening on 127.0.0.1:8766**. Once you press **Start** in the Steady panel (Settings › Dockers › Steady), Steady Tracker connects and it says **helper connected**.
 
 If **Steady** is not in the Python Plugin Manager list, run step 3 again and restart Krita.
 If the status says **could not listen**, another copy of Krita is already open: quit all of them
@@ -124,7 +124,7 @@ Steady's Hatch mode inks only the forward passes of a back-and-forth movement. P
 - [ ] Tablet unplugged, Sidecar off.
 - [ ] Krita open, a picture open (File › New, or open a file).
 - [ ] Tools › Scripts › Steady: connection status says **helper connected**.
-- [ ] The Chrome strip with Steady sits beside Krita, not behind it.
+- [ ] The Steady panel is docked (Settings › Dockers › Steady) and Start shows "Tracking".
 
 ## Troubleshooting
 

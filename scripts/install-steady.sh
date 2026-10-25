@@ -20,7 +20,7 @@ for arg in "$@"; do
   case "$arg" in
     --dry-run|-n) DRY=1 ;;
     --rebuild-tracker) REBUILD=1 ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "install-steady: unknown option $arg (use --dry-run, --rebuild-tracker or --help)" >&2; exit 2 ;;
   esac
 done
@@ -178,7 +178,15 @@ INSTALLED_APP="$HOME/Applications/Steady Tracker.app"
 APP_STAMP="$HOME/Library/Application Support/Steady/installed-tracker-app.sha"
 if [ -f scripts/build-tracker-app.sh ]; then
   APP_SUM="$( { shasum scripts/build-tracker-app.sh | cut -d' ' -f1; echo "$ROOT"; } | shasum | cut -d' ' -f1)"
-  if [ "$REBUILD" = 0 ] && [ -d "$INSTALLED_APP" ] && [ -f "$APP_STAMP" ] && [ "$(cat "$APP_STAMP")" = "$APP_SUM" ]; then
+  # An app installed before this script existed (no stamp) is adopted if it launches this repo and is newer
+  # than the build script, so a first run of the installer does not throw away permissions already granted.
+  if [ "$REBUILD" = 0 ] && [ -d "$INSTALLED_APP" ] && [ ! -f "$APP_STAMP" ] \
+     && grep -aqF "$ROOT" "$INSTALLED_APP/Contents/MacOS/steady-tracker" 2>/dev/null \
+     && [ "$INSTALLED_APP/Contents/MacOS/steady-tracker" -nt scripts/build-tracker-app.sh ]; then
+    skip "$INSTALLED_APP already built from this repo (adopted, not rebuilt; --rebuild-tracker forces it)"
+    if [ "$DRY" = 1 ]; then echo "   \$ echo <sha> > \"$APP_STAMP\""; echo "     (dry run: not executed)"
+    else mkdir -p "$(dirname "$APP_STAMP")"; echo "$APP_SUM" > "$APP_STAMP"; fi
+  elif [ "$REBUILD" = 0 ] && [ -d "$INSTALLED_APP" ] && [ -f "$APP_STAMP" ] && [ "$(cat "$APP_STAMP")" = "$APP_SUM" ]; then
     skip "$INSTALLED_APP is up to date (not rebuilt, so macOS keeps its permissions; --rebuild-tracker forces it)"
   else
     [ -d "$INSTALLED_APP" ] && echo "   note: rebuilding changes the app's signature; if Start then fails, re-grant \"Steady Tracker\" (NEEDS-HUMAN.md item 19)"
@@ -230,7 +238,7 @@ Next steps (in Krita):
   5. When macOS asks, allow Camera and Microphone for "Steady Tracker". Then turn "Steady Tracker" on
      under System Settings › Privacy & Security › Accessibility and › Input Monitoring (the panel's
      "Open … settings" buttons go straight there). Press Stop, then Start.
-  6. Setup page: pick your camera (Desk View if listed), press Recalibrate, rest your hand, hold still
+  6. Setup page: pick your camera (Desk View if listed), press Calibrate, rest your hand, hold still
      to lower the pen, hold still again to lift it.
 Checklist: NEEDS-HUMAN.md. Step-by-step with System Settings links: scripts/human-setup.md.
 EOF

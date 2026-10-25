@@ -34,7 +34,7 @@ keys (voice and Claude beats are left out). Total ≤ 1:30.
 | Time | Shot | Caption |
 |---|---|---|
 | 0:00 | B-roll: hand sets a stylus down and rests open on the desk. | "No stylus. No grip." |
-| 0:08 | Krita with the Steady panel: **Start**, then Setup › **Recalibrate**. Hold still (3 s), draw an easy circle (4 s), move right then away (3 s). | "15-second calibration" |
+| 0:08 | Krita with the Steady panel: **Start**, then Setup › **Calibrate**. Hold still (3 s), draw an easy circle (4 s), move right then away (3 s). | "15-second calibration" |
 | 0:22 | Hold still over the canvas (pen down), write a short word in Krita, hold still to lift. | "Hold still to lower, hold still to lift" |
 | 0:40 | *(If available.)* Panel › Demo › **Simulate tremor** on; draw a line; then Steadier twice (Steady page) and draw it again; the deviation drops. | **"Simulated tremor"** · "Steadiness is a slider: ability changes hour to hour" |
 | 1:00 | **F7**: the stroke disappears (Undo). Cover the camera mid-stroke: the stroke ends cleanly, "Tracking lost", then "Tracking back. Pen is up." | "Lose the hand → the pen lifts" |

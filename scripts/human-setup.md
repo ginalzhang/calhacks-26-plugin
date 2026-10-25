@@ -94,7 +94,7 @@ If the pointer ever seems stuck, **click the physical mouse or touchpad once**. 
 
 ## 5. Pick the camera and paint (5 min)
 
-Press the **Setup** page tile in the panel. It has the camera preview, the camera list and Recalibrate.
+Press the **Setup** page tile in the panel. It has the camera preview, the camera list and Calibrate.
 
 1. In the **Camera** list, look for an entry with **"Desk View"** in its name.
    - **Listed:** choose it. Write "Desk View listed" in `NEEDS-HUMAN.md` item 5.
@@ -102,7 +102,7 @@ Press the **Setup** page tile in the panel. It has the camera preview, the camer
    - **No iPhone:** choose the built-in camera. Write down which one you used.
 2. The small preview shows your hand with a dot on the index knuckle. If moving your hand right moves the dot
    or the pointer left, press **Mirror camera**; if it is upside down, **Rotate camera**.
-3. Press **Recalibrate** and follow the panel: hold still (3 s), draw an easy circle (4 s), move right then
+3. Press **Calibrate** (it reads **Recalibrate** if Steady was calibrated before) and follow the panel: hold still (3 s), draw an easy circle (4 s), move right then
    away (3 s).
 4. Rest your forearm on the towel, fingers curled loosely. The pointer follows your hand.
 5. Hold still about a second over Krita's canvas: the pen goes **down**. Move: a stroke appears in Krita.

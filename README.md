@@ -127,10 +127,11 @@ whenever Steady Tracker is missing a permission.
 
 **Pages:**
 
-- **Setup.** The camera **preview** (160×120, the tracked point drawn on it), the **Camera** list (Desk View is
-  preferred when present), **Mirror camera** / **Rotate camera**, **Recalibrate**, **Pointer point** (index
-  knuckle by default), **Use last setup**, and profiles (**Steady day**, **Shaky day**, **Save profile**).
-- **Recalibrate** takes about 15 s: hold still (3 s), draw an easy circle (4 s), move right then away (3 s); a
+- **Setup.** The camera **preview** (160×120, the tracked point drawn on it; shown only while Setup is open),
+  the **Camera** list (Desk View is preferred when present), **Mirror camera** / **Rotate camera**,
+  **Calibrate** (it reads **Recalibrate** once calibrated), **Pointer point** (index knuckle by default),
+  **Use last setup**, and profiles (**Steady day**, **Shaky day**, your own, **Save profile**).
+- **Calibrate** takes about 15 s: hold still (3 s), draw an easy circle (4 s), move right then away (3 s); a
   progress box shows each step on every page. Calibration is kept per hand.
 - **Rest hand → pointer.** The pointer follows the index knuckle (it moves only with the wrist and forearm).
 - **Dwell to lower, dwell to lift.** Hold still ~0.8 s over Krita's canvas: the pen goes down and you paint.
@@ -151,7 +152,8 @@ whenever Steady Tracker is missing a permission.
 - **Mic.** Tap the Mic tile to open or close the microphone, or hold F10 to talk. Say "blue", "bigger",
   "new layer", "undo that", "steadier", "save". The status line always shows **"Heard: …"** and what Steady did.
 - **Pause / Resume.** F9, the Pause tile, or saying "pause". The button is released, the pointer is clamped to the
-  Steady panel, so ink in Krita is impossible, and the tile becomes **Resume**, reachable by dwell alone.
+  Steady panel (to Krita's window if the panel is hidden), so ink on the canvas is impossible, and the tile
+  becomes **Resume**, reachable by dwell alone.
 
 ## How it works
 
@@ -203,8 +205,8 @@ still lifts in every mode, and a still hand never adds ink.
   panel disconnects or presses Stop, on exit, and inside a top-level exception handler.
 - Tracking loss is one rule: a frame whose hand score is < 0.6 counts as no detection; after 300 ms without a
   good frame the button is released and the status gives a reason. On re-acquire the pen stays up.
-- **Pause** releases the button and clamps the pointer to the Steady panel's rect; the tracker also refuses
-  `down` while paused.
+- **Pause** releases the button and clamps the pointer to the Steady panel's rect (Krita's window while the
+  panel is hidden); the tracker also refuses `down` while paused.
 - Clicks only ever land inside Krita's main window (which contains the docked panel) or a floating Steady
   panel: never the menu bar, the Dock or another app.
 - No pinch, no grip, no finger held extended, no time limits, no drag required for any UI.
@@ -264,13 +266,15 @@ timeouts). No numbers until a real run exists.*
 
 ## Privacy
 
-Camera frames never leave this computer; the camera sees the desk, so papers on it are visible to the app, and processing is local only. Microphone audio goes to Cartesia only while the mic is open. When the local grammar can't match a command, its text (never audio) plus the current tool, preset, size, opacity, colour, Steadiness and your last three actions go to our server and on to Anthropic. The helper and the Krita plugin listen on `127.0.0.1` only and send nothing off the machine.
+Camera frames never leave this computer; the camera sees the desk, so papers on it are visible to the app, and processing is local only. Microphone audio goes to Cartesia only while the mic is open. When the local grammar can't match a command, its text (never audio) plus the current tool, preset, size, opacity, colour, Steadiness and your last three actions go from this Mac directly to Anthropic. Steady Tracker and the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine.
 
-*In the plugin build* "our server" is the Steady Tracker process on this Mac, which calls Anthropic's API
-directly, and "the helper" is Steady Tracker itself (it listens on `127.0.0.1:8767` for the panel; the Krita
-bridge listens on `127.0.0.1:8766`). The panel's first-run Privacy box says it that way: "Steady Tracker and
-the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine." Settings, calibration and the Claude log stay in
-`~/Library/Application Support/Steady/`.
+This is exactly the text of the panel's first-run Privacy box. Its first two sentences are §0 rule 9 of the
+spec verbatim; the last two are adapted for the plugin build (a deliberate, logged lead decision), because
+there is no Steady server any more: Steady Tracker calls Cartesia and Anthropic itself. Steady Tracker listens
+on `127.0.0.1:8767` (panel), the Krita bridge on `127.0.0.1:8766`. Settings, calibration, profiles and the
+Claude log stay in `~/Library/Application Support/Steady/`; the tracker log is `~/Library/Logs/Steady/tracker.log`.
+The website version's wording ("go to our server and on to Anthropic. The helper and the Krita plugin listen
+on `127.0.0.1` only…") still applies to that version, which has a server route.
 
 ## Pressure
 
@@ -303,13 +307,14 @@ hand unable to leave ink.
 - Steady Tracker is built locally and ad-hoc signed. macOS ties permissions to the app's signature, so after a
   rebuild macOS may ask again (or the old grant may silently stop working): remove "Steady Tracker" from
   Accessibility / Input Monitoring and add it again.
-- There is no dwell-ring overlay over the canvas in the plugin build: the panel's status, tracking word and
-  preview carry the feedback. *TODO: confirm against the final tracker build.*
+- There is no dwell-ring overlay over the canvas in the plugin build (Steady Tracker draws nothing on screen):
+  the panel's status, tracking word, preview and Krita's own brush cursor carry the feedback.
 - The panel renders the whole shared action table, so it also shows tiles for **Head mode**, **Eyebrow lift**,
-  **Colour cap** / **Pick sticker colour**, **Lock exposure**, **Show numbers** / **Click number** and the
-  **Photoshop** app profile. At the time of writing Steady Tracker tracks the hand only (MediaPipe
-  HandLandmarker) and draws no overlay, so those work in the **website version** only (below).
-  *TODO: update if they are ported to the tracker.*
+  **Colour cap** / **Pick sticker colour**, **Lock exposure**, **Clear practice** and the **App** (Photoshop)
+  profile. In the plugin build these only answer with a status line: Steady Tracker tracks the hand only
+  (MediaPipe HandLandmarker) and sends Krita commands only. They work in the **website version** (below).
+- **Show numbers** in the plugin build lists Krita's buttons in the status line ("Numbers: 1 Brush, 2 Eraser, …")
+  instead of drawing badges; "click 5" then clicks that button. Remapping the F-keys is not wired up yet.
 - Camera angles from a wheelchair or a bed are untested.
 - MediaPipe's detection confidence can be lower for darker skin in low light; Steady surfaces the tracking
   word and a lighting warning, and better light is the fix.

@@ -56,7 +56,7 @@ item. Hardware: camera, microphone, keyboard, mouse/touchpad (no pedal needed).
 8. [ ] **Conflicts off** [F]: System Settings › Accessibility › Voice Control OFF; Pointer Control: Dwell,
    Head pointer, Alternate pointer actions OFF; **unplug any drawing tablet**. If F8 changes brightness or
    volume, turn on Keyboard › "Use F1, F2, etc. keys as standard function keys".
-9. [ ] **Calibrate on a real hand** [F, B]: panel › Setup › **Recalibrate**: rest 3 s, circle 4 s, right-then-away 3 s. The
+9. [ ] **Calibrate on a real hand** [F, B]: panel › Setup › **Calibrate** (reads Recalibrate once calibrated): rest 3 s, circle 4 s, right-then-away 3 s. The
    status says if an axis was flipped; a slow, arm-sized movement crosses the canvas. Stop/Start: the
    calibration is remembered (`~/Library/Application Support/Steady/calibration.json`).
 10. [ ] **Covering the camera mid-stroke ends the stroke** [F, C] within ~0.3 s: no scribble, status says
