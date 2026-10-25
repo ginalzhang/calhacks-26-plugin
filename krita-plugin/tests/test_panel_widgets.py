@@ -147,6 +147,13 @@ def test_setup_page_preview_cameras_and_calibration(env):
     assert sent[-1]["settings"] == {"landmark": 8}
     hub.ctl.on_message({"t": "preview", "jpeg_b64": "/9j/", "w": 160, "h": 120})
     assert p.preview.pixmap() is not None
+    p.action_tiles["use_last_setup"][0].click()
+    assert sent[-1]["t"] == "action" and sent[-1]["action"] == "use_last_setup"
+    assert list(p.profile_tiles) == ["Steady day", "Shaky day"]
+    hub.ctl.on_message({"t": "state", "profiles": ["Steady day", "Shaky day", "Flare day"]})
+    assert list(p.profile_tiles) == ["Steady day", "Shaky day", "Flare day"]
+    p.profile_tiles["Flare day"].click()
+    assert sent[-1]["action"] == "use_profile" and sent[-1]["variant"] == "Flare day"
     p.set_page("steady")
     assert sent[-1]["settings"] == {"preview": False}
 
@@ -217,9 +224,8 @@ def test_panel_rect_and_disconnect(env):
     hub.tick()
     assert sent[-1] == {"t": "panel_rect", "rect": {"x": 100, "y": 50, "w": 380, "h": 900}}
     docker.hide()
-    n = len(sent)
     hub.report_rect()
-    assert len(sent) == n  # hidden: nothing sent (the tracker rejects rect:null)
+    assert sent[-1] == {"t": "panel_rect", "rect": None}  # hidden panel
     docker.show()
     hub.report_rect()
     assert sent[-1]["rect"]["w"] == 380

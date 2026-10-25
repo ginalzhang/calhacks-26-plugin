@@ -25,16 +25,16 @@ TRACKER_PORT = 8767
 MAX_LINE = 4 << 20  # a preview JPEG is ~10 KB of base64; anything near 4 MiB is garbage
 
 # --------------------------------------------------------------------------- privacy (§0 rule 9)
-# Sentences 1-3 are the spec / website text verbatim. Sentence 4 is adapted for the plugin build:
-# the browser no longer exists, Steady Tracker (not "the helper") owns the sockets, and because the
-# tracker itself now talks to Cartesia and Anthropic it says "nothing else" (sentences 2-3 are the
-# only things that leave the machine).
+# Sentences 1-2 are the spec / website text verbatim. Adapted for the plugin build (lead decision):
+# sentence 3 — there is no Steady server, the tracker calls Anthropic directly; sentence 4 — Steady
+# Tracker (not "the helper") owns the sockets and, since it talks to Cartesia and Anthropic itself,
+# sends "nothing else" off the machine.
 PRIVACY_SENTENCES = (
     "Camera frames never leave this computer; the camera sees the desk, so papers on it are visible to the app, "
     "and processing is local only.",
     "Microphone audio goes to Cartesia only while the mic is open.",
     "When the local grammar can't match a command, its text (never audio) plus the current tool, preset, size, "
-    "opacity, colour, Steadiness and your last three actions go to our server and on to Anthropic.",
+    "opacity, colour, Steadiness and your last three actions go from this Mac directly to Anthropic.",
     "Steady Tracker and the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine.",
 )
 PRIVACY_TEXT = " ".join(PRIVACY_SENTENCES)
@@ -245,6 +245,16 @@ SETTING_TOGGLES: Dict[str, List[Tuple[str, str]]] = {
 }
 
 BUILTIN_PROFILES = ["Steady day", "Shaky day"]
+
+
+def profile_names(state: Dict[str, Any]) -> List[str]:
+    """PanelState.profiles (saved profile names, built-ins included), else the two built-ins."""
+    names = state.get("profiles")
+    if isinstance(names, list):
+        out = [str(n) for n in names if isinstance(n, str) and n.strip()]
+        if out:
+            return out
+    return list(BUILTIN_PROFILES)
 
 
 def get_setting(settings: Dict[str, Any], path: str, default: Any = None) -> Any:
@@ -805,11 +815,6 @@ class PanelController:
 
     def use_profile(self, name: str) -> Dict[str, Any]:
         msg = self.msgs.action("use_profile", variant=name)
-        self.send(msg)
-        return msg
-
-    def use_last_setup(self) -> Dict[str, Any]:
-        msg = self.msgs.action("use_last_setup")
         self.send(msg)
         return msg
 

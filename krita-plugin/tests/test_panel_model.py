@@ -230,6 +230,8 @@ def test_tile_press_messages(table):
     assert sent[-1]["t"] == "calibrate" and sent[-1]["steps"] == [1, 2, 3]
     ctl.press("eraser")  # no state field reports the eraser: optimistic local toggle
     assert tile_view(table, "eraser", ctl.model.state, ctl.local_checked).checked
+    ctl.press("use_last_setup")
+    assert sent[-1]["t"] == "action" and sent[-1]["action"] == "use_last_setup"
     ctl.use_profile("Shaky day")
     assert sent[-1]["action"] == "use_profile" and sent[-1]["variant"] == "Shaky day"
     assert ctl.typed("  bigger ")["text"] == "bigger" and ctl.typed("   ") is None
@@ -326,6 +328,13 @@ def test_partial_state_merges_and_disconnect_forgets():
     assert m.state == {} and m.preview is None and not m.connected
 
 
+def test_profile_names_from_state():
+    from steady.panel_model import profile_names
+    assert profile_names({}) == ["Steady day", "Shaky day"]
+    assert profile_names({"profiles": []}) == ["Steady day", "Shaky day"]
+    assert profile_names({"profiles": ["Steady day", "Shaky day", "Morning"]})[-1] == "Morning"
+
+
 def test_trail_fit_keeps_aspect():
     tf = fit_trail([[(0, 0), (100, 50)]], 200, 200, margin=0)
     assert tf((0, 0)) == (0.0, 50.0) and tf((100, 50)) == (200.0, 150.0)
@@ -412,7 +421,14 @@ def test_privacy_text_matches_spec_sentence_by_sentence():
     spec = _sentences(_spec_rule9())
     ours = _sentences(PRIVACY_TEXT)
     assert len(spec) == len(ours) == 4
-    assert ours[:3] == spec[:3]  # camera, Cartesia and Claude sentences unchanged
+    assert ours[:2] == spec[:2]  # camera and Cartesia sentences unchanged
+    assert spec[2].endswith("go to our server and on to Anthropic.")
+    # plugin build: no Steady server, the tracker calls Anthropic directly (lead decision)
+    assert ours[2] == spec[2].replace("go to our server and on to Anthropic.",
+                                      "go from this Mac directly to Anthropic.")
+    assert ours[2] == ("When the local grammar can't match a command, its text (never audio) plus the current "
+                       "tool, preset, size, opacity, colour, Steadiness and your last three actions go from this "
+                       "Mac directly to Anthropic.")
     assert spec[3] == "The helper and the Krita plugin listen on 127.0.0.1 only and send nothing off the machine."
     assert ours[3] == "Steady Tracker and the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine."
     assert PRIVACY_TEXT == " ".join(PRIVACY_SENTENCES)

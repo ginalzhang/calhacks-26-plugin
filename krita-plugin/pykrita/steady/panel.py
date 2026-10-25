@@ -65,7 +65,6 @@ except ImportError:  # imported outside Krita (tests without a stub)
 
 from . import launcher
 from .panel_model import (
-    BUILTIN_PROFILES,
     COACHING_TEXT,
     HEADER_COLUMNS,
     INSTALL_HINT,
@@ -94,6 +93,7 @@ from .panel_model import (
     longest_word,
     missing_permissions,
     page_actions,
+    profile_names,
     rect_dict,
     slider_value,
     sliders_for,
@@ -722,20 +722,22 @@ class SteadyPanel(QWidget):
         self.pointer_tile = Tile("Pointer point", self.ctl.cycle_landmark)
         self.pointer_tile.setToolTip("Which part of the hand moves the pointer. Index knuckle is the default.")
         tiles.append(self.pointer_tile)
-        tiles.append(Tile("Use last setup", self.ctl.use_last_setup))
         lay.addLayout(_grid(tiles, columns_for("setup")))
 
         lay.addWidget(_label("Profiles", "title"))
         prof: List[QWidget] = []
         if "use_profile" in ids:
             prof.append(self._action_tile("use_profile"))
-        self.profile_tiles: Dict[str, Tile] = {}
-        for name in BUILTIN_PROFILES:
-            t = Tile(name, (lambda n=name: self.ctl.use_profile(n)))
-            t.setToolTip(f"Use the {name} profile")
-            self.profile_tiles[name] = t
-            prof.append(t)
         lay.addLayout(_grid(prof, columns_for("setup")))
+        # one tile per saved profile (PanelState.profiles; Steady day / Shaky day when absent)
+        self.profile_holder = QWidget()
+        self.profile_lay = QGridLayout(self.profile_holder)
+        self.profile_lay.setContentsMargins(0, 0, 0, 0)
+        self.profile_lay.setHorizontalSpacing(GAP)
+        self.profile_lay.setVerticalSpacing(GAP)
+        self.profile_tiles: Dict[str, Tile] = {}
+        lay.addWidget(self.profile_holder)
+        self.render_profiles()
 
     def _typed_box(self) -> QHBoxLayout:
         row = QHBoxLayout()
@@ -840,6 +842,7 @@ class SteadyPanel(QWidget):
             f"Detection {st.get('detectionFps', '–') if connected else '–'} fps")
         self.trace.update()
         self.render_cameras()
+        self.render_profiles()
         self.render_permissions()
         self.render_preview()
 
@@ -882,6 +885,21 @@ class SteadyPanel(QWidget):
                 t.setChecked(on)
                 t.blockSignals(False)
                 t._sync_colour()
+
+    def render_profiles(self) -> None:
+        names = profile_names(self.hub.model.state)
+        if list(self.profile_tiles) == names:
+            return
+        for t in self.profile_tiles.values():
+            self.profile_lay.removeWidget(t)
+            t.deleteLater()
+        self.profile_tiles = {}
+        cols = columns_for("setup")
+        for i, name in enumerate(names):
+            t = Tile(name, (lambda n=name: self.ctl.use_profile(n)))
+            t.setToolTip(f"Use the {name} profile")
+            self.profile_tiles[name] = t
+            self.profile_lay.addWidget(t, i // cols, i % cols)
 
     def render_permissions(self) -> None:
         missing = missing_permissions(self.hub.model.permissions) if self.hub.model.connected else []
@@ -1079,11 +1097,10 @@ class Hub:
         if not self.model.connected:
             self._last_rect = "unset"
             return
-        # A hidden panel sends nothing (the tracker answers rect:null with bad_args); the tracker keeps
-        # the last rect. Requested in DECISIONS.md: accept null = panel hidden.
-        if rect is not None and (force or rect != self._last_rect):
+        # rect null = panel hidden (lead decision; the tracker must not clamp Pause to a stale rect)
+        if force or rect != self._last_rect:
+            self._last_rect = rect
             self.client.send(self.ctl.msgs.panel_rect(rect))
-        self._last_rect = rect
 
     def tick(self) -> None:
         """Every 1 s (client timer): the panel rect, even unchanged (the tracker may have restarted)."""
