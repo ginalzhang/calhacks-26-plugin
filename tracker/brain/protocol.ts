@@ -40,8 +40,9 @@ export interface PanelState {
 
 // ---------------------------------------------------------------- tracker → brain
 export type ToBrain =
-  | { t: "init"; settings: SteadySettings; calibration: Calibration | null; now: number }
-  | { t: "frame"; frame: LandmarkFrame }
+  /** settings may carry brain-owned keys `aliases`, `profiles`, `skinHex` (round-tripped via settings_changed). calibrations = per-hand store (Other hand). */
+  | { t: "init"; settings: SteadySettings; calibration: Calibration | null; calibrations?: { Left?: Calibration; Right?: Calibration }; now: number }
+  | { t: "frame"; frame: LandmarkFrame; cameraFps?: number }
   | { t: "tick"; now: number }
   | { t: "action"; action: string; variant?: string; arg?: number | null; source: "tile" | "typed" | "voice" | "hotkey" | "claude" | "dwell" | "system"; now: number }
   | { t: "settings"; settings: Partial<SteadySettings> }
@@ -49,7 +50,10 @@ export type ToBrain =
   | { t: "calibrate"; steps: Array<1 | 2 | 3>; now: number }
   | { t: "parse"; id: string; text: string; opts: ParseOptions }
   | { t: "hotkey"; key: "pen" | "pause" | "ptt_down" | "ptt_up" | "undo" | "redo" | "recenter" | "other_hand" | "latch"; now: number }
-  /** Events from the pointer/bridge side: the helper released a button by itself, refused a down, Krita connected, a krita reply arrived. */
+  /**
+   * Events from the pointer/bridge side. data shapes: released {reason}; refused_down {code:"paused"|"permission", which?, message?};
+   * krita_state {connected, window_rect?}; krita_reply {id, ok, error?, ...reply fields} (id = the brain's `b<n>` request id).
+   */
   | { t: "helper_event"; event: "released" | "refused_down" | "krita_state" | "krita_reply"; data?: Record<string, unknown>; now: number }
   | { t: "dialog_answer"; dialog_id: string; answer: string; now: number }
   | { t: "shutdown" };
@@ -63,10 +67,12 @@ export type FromBrain =
   | { t: "krita"; id: string; cmd: KritaCommand; fallback_keys?: string }
   | { t: "keys"; id: string; combo: string }
   | { t: "state"; state: PanelState }
+  /** status {text:"", level:"alert"} clears the persistent alert. */
   | { t: "status"; text: string; level: "status" | "alert" }
   | { t: "calibration"; calibration: Calibration }
   | { t: "parsed"; id: string; result: ParseResult }
   | { t: "dialog"; dialog_id: string; kind: "confirm" | "clarify"; text: string; options: Array<{ id: string; label: string }> }
+  | { t: "dialog_close"; dialog_id: string }
   | { t: "speak"; text: string }
   | { t: "mic"; open: boolean; reason: "ptt" | "tile" | "quiet" | "dialog" }
   | { t: "settings_changed"; settings: Partial<SteadySettings> }

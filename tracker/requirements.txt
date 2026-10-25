@@ -1,0 +1,14 @@
+# Steady Tracker.app (tracker/steadytracker): camera + MediaPipe + pointer + hotkeys + Krita relay + panel server.
+# Installed into tracker/.venv (python3.12) by scripts/run-tracker.sh when this file changes.
+mediapipe==1.1.1
+opencv-python-headless>=4.10
+numpy
+websockets>=13
+pynput>=1.7.7
+pyobjc-framework-Cocoa>=10
+pyobjc-framework-Quartz>=10
+pyobjc-framework-ApplicationServices>=10
+pyobjc-framework-AVFoundation>=10
+# voice (agent E: tracker/steadytracker/voice)
+sounddevice
+anthropic
