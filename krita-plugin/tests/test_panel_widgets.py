@@ -66,7 +66,7 @@ def test_imports_with_stub_qt_and_builds_the_tree(env):
     ids = {a["id"] for a in hub.table.actions if a["page"] != "dialog"}
     assert set(p.action_tiles) == ids
     assert all(len(t) == 1 for t in p.action_tiles.values())  # exactly one tile per action
-    assert len(p.sliders) == 8
+    assert len(p.sliders) == 9
     assert p.pages["steady"].isVisible() and not p.pages["setup"].isVisible()
     assert p.start_tile.text_label() == "Start"
     assert p.status.text() == "Steady Tracker is not running. Press Start."
@@ -98,6 +98,27 @@ def test_toggle_click_follows_state_not_the_click(env):
     assert sent[-1]["action"] == "latch"
     hub.ctl.on_message({"t": "state", "state": {"latch": False}})  # tracker says still off
     assert not latch.isChecked()
+
+
+def test_always_listening_toggle_note_and_mic_line(env):
+    panel, hub, docker, sent, app = env
+    connect(hub)
+    p = docker.panel
+    assert not p.always_note.isVisible()
+    p.setting_tiles["alwaysListen"].click()
+    assert sent[-1]["settings"] == {"alwaysListen": True}
+    assert p.always_note.isVisible() and p.always_note.text() == (
+        "Always listening is on: the mic stays open on this Mac, and only when you speak is that audio sent to "
+        "Cartesia.")
+    hub.ctl.on_message({"t": "state", "micOpen": True})
+    mic = p.action_tiles["mic"][0]
+    assert mic.text_label() == "Mic" and mic.accessibleName() == "Mic" and mic.sub.text() == "Listening"
+    mic.click()
+    assert sent[-1]["settings"] == {"alwaysListen": False}
+    assert not p.always_note.isVisible()
+    assert p.privacy_text.text() == panel.PRIVACY_TEXT  # first-run text unchanged
+    row = next(r for r in p.sliders if r.spec.key == "utteranceEndMs")
+    assert row.value.text() == "450 ms"
 
 
 def test_phase_disabled_tiles_keep_labels(env):

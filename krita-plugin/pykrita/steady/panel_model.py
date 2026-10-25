@@ -203,6 +203,7 @@ SLIDERS: List[SliderSpec] = [
     SliderSpec("dwellDownMs", "Pen-down hold", 500, 1500, 50, 50, "ms", "timing", 800),
     SliderSpec("dwellUpMs", "Pen-up hold", 800, 3000, 50, 50, "ms", "timing", 1200),
     SliderSpec("micSilenceMs", "Mic silence", 1000, 8000, 50, 500, "s", "timing", 2000),
+    SliderSpec("utteranceEndMs", "Speech end", 250, 1500, 50, 50, "ms", "timing", 450),
     SliderSpec("micCapMs", "Mic limit", 15000, 60000, 50, 5000, "s", "timing", 15000),
     SliderSpec("hatchLagMs", "Hatch lag", 80, 250, 10, 10, "ms", "modes", 120),
     SliderSpec("dashPauseMs", "Dash pause", 100, 600, 50, 50, "ms", "modes", 200),
@@ -240,11 +241,13 @@ def next_landmark(i: Any) -> int:
 SETTING_TOGGLES: Dict[str, List[Tuple[str, str]]] = {
     "setup": [("Mirror camera", "mirrorCamera"), ("Rotate camera", "rotateCamera")],
     "input": [("Dwell click", "dwellClickEnabled"), ("All dwell", "inputs.dwell"), ("Keys", "inputs.keys"),
-              ("Camera", "inputs.camera"), ("Voice", "inputs.voice"), ("Speech replies", "tts"),
+              ("Camera", "inputs.camera"), ("Voice", "inputs.voice"), ("Always listening", "alwaysListen"), ("Speech replies", "tts"),
               ("Sounds", "earcons")],
 }
 
 BUILTIN_PROFILES = ["Steady day", "Shaky day"]
+ALWAYS_LISTEN_NOTE = ("Always listening is on: the mic stays open on this Mac, and only when you speak is that audio "
+                      "sent to Cartesia.")
 
 
 def profile_names(state: Dict[str, Any]) -> List[str]:
@@ -551,9 +554,10 @@ class PanelModel:
 
 class TileView:
     def __init__(self, label: str, checkable: bool, checked: bool, enabled: bool, tooltip: str = "",
-                 colour: Optional[str] = None, danger: bool = False) -> None:
+                 colour: Optional[str] = None, danger: bool = False, sub: str = "") -> None:
         self.label, self.checkable, self.checked, self.enabled = label, checkable, checked, enabled
         self.tooltip, self.colour, self.danger = tooltip, colour, danger
+        self.sub = sub  # second line under the (fixed) label, e.g. Mic › "Listening"
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"TileView({self.label!r}, checkable={self.checkable}, checked={self.checked}, enabled={self.enabled})"
@@ -621,7 +625,13 @@ def tile_view(table: ActionTable, action_id: str, state: Dict[str, Any],
         tip = "Not in this build yet."
     elif a.get("key"):
         tip = (tip + " " if tip else "") + f"Key: {a['key']}."
-    return TileView(label, checkable, checked, enabled, tip, table.colour_of(action_id), bool(a.get("destructive")))
+    sub = ""
+    if action_id == "mic" and s.get("alwaysListen"):
+        if state.get("micOpen"):
+            sub = "Listening"
+        tip = "Always listening is on. Tap Mic to turn it off."
+    return TileView(label, checkable, checked, enabled, tip, table.colour_of(action_id), bool(a.get("destructive")),
+                    sub)
 
 
 def tracking_view(state: Dict[str, Any], connected: bool) -> Tuple[str, str]:
@@ -800,6 +810,8 @@ class PanelController:
         if a is None or not self.table.tile_available(action_id):
             return None
         st = self.model.state
+        if action_id == "mic" and self.model.settings.get("alwaysListen"):
+            return self.set_setting("alwaysListen", False)  # tapping Mic ends always-listening
         if action_id == "mic":
             msg = self.msgs.mic(not bool(st.get("micOpen")))
         elif action_id == "recalibrate":

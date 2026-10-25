@@ -65,6 +65,7 @@ except ImportError:  # imported outside Krita (tests without a stub)
 
 from . import launcher
 from .panel_model import (
+    ALWAYS_LISTEN_NOTE,
     COACHING_TEXT,
     HEADER_COLUMNS,
     INSTALL_HINT,
@@ -156,7 +157,7 @@ STYLE = """
 #steadyRoot QPushButton#tile:checked, #steadyRoot QPushButton#tile[current="true"] {
   background: #ffd166; border-color: #fff3c4;
 }
-#steadyRoot QPushButton#tile[current="true"] { border-bottom: 6px solid #111111; }
+#steadyRoot QPushButton#tile[current="true"] { border: 2px solid #111111; }
 #steadyRoot QPushButton#tile[danger="true"] { border-color: #ff6b6b; }
 #steadyRoot QPushButton#tile[primary="true"] { background: #1e3a8a; border-color: #93b4ff; }
 #steadyRoot QPushButton#tile:focus { border: 3px solid #ffd166; }
@@ -165,6 +166,7 @@ STYLE = """
 }
 #steadyRoot QPushButton#tile:disabled { background: #1c2029; border-color: #4b5160; }
 #steadyRoot QLabel#tileLabel { font-size: 18px; font-weight: 600; }
+#steadyRoot QLabel#tileSub { font-size: 18px; font-weight: 400; }
 #steadyRoot QLineEdit {
   background: #0f1115; border: 2px solid #7d8696; border-radius: 8px;
   min-height: 52px; padding: 4px 8px; font-size: 18px;
@@ -226,6 +228,8 @@ class Tile(QPushButton):
         self._lay.setContentsMargins(6, 4, 6, 4)
         self._lay.setSpacing(2)
         self.swatch: Optional[QLabel] = None
+        self.sub: Optional[QLabel] = None
+        self._sub_text = ""
         if colour:
             self.swatch = QLabel()
             self.swatch.setFixedSize(28, 14)
@@ -252,13 +256,36 @@ class Tile(QPushButton):
         self._text = text
         self.label.setText(text)
         self.setAccessibleName(self._accessible or text)
+        self._fit_width()
+        self._fit_height()
+
+    def _fit_width(self) -> None:
+        """Minimum width = the longest word of the label or the second line, so no word is ever clipped."""
         try:
             fm = self.label.fontMetrics()
-            word = longest_word(text) or text
-            w = fm.horizontalAdvance(word) if hasattr(fm, "horizontalAdvance") else fm.width(word)
+            words = [longest_word(self._text) or self._text, longest_word(self._sub_text)]
+            w = max((fm.horizontalAdvance(x) if hasattr(fm, "horizontalAdvance") else fm.width(x)) for x in words)
             self.setMinimumWidth(max(TILE_MIN, int(w * 1.15) + 20))  # bold 18 px is wider than the metrics' font
         except Exception:
             self.setMinimumWidth(TILE_MIN)
+
+    def set_sub(self, text: str) -> None:
+        """Optional second line (smaller); the accessible name stays the fixed label."""
+        if text == self._sub_text:
+            return
+        self._sub_text = text
+        if self.sub is None:
+            if not text:
+                return
+            self.sub = QLabel()
+            self.sub.setObjectName("tileSub")
+            self.sub.setAlignment(ALIGN_CENTER)
+            self.sub.setAttribute(TRANSPARENT_MOUSE)
+            self._lay.addWidget(self.sub)
+        self.sub.setText(text)
+        self.sub.setVisible(bool(text))
+        self.setAccessibleDescription(text)
+        self._fit_width()
         self._fit_height()
 
     def text_label(self) -> str:
@@ -270,6 +297,8 @@ class Tile(QPushButton):
             if h <= 0:
                 h = self.label.sizeHint().height()
             extra = self.swatch.height() + 2 if self.swatch is not None else 0
+            if self.sub is not None and self._sub_text:
+                extra += self.sub.sizeHint().height() + 2
             self.setMinimumHeight(max(TILE_MIN, h + extra + 12))
         except Exception:
             self.setMinimumHeight(TILE_MIN)
@@ -281,6 +310,8 @@ class Tile(QPushButton):
     def _sync_colour(self) -> None:
         dark = self.isChecked() or self.property("current") is True
         self.label.setStyleSheet("color: #111111;" if dark else "")
+        if self.sub is not None:
+            self.sub.setStyleSheet("color: #111111;" if dark else "")
 
     def set_flag(self, name: str, on: bool) -> None:
         if bool(self.property(name)) == on:
@@ -292,6 +323,7 @@ class Tile(QPushButton):
     def apply(self, view) -> None:
         """Render a panel_model.TileView without emitting clicked/toggled."""
         self.set_label(view.label)
+        self.set_sub(getattr(view, "sub", ""))
         if self.isCheckable() != view.checkable:
             self.setCheckable(view.checkable)
         if view.checkable and self.isChecked() != view.checked:
@@ -488,7 +520,8 @@ class SteadyPanel(QWidget):
         self.ctl = hub.ctl
         self.setObjectName("steadyRoot")
         self.setStyleSheet(STYLE)
-        self.setMinimumWidth(4 * TILE_MIN + 3 * GAP + 24)
+        # no explicit minimum width: the layout's minimum (longest words + gaps, ≈ 400 px) must reach the
+        # docker, or Krita can squeeze the 4-column header until tiles overlap
         self.action_tiles: Dict[str, List[Tile]] = {}
         self.sliders: List[SliderRow] = []
         self.setting_tiles: Dict[str, Tile] = {}
@@ -675,6 +708,9 @@ class SteadyPanel(QWidget):
             tiles.insert(0, self.colorcap)
             tiles += [self._setting_tile(lbl, path) for lbl, path in SETTING_TOGGLES["input"]]
             lay.addLayout(_grid(tiles, columns_for(pid)))
+            self.always_note = _label(ALWAYS_LISTEN_NOTE, "caption")
+            self.always_note.setAccessibleName("Always listening privacy note")
+            lay.addWidget(self.always_note)
         elif pid == "demo":
             lay.addLayout(_grid([self._action_tile(i) for i in ids], columns_for(pid)))
             self.tremor_caption = _label("Simulated tremor", "caption")
@@ -836,6 +872,7 @@ class SteadyPanel(QWidget):
             self.calib_prompt.setText(cal[1])
             self.calib_bar.setValue(cal[2])
         self.tremor_caption.setVisible(bool(s.get("simulateTremor")))
+        self.always_note.setVisible(bool(s.get("alwaysListen")))
         connected = self.hub.model.connected
         self.metrics.setText(
             f"{deviation_text(st)}\nCamera {st.get('cameraFps', '–') if connected else '–'} fps · "

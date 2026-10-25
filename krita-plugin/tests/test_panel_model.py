@@ -221,6 +221,33 @@ def test_mic_disabled_in_quiet_mode(table):
     assert sent[-1] == {"t": "mic", "id": sent[-1]["id"], "on": False}
 
 
+def test_always_listening_mic_tile(table):
+    st = state(micOpen=True, settings={"alwaysListen": True})
+    v = tile_view(table, "mic", st)
+    assert v.label == "Mic" and v.sub == "Listening" and v.checked  # fixed name, second line
+    assert tile_view(table, "mic", state(micOpen=False, settings={"alwaysListen": True})).sub == ""
+    assert tile_view(table, "mic", state(micOpen=True)).sub == ""
+    ctl, sent = make_ctl(table)
+    ctl.model.apply({"t": "state", "state": st})
+    ctl.press("mic")  # tapping Mic while always-listening turns it off
+    assert sent[-1]["t"] == "settings" and sent[-1]["settings"] == {"alwaysListen": False}
+    ctl.press("mic")
+    assert sent[-1]["t"] == "mic"
+    ctl.toggle_setting("alwaysListen")
+    assert sent[-1]["settings"] == {"alwaysListen": True}
+
+
+def test_speech_end_slider(table):
+    from steady.panel_model import SLIDERS_BY_KEY
+    spec = SLIDERS_BY_KEY["utteranceEndMs"]
+    assert (spec.label, spec.lo, spec.hi, spec.tile_step, spec.page, spec.default) == (
+        "Speech end", 250, 1500, 50, "timing", 450)
+    ctl, sent = make_ctl(table)
+    ctl.model.apply({"t": "state", "state": state()})
+    ctl.slider_step("utteranceEndMs", +1)
+    assert sent[-1]["settings"] == {"utteranceEndMs": 500}
+
+
 def test_tile_press_messages(table):
     ctl, sent = make_ctl(table)
     ctl.model.apply({"t": "state", "state": state()})
@@ -259,7 +286,7 @@ def test_sliders_steps_and_settings(table):
     assert sent[-1]["settings"] == {"gainOverride": 3.5}
     keys = {s.key for s in SLIDERS}
     assert keys == {"steadiness", "gainOverride", "dwellDownMs", "dwellUpMs", "micSilenceMs", "micCapMs",
-                    "hatchLagMs", "dashPauseMs"}
+                    "hatchLagMs", "dashPauseMs", "utteranceEndMs"}
     by = {s.key: s for s in SLIDERS}
     assert by["steadiness"].tile_step == 5 and by["dwellDownMs"].tile_step == 50 and by["dwellUpMs"].tile_step == 50
     assert by["dashPauseMs"].tile_step == 50

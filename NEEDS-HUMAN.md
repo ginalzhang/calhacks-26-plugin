@@ -122,6 +122,8 @@ Install with `scripts/krita-plugin-install.sh` (copies actions.json and steady_r
 7. **Confirm dialog:** "delete layer" (typed or tile on Layers) opens a dialog over Krita with **Cancel focused**. Esc cancels. Tab to Confirm, then Enter, deletes. Saying "yes" closes the dialog via dialog_close. Check the dialog is reachable by dwell (it sits inside Krita's window).
 8. **Docker height:** on a 13–14" Mac, check how much page area remains below the pinned header (about 564 px). If it is too small, report it. The fix would be fewer header rows (e.g. page selector in 6 columns on a wide docker), not smaller tiles.
 
+9. **Always listening (panel side):** Input › Always listening shows the Cartesia note under the tiles. While the mic is open, the header Mic tile reads "Mic / Listening". Tapping Mic turns always-listening off (the note disappears). Timing › Speech end moves 250–1500 ms in 50 ms steps.
+10. **Docker width:** the panel now asks for about 408 px. Check that Krita gives the right-hand docker area that width (narrower dockers beside it may get squeezed) and that no header tile overlaps another.
 ## For the submission
 42. [ ] **Record the video** [F] per `docs/demo-video.md`: first the guaranteed fallback cut, then the full
     Krita-panel script (≤ 2:00). Nothing staged that did not work.
