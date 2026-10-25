@@ -431,6 +431,8 @@ class TrackerApp:
             elif t == "ready":
                 self.brain_ready = True
                 log.info("brain ready (%s)", msg.get("version"))
+                if self.relay is not None and getattr(self.relay, "connected", False):
+                    self._helper_event("krita_state", {"connected": True, "window_rect": self.krita_rect})
             elif t == "error":
                 log.warning("brain error: %s", msg.get("text"))
             else:
@@ -621,7 +623,19 @@ class TrackerApp:
             n += 1
             if self.pointer.any_down and n % 2 == 0:
                 self.heartbeat()
+            if n % 40 == 0:
+                self._reconcile_krita_state()
             await asyncio.sleep(self.tick_s)
+
+    def _reconcile_krita_state(self) -> None:
+        """Self-heal (~every 2 s): if the brain's idea of the Krita connection disagrees with the relay
+        (e.g. a krita_state event lost in a start-up race), tell the brain again."""
+        if self.relay is None or not isinstance(self.brain_state, dict):
+            return
+        actual = bool(getattr(self.relay, "connected", False))
+        if bool(self.brain_state.get("kritaConnected")) != actual:
+            log.info("krita_state reconcile: brain=%s relay=%s", self.brain_state.get("kritaConnected"), actual)
+            self._helper_event("krita_state", {"connected": actual, "window_rect": self.krita_rect})
 
     def heartbeat(self) -> None:
         """While a button is held: a request the brain must answer (`parse ""` → `parsed`), so a hung
