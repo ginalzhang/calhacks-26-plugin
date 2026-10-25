@@ -288,9 +288,8 @@ describe("brain: actions", () => {
     const i = r.mark();
     r.action("yes", { source: "voice" });
     const after = r.since(i);
-    const closed = after.find((m) => m.t === "dialog") as Extract<FromBrain, { t: "dialog" }>;
-    expect(closed.dialog_id).toBe(d.dialog_id);
-    expect(closed.options).toEqual([]);
+    expect(after).toContainEqual({ t: "dialog_close", dialog_id: d.dialog_id });
+    expect(after.some((m) => m.t === "dialog")).toBe(false);
     // Plugin down: the lookup row falls back to its keystroke.
     expect(after.some((m) => m.t === "keys" && m.combo === "backspace")).toBe(true);
   });

@@ -732,7 +732,7 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
     }
     const d = dialog;
     dialog = null;
-    if (!fromPanel) send({ t: "dialog", dialog_id: d.id, kind: "confirm", text: "", options: [] }); // empty options = closed
+    if (!fromPanel) send({ t: "dialog_close", dialog_id: d.id });
     if (answer === "confirm" || answer === "yes") d.onConfirm();
     else status("Cancelled.");
   }
