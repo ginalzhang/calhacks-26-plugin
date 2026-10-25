@@ -211,7 +211,29 @@ function fuzzyAt(tokens: string[], i: number, table: PhraseEntry[], maxWords: nu
   return null;
 }
 
+/**
+ * Whole-utterance soundalikes for very short commands that speech recognisers often split or bend (real-Mac
+ * report 18:55 Sat: "undo" sometimes needed repeating). Voice mode only, and only when the ENTIRE transcript is
+ * the soundalike, so normal speech containing these words is never turned into a command.
+ */
+export const VOICE_SOUNDALIKES: Record<string, string> = {
+  "un do": "undo",
+  "and do": "undo",
+  "on do": "undo",
+  "in do": "undo",
+  "undue": "undo",
+  "undoo": "undo",
+  "undo it": "undo",
+  "undo undo": "undo that undo that",
+  "re do": "redo",
+  "redo it": "redo",
+};
+
 export function parseCommand(text: string, opts: ParseOptions): ParseResult {
+  if (opts.mode === "voice" && !opts.dialogOpen) {
+    const sub = VOICE_SOUNDALIKES[normalize(text)];
+    if (sub) text = sub;
+  }
   const phase = opts.phase ?? BUILD_PHASE;
   const table = entries(opts.mode, phase);
   const byPhrase = new Map(table.map((e) => [e.phrase, e]));

@@ -840,6 +840,8 @@ class VoiceController:
         finally:
             self._post(("conn_free", conn))
         if not text:
+            log.info("%s utterance (%s): EMPTY transcript after %d ms (opened=%s)", "always" if always else "mic", why,
+                     (time.monotonic() - t0) * 1000, conn.opened)
             if not conn.opened:
                 self._status(MSG["unreachable"], "alert")
             elif not always:
@@ -861,6 +863,8 @@ class VoiceController:
         heard = r.get("heard") or text
         self._heard(heard, "claude" if r.get("via") == "claude" else "grammar")
         kind = r.get("kind")
+        log.info("heard %r -> %s %s", text[:60], kind,
+                 [c.get("action") for c in (r.get("commands") or [])] if kind == "commands" else "")
         clarify = self._clarify
         if clarify is not None:
             # Our clarify prompt is open: exact "one/two/three/cancel/no" answer it; any other exact command

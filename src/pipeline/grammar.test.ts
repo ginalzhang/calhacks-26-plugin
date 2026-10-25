@@ -243,3 +243,16 @@ describe("name_brush (aliases)", () => {
     expect(parseCommand("call this brush fluffy", { mode: "voice", phase: "P2a" }).kind).toBe("nomatch");
   });
 });
+
+describe("voice soundalikes (real-Mac fix)", () => {
+  const V2 = { mode: "voice" as const };
+  it("@P2a whole-utterance soundalikes of undo/redo match in voice mode only", () => {
+    for (const t of ["Un do.", "and do", "On do!", "undue", "Undo it."]) {
+      expect(parseCommand(t, V2)).toMatchObject({ kind: "match", commands: [{ action: "undo" }] });
+    }
+    expect(parseCommand("re do", V2)).toMatchObject({ kind: "match", commands: [{ action: "redo" }] });
+    expect(parseCommand("and do", { mode: "typed" }).kind).toBe("nomatch");
+    expect(parseCommand("and do the dishes", V2).kind).toBe("nomatch");
+    expect(parseCommand("and do", { mode: "voice", dialogOpen: true }).kind).toBe("nomatch");
+  });
+});
