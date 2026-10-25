@@ -55,7 +55,7 @@ class Rig:
         self.settings = {"micSilenceMs": 2000, "micCapMs": 15000, "quiet": False, "tts": True, "steadiness": 50, **(settings or {})}
         self.connect = FakeConnect(transcript_msgs=finals(*transcript))
         self.parse = parse or Parse({"blue": match({"action": "colour_blue"})})
-        self.dispatch, self.status, self.heard, self.mic_events, self.dialogs, self.sleeps = (Recorder() for _ in range(6))
+        self.dispatch, self.status, self.heard, self.mic_events, self.dialogs, self.sleeps, self.listening = (Recorder() for _ in range(7))
         self.interp = FakeInterpreter(response)
         self.tts_sockets = []
         self.player = FakePlayer()
@@ -67,7 +67,10 @@ class Rig:
 
         http = FakeHttp()
         self.keys = keys if keys is not None else {"CARTESIA_API_KEY": "k", "ANTHROPIC_API_KEY": "", "CARTESIA_VOICE_ID": "v1"}
-        self.tts = TtsClient(TokenSource(lambda: self.keys.get("CARTESIA_API_KEY", ""), http), lambda: "v1", socket=tts_socket, player=lambda: self.player, threaded=False)
+        self.tts = TtsClient(
+            TokenSource(lambda: self.keys.get("CARTESIA_API_KEY", ""), http), lambda: "v1", socket=tts_socket,
+            player=lambda: self.player, threaded=False, now_ms=lambda: self.clock[0],
+        )
         FakeMic.instances.clear()
         self.vc = VoiceController(
             self.parse,
@@ -79,6 +82,7 @@ class Rig:
             self.keys,
             dialog=self.dialogs if dialog else None,
             on_mic=self.mic_events,
+            on_listening=self.listening,
             mic_factory=FakeMic,
             stt_connect=self.connect,
             http=http,
@@ -99,6 +103,16 @@ class Rig:
         self.clock[0] += advance_ms
         self.vc.tick()
 
+    def feed_frames(self, raw, frame_ms=20, rate=48000):
+        """Deliver audio in 20 ms callbacks, advancing the fake clock per callback (like PortAudio)."""
+        step = int(rate * frame_ms / 1000) * 4
+        for i in range(0, len(raw), step):
+            if not FakeMic.instances or self.mic.cb is None or self.mic.stopped:
+                return
+            self.mic.cb(raw[i : i + step])
+            self.clock[0] += frame_ms
+            self.vc.tick()
+
     def at(self, ms):
         self.clock[0] = ms
         self.vc.tick()
@@ -111,23 +125,36 @@ class Rig:
         return [s[0] for s in self.status.items]
 
 
-def test_tap_closes_on_silence_after_onset_and_dispatches_grammar_match(tmp_path):
-    r = Rig(tmp_path)
+def test_tap_closes_utterance_end_after_speech_and_dispatches_grammar_match(tmp_path):
+    r = Rig(tmp_path, settings={"utteranceEndMs": 450})
     r.vc.open("tile")
     assert r.vc.is_open and r.mic.started and r.mic_events.items == [(True, "tile")]
     assert "Listening…" in r.statuses()
     r.at(1000)
-    r.feed(voiced())  # speech onset (and last activity) at 1000
-    r.at(2900)
-    assert r.vc.is_open  # 1900 ms of silence
-    r.at(3000)
+    r.feed_frames(voiced(0.4))  # VAD hears speech
+    end = r.clock[0]
+    r.feed_frames(silent(0.42))
+    assert r.vc.is_open  # 420 ms of silence
+    r.feed_frames(silent(0.1))
     assert not r.vc.is_open and r.mic.stopped
+    assert r.clock[0] - end <= 450 + 20  # end of speech -> close within utteranceEndMs (+ one frame)
     assert r.mic_events.items[-1] == (False, "closed")
     assert r.ws.texts == ["finalize"]
     assert r.ws.audio and all(len(a) == 3200 for a in r.ws.audio)  # 100 ms pcm_s16le @ 16 kHz
     assert r.heard.items == [("blue", "grammar")]
     assert r.dispatch.items == [("colour_blue", None, None, "voice")]
     assert r.interp.calls == []  # grammar matched: Claude never asked
+
+
+def test_tap_falls_back_to_mic_silence_when_vad_heard_no_speech(tmp_path):
+    r = Rig(tmp_path, settings={"micSilenceMs": 2000})
+    r.vc.open("tile")
+    r.at(1000)
+    r.feed(voiced(0.1))  # a short sound: activity, but < 200 ms so the VAD never starts
+    r.at(2900)
+    assert r.vc.is_open
+    r.at(3100)
+    assert not r.vc.is_open  # micSilenceMs after the last activity
 
 
 def test_no_onset_timeout_in_tap_mode(tmp_path):

@@ -182,6 +182,7 @@ class TrackerApp:
         self._krita_running = False
         self._last_rects: Optional[Dict[str, Any]] = None
         self.brain_state: Optional[Dict[str, Any]] = None
+        self._listening = False
         #: open brain dialogs (b-dlg-*): parse gets dialogOpen while any is open
         self._brain_dialogs: set = set()
         self._last_frame: Optional[Dict[str, Any]] = None
@@ -417,7 +418,7 @@ class TrackerApp:
                 st = msg.get("state")
                 if isinstance(st, dict):
                     self._apply_state(st)
-                    self.panel.send_state(st)
+                    self.panel.send_state({**st, "listening": self._listening})
             elif t == "status":
                 if msg.get("text"):
                     log.info("status[%s]: %s", msg.get("level", "status"), msg.get("text"))
@@ -997,7 +998,20 @@ class TrackerApp:
             dialog_open=lambda: bool(self._brain_dialogs),
             aliases_getter=self.store.aliases,
             on_mic=self.on_mic_state,
+            on_listening=self.on_listening,
         )
+
+    def on_listening(self, listening: bool) -> None:
+        """Always-listening stream open/closed (voice thread). Panel-only state: NOT the brain's micOpen
+        (that would lift the pen and swallow the next F10/Mic tap)."""
+        self._listening = bool(listening)
+        st = self.brain_state
+
+        def push() -> None:
+            if isinstance(st, dict):
+                self.panel.send_state({**st, "listening": self._listening})
+
+        self._call_soon(push)
 
     def parse_blocking(self, text: str, opts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Brain `parse` round trip for voice threads (never call from the loop thread)."""

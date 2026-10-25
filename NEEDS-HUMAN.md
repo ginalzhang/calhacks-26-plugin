@@ -124,6 +124,12 @@ Install with `scripts/krita-plugin-install.sh` (copies actions.json and steady_r
 
 9. **Always listening (panel side):** Input › Always listening shows the Cartesia note under the tiles. While the mic is open, the header Mic tile reads "Mic / Listening". Tapping Mic turns always-listening off (the note disappears). Timing › Speech end moves 250–1500 ms in 50 ms steps.
 10. **Docker width:** the panel now asks for about 408 px. Check that Krita gives the right-hand docker area that width (narrower dockers beside it may get squeezed) and that no header tile overlaps another.
+E6. [ ] **Always listening** [E, C]: with "Always listen" on, say "undo" from your painting position: the last
+    stroke disappears about half a second after you stop speaking, without touching anything and without the pen
+    lifting. Talk normally to someone for a minute: nothing happens (status may show "Heard: … (not a command)").
+    Say "save": the spoken "Saved" is not heard back as a command. Quiet mode / turning the setting off closes the
+    mic (the macOS orange mic dot goes away). Note the "finalize->transcript" ms in ~/Library/Logs/Steady/tracker.log.
+
 ## For the submission
 42. [ ] **Record the video** [F] per `docs/demo-video.md`: first the guaranteed fallback cut, then the full
     Krita-panel script (≤ 2:00). Nothing staged that did not work.

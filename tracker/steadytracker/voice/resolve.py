@@ -69,6 +69,7 @@ class Resolver:
         context: Optional[Dict[str, Any]] = None,
         aliases: Optional[Dict[str, str]] = None,
         on_status: Optional[StatusFn] = None,
+        allow_claude: bool = True,
     ) -> Dict[str, Any]:
         heard = (text or "").strip()
         if not heard:
@@ -107,6 +108,9 @@ class Resolver:
 
         def log(outcome: str, latency: float, mock: bool, what: str) -> Dict[str, Any]:
             return self.log.log(f"{short_quote(heard)} → {what}", latency, outcome, mock)
+
+        if not allow_claude:  # always-listening: ambient speech never goes to Claude
+            return none("nomatch")
 
         # (2) Claude fallback
         body = self.interpreter.interpret(heard, context or {})

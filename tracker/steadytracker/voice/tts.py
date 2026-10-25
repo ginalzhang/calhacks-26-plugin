@@ -29,6 +29,9 @@ TTS_MODEL = "sonic-3.6"
 TTS_RATE = 24000
 TTS_URL = "wss://api.cartesia.ai/tts/websocket"
 
+MUTE_TAIL_MS = 300
+PENDING_MS = 2500
+
 STATUS_TEXT = {
     "ok": "",
     "off": "Spoken replies are off.",
@@ -155,6 +158,7 @@ class TtsClient:
         on_status: Optional[Callable[[str, str], None]] = None,
         new_context_id: Callable[[], str] = lambda: f"steady-{uuid.uuid4().hex[:12]}",
         threaded: bool = True,
+        now_ms: Callable[[], float] = lambda: time.monotonic() * 1000.0,
     ) -> None:
         self._tokens = tokens
         self._voice_id = voice_id
@@ -173,6 +177,11 @@ class TtsClient:
         self._player: Any = None
         self.context_id: Optional[str] = None
         self._gen = 0
+        # Always-listening mutes capture while we speak and MUTE_TAIL_MS after (our own voice must never be heard
+        # as a command). mute_until_ms covers a pending request too (until audio arrives or PENDING_MS passes).
+        self._now_ms = now_ms
+        self.mute_until_ms = 0.0
+        self._play_end_ms = 0.0
 
     # ------------------------------------------------------------------ gating
     def _set_status(self, s: str) -> None:
@@ -201,8 +210,16 @@ class TtsClient:
         if open_:
             self.cancel()
 
+    def muted(self, now_ms: Optional[float] = None) -> bool:
+        """True while speech is pending/playing and for MUTE_TAIL_MS after it."""
+        return (self._now_ms() if now_ms is None else now_ms) < self.mute_until_ms
+
     def cancel(self) -> None:
         with self._lock:
+            now = self._now_ms()
+            if self.mute_until_ms > now + MUTE_TAIL_MS:
+                self.mute_until_ms = now + MUTE_TAIL_MS
+            self._play_end_ms = min(self._play_end_ms, now)
             self._gen += 1
             cid, ws = self.context_id, self._ws
             self.context_id = None
@@ -225,6 +242,7 @@ class TtsClient:
             return False
         with self._lock:
             gen = self._gen
+            self.mute_until_ms = max(self.mute_until_ms, self._now_ms() + PENDING_MS)
         if self._threaded:
             threading.Thread(target=self._speak_job, args=(text.strip(), gen), name="steady-tts", daemon=True).start()
         else:
@@ -236,10 +254,12 @@ class TtsClient:
             tok = self._tokens.get()
         except TokenError as e:
             self._set_status("key_missing" if e.reason == "key_missing" else "error")
+            self._unmute()
             return
         vid = self._voice_id()
         if not vid:
             self._set_status("voice_unavailable")
+            self._unmute()
             return
         if not self.allowed() or gen != self._gen:
             return  # mic opened / cancelled while minting
@@ -249,6 +269,7 @@ class TtsClient:
         ws = self._socket(tok.token)
         if ws is None:
             self._set_status("error")
+            self._unmute()
             return
         with self._lock:
             if not self.allowed() or gen != self._gen:
@@ -260,6 +281,10 @@ class TtsClient:
             ws.send(json.dumps(build_tts_request(text, vid, cid)))
         except Exception:
             self._set_status("error")
+
+    def _unmute(self) -> None:
+        with self._lock:
+            self.mute_until_ms = max(self._play_end_ms + MUTE_TAIL_MS, self._now_ms()) if self._play_end_ms else self._now_ms()
 
     def _socket(self, token: str) -> Any:
         with self._lock:
@@ -317,9 +342,16 @@ class TtsClient:
                 if self._player is None:
                     self._player = self._player_factory()
                 player = self._player
+                now = self._now_ms()
+                self._play_end_ms = max(self._play_end_ms, now) + len(pcm) / 2 / TTS_RATE * 1000.0
+                self.mute_until_ms = self._play_end_ms + MUTE_TAIL_MS
             player.play(pcm)
+        elif m.get("type") == "done":
+            with self._lock:
+                self.mute_until_ms = max(self._play_end_ms, self._now_ms()) + MUTE_TAIL_MS
         elif m.get("type") == "error":
             self._set_status("error")
+            self._unmute()
 
     def shutdown(self) -> None:
         self.cancel()

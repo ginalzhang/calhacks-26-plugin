@@ -35,6 +35,8 @@ export interface PanelState {
   /** Last ≤ 3 s of raw (faded) and drawn points, screen points relative to the canvas rect, for the panel's live trace. ≤ 90 points each. */
   rawTrail: Array<{ x: number; y: number }>;
   undoLabel: string | null;
+  /** Always-listening stream open (added by the tracker from the voice module; not the brain's micOpen). */
+  listening?: boolean;
   /** Names of saved profiles (incl. "Steady day", "Shaky day") for profile tiles. */
   profiles?: string[];
   settings: SteadySettings;

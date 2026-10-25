@@ -24,7 +24,7 @@ NOISE_FLOOR = 0.004
 
 @dataclass
 class Chunk:
-    pcm: bytes  # 1600 little-endian int16 samples (3200 bytes)
+    pcm: bytes  # frame_samples little-endian int16 samples (1600 -> 3200 bytes)
     level: float  # pre-gain RMS (voice activity)
     meter: float  # post-gain RMS (level meter)
     gain: float
@@ -41,7 +41,9 @@ def float_to_int16(y: float) -> int:
 class CaptureProcessor:
     """Stateful: feed it float32 frames at ``input_rate`` (any channel count); collect ``Chunk``s."""
 
-    def __init__(self, input_rate: float, channels: int = 1) -> None:
+    def __init__(self, input_rate: float, channels: int = 1, frame_samples: int = CHUNK) -> None:
+        """``frame_samples``: output frame length at 16 kHz (1600 = 100 ms Cartesia chunks; 320 = 20 ms VAD frames)."""
+        self.frame_samples = max(1, int(frame_samples))
         self.channels = max(1, int(channels))
         self.set_rate(input_rate)
         self.acc = 0.0
@@ -99,14 +101,14 @@ class CaptureProcessor:
         self.raw_sq += s * s
         self.gain_sq += y * y
         self.out.append(float_to_int16(y))
-        if len(self.out) == CHUNK:
+        if len(self.out) == self.frame_samples:
             buf = self.out
             if sys.byteorder != "little":
                 buf.byteswap()
             c = Chunk(
                 pcm=buf.tobytes(),
-                level=math.sqrt(self.raw_sq / CHUNK),
-                meter=math.sqrt(self.gain_sq / CHUNK),
+                level=math.sqrt(self.raw_sq / self.frame_samples),
+                meter=math.sqrt(self.gain_sq / self.frame_samples),
                 gain=self.gain,
             )
             self.out = array("h")
@@ -121,3 +123,22 @@ def float32_bytes_to_list(buf: bytes) -> array:
     a = array("f")
     a.frombytes(bytes(buf))
     return a
+
+
+class Chunker:
+    """Joins 20 ms frames into the 100 ms (3200-byte) binary chunks Cartesia gets. A partial tail is dropped."""
+
+    def __init__(self, size: int = CHUNK * 2) -> None:
+        self.size = size
+        self._buf = bytearray()
+
+    def add(self, pcm: bytes) -> List[bytes]:
+        self._buf.extend(pcm)
+        out = []
+        while len(self._buf) >= self.size:
+            out.append(bytes(self._buf[: self.size]))
+            del self._buf[: self.size]
+        return out
+
+    def reset(self) -> None:
+        self._buf.clear()

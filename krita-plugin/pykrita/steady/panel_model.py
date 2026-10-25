@@ -627,7 +627,7 @@ def tile_view(table: ActionTable, action_id: str, state: Dict[str, Any],
         tip = (tip + " " if tip else "") + f"Key: {a['key']}."
     sub = ""
     if action_id == "mic" and s.get("alwaysListen"):
-        if state.get("micOpen"):
+        if state.get("listening") or state.get("micOpen"):
             sub = "Listening"
         tip = "Always listening is on. Tap Mic to turn it off."
     return TileView(label, checkable, checked, enabled, tip, table.colour_of(action_id), bool(a.get("destructive")),
