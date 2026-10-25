@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -426,18 +427,22 @@ PERMISSIONS_FOOTER = "After turning a switch on, press Stop, then Start, so Stea
 # --------------------------------------------------------------------------- dialogs
 
 
+NUMBERED = re.compile(r"^\s*(\d+[.:)]|one|two|three)\b", re.I)
+
+
 def dialog_buttons(dialog: Dict[str, Any]) -> List[Tuple[str, str]]:
     """(answer, label) in display order. Confirm: Cancel first (it gets focus), then Confirm.
     Clarify: numbered options, then Cancel."""
     kind = dialog.get("kind")
     opts = [o for o in (dialog.get("options") or []) if isinstance(o, dict) and "id" in o]
     if kind == "confirm":
-        confirm_label = "Confirm"
-        for o in opts:
-            if o.get("id") == "confirm" and o.get("label"):
-                confirm_label = str(o["label"])
-        return [("cancel", "Cancel"), ("confirm", confirm_label)]
-    out = [(str(o["id"]), f"{i}. {o.get('label', o['id'])}") for i, o in enumerate(opts, 1)]
+        return [("cancel", "Cancel"), ("confirm", "Confirm")]  # always "Confirm" (§0 rule 6)
+    out = []
+    for i, o in enumerate((o for o in opts if o.get("id") != "cancel"), 1):
+        label = str(o.get("label") or o["id"])
+        if not NUMBERED.match(label):  # the voice side already labels "One: Lighter"
+            label = f"{i}. {label}"
+        out.append((str(o["id"]), label))
     return out + [("cancel", "Cancel")]
 
 
@@ -472,10 +477,12 @@ class PanelModel:
     def apply(self, msg: Dict[str, Any]) -> set:
         t = msg.get("t")
         if t == "state":
+            # PanelState flattened next to "t" (Steady Tracker's panel_server) or nested under "state"
             st = msg.get("state")
-            if isinstance(st, dict):
-                self.state.update(st)  # full or partial PanelState
-                return {"state"}
+            if not isinstance(st, dict):
+                st = {k: v for k, v in msg.items() if k != "t"}
+            self.state.update(st)  # full or partial PanelState
+            return {"state"}
         elif t == "status":
             text = str(msg.get("text") or "")
             if msg.get("level") == "alert":
@@ -495,7 +502,10 @@ class PanelModel:
             self.permissions = {k: msg.get(k) for k, _, _ in PERMISSIONS if k in msg}
             return {"permissions"}
         elif t == "dialog":
-            if msg.get("kind") in ("confirm", "clarify"):
+            same = self.dialog is not None and msg.get("dialog_id") == self.dialog.get("dialog_id")
+            if same and not msg.get("options"):  # brain's pre-dialog_close convention: empty options = closed
+                self.dialog = None
+            elif msg.get("kind") in ("confirm", "clarify"):
                 self.dialog = dict(msg)
             else:  # forward-compatible: {kind:"close"} closes the open dialog (answered by voice/typed)
                 self.dialog = None
@@ -811,6 +821,7 @@ class PanelController:
         self.model.state["settings"] = s
         msg = self.msgs.settings(patch)
         self.send(msg)
+        self.notify({"state"})
         return msg
 
     def toggle_setting(self, path: str) -> Dict[str, Any]:

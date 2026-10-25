@@ -36,21 +36,20 @@ async function loadActions() {
   return await import(pathToFileURL(SRC).href);
 }
 
+// Every field of the action row (voice reads voicePhrases, phraseVariants, fuzzyAllowed, modeChanging,
+// scope, krita, ...), plus normalised defaults the panel relies on: toggle/destructive as booleans,
+// tilePhase = tilePhase ?? phase, and null (not absent) for key/help/arg/typed.
 function pick(a) {
-  const out = {
-    id: a.id,
-    label: a.label,
-    page: a.page,
+  return {
+    ...a,
     toggle: !!a.toggle,
     destructive: !!a.destructive,
-    phase: a.phase,
     tilePhase: a.tilePhase ?? a.phase,
     key: a.key ?? null,
     help: a.help ?? null,
     arg: a.arg ?? null,
     typed: a.typed ?? null,
   };
-  return out;
 }
 
 const m = await loadActions();

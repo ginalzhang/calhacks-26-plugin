@@ -501,7 +501,6 @@ class SteadyPanel(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self._build_header())
-        root.addWidget(self._build_banners())
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(SCROLL_OFF)
@@ -510,6 +509,9 @@ class SteadyPanel(QWidget):
         hl = QVBoxLayout(holder)
         hl.setContentsMargins(12, 12, 12, 12)
         hl.setSpacing(GAP)
+        # privacy / permissions / calibration sit at the top of the scrolling area, so the docker can
+        # stay short while the header (Start/Stop, status, core tiles, pages) stays pinned
+        hl.addWidget(self._build_banners())
         for pid, label in PAGES:
             page = self._build_page(pid)
             page.setObjectName("page")
@@ -604,7 +606,7 @@ class SteadyPanel(QWidget):
         w = QWidget()
         w.setObjectName("page")
         lay = QVBoxLayout(w)
-        lay.setContentsMargins(12, 8, 12, 0)
+        lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(GAP)
 
         # first-run privacy (§0 rule 9), shown once
@@ -950,7 +952,7 @@ class Hub:
         return cls._instance
 
     def __init__(self, table: Optional[ActionTable] = None, client: Optional[TrackerClient] = None,
-                 app: Any = None, plugin_version: str = "") -> None:
+                 app: Any = None, plugin_version: str = "", probe: bool = True) -> None:
         self.app = app if app is not None else (Krita.instance() if Krita is not None else None)
         self.plugin_version = plugin_version or _plugin_version()
         self.table = table or ActionTable.load()
@@ -965,10 +967,11 @@ class Hub:
         self.dockers: List[Any] = []
         self.panels: List[SteadyPanel] = []
         self._last_rect: Any = "unset"
-        try:
-            QTimer.singleShot(1500, self.client.probe)  # a tracker left running shows up without Start
-        except Exception:
-            pass
+        if probe:
+            try:
+                QTimer.singleShot(1500, self.client.probe)  # a tracker left running shows up without Start
+            except Exception:
+                pass
 
     def _hello(self) -> Dict[str, Any]:
         kv = ""
@@ -1076,9 +1079,11 @@ class Hub:
         if not self.model.connected:
             self._last_rect = "unset"
             return
-        if force or rect != self._last_rect:
-            self._last_rect = rect
+        # A hidden panel sends nothing (the tracker answers rect:null with bad_args); the tracker keeps
+        # the last rect. Requested in DECISIONS.md: accept null = panel hidden.
+        if rect is not None and (force or rect != self._last_rect):
             self.client.send(self.ctl.msgs.panel_rect(rect))
+        self._last_rect = rect
 
     def tick(self) -> None:
         """Every 1 s (client timer): the panel rect, even unchanged (the tracker may have restarted)."""

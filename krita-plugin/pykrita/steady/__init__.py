@@ -1,9 +1,12 @@
 """Steady Krita plugin.
 
-Listens on tcp 127.0.0.1:8766 for newline-delimited JSON commands from the Steady helper
-(docs/PROTOCOL.md) and runs them on Krita's GUI thread. Listens on localhost only and
-sends nothing off the machine. Tested on Krita 5.3.x (Qt5/PyQt5); loads on Krita 6 (PyQt6)
-but that is untested.
+Two parts:
+  * the bridge: listens on tcp 127.0.0.1:8766 for newline-delimited JSON commands from Steady
+    Tracker / the helper (docs/PROTOCOL.md) and runs them on Krita's GUI thread;
+  * the Steady panel (panel.py): a docker that is Steady's whole user interface. It launches
+    Steady Tracker.app and talks to it on 127.0.0.1:8767 (tracker/PROTOCOL.md §1).
+Both use localhost only. Tested on Krita 5.3.x (Qt5/PyQt5); loads on Krita 6 (PyQt6) but that is
+untested. The bridge never depends on the panel: if the panel fails to load, the bridge still runs.
 
 Importing this package outside Krita (pytest) registers nothing.
 """
@@ -31,9 +34,23 @@ if Krita is not None and Krita.instance() is not None:
     from .dispatch import dispatch
 
     try:
-        from PyQt5.QtWidgets import QMessageBox
+        from PyQt5.QtWidgets import QMenu, QMessageBox
     except ImportError:  # Krita 6
-        from PyQt6.QtWidgets import QMessageBox
+        from PyQt6.QtWidgets import QMenu, QMessageBox
+
+    PANEL_ERROR = ""
+    try:  # the panel (docker) is optional: a failure here must not take the bridge down
+        from krita import DockWidgetFactory, DockWidgetFactoryBase
+
+        from .panel import DOCKER_ID, Hub, SteadyDocker
+
+        Krita.instance().addDockWidgetFactory(
+            DockWidgetFactory(DOCKER_ID, DockWidgetFactoryBase.DockRight, SteadyDocker)
+        )
+    except Exception as e:  # never raise into Krita
+        Hub = None  # type: ignore[assignment]
+        PANEL_ERROR = f"{type(e).__name__}: {e}"
+        _log(f"Steady panel failed to load: {PANEL_ERROR}")
 
     class SteadyExtension(Extension):
         def __init__(self, parent):
@@ -77,6 +94,48 @@ if Krita is not None and Krita.instance() is not None:
                 a.triggered.connect(self._show_status)
             except Exception:
                 pass
+            # Tools > Steady > Start tracker / Stop tracker / Show panel
+            try:
+                menu_action = window.createAction("steady_menu", "Steady", "tools")
+                menu_action.setMenu(QMenu("Steady", window.qwindow()))
+                for aid, text, fn in (
+                    ("steady_start_tracker", "Start tracker", self._start_tracker),
+                    ("steady_stop_tracker", "Stop tracker", self._stop_tracker),
+                    ("steady_show_panel", "Show panel", self._show_panel),
+                    ("steady_status_menu", "Connection status", self._show_status),
+                ):
+                    act = window.createAction(aid, text, "tools/steady_menu")
+                    act.triggered.connect(fn)
+            except Exception as e:
+                _log(f"Steady menu failed: {e}")
+
+        def _hub(self):
+            return Hub.get() if Hub is not None else None
+
+        def _start_tracker(self):
+            try:
+                hub = self._hub()
+                if hub is not None:
+                    hub.start_tracker()
+                    hub.show_panel()
+            except Exception as e:
+                _log(f"Start tracker: {e}")
+
+        def _stop_tracker(self):
+            try:
+                hub = self._hub()
+                if hub is not None:
+                    hub.stop_tracker()
+            except Exception as e:
+                _log(f"Stop tracker: {e}")
+
+        def _show_panel(self):
+            try:
+                hub = self._hub()
+                if hub is not None:
+                    hub.show_panel()
+            except Exception as e:
+                _log(f"Show panel: {e}")
 
         def _drain(self):
             try:
@@ -90,9 +149,16 @@ if Krita is not None and Krita.instance() is not None:
             conns = b.connections if b else 0
             handled = b.handled if b else 0
             helper = "helper connected" if conns else "helper not connected (run: npm run helper)"
+            if Hub is None:
+                panel = f"panel: failed to load ({PANEL_ERROR})"
+            else:
+                try:
+                    panel = f"panel: {Hub.get().status_line()}"
+                except Exception as e:
+                    panel = f"panel: {e}"
             return (
                 f"Steady plugin {PLUGIN_VERSION}\n{self.listen_status}\n{helper}\n"
-                f"commands handled: {handled}\n{self.version_status}\nTested on {TESTED}."
+                f"commands handled: {handled}\n{panel}\n{self.version_status}\nTested on {TESTED}."
             )
 
         def _show_status(self):

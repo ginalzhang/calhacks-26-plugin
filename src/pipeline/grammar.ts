@@ -357,6 +357,9 @@ export function keyterms(phase: Phase = "P4"): string[] {
   const seen = new Set<string>();
   for (const a of ACTIONS) {
     if (!phaseAtMost(a.phase, phase)) continue;
+    // Demo-page controls (Simulate tremor, Next judge) are matched by the grammar but not biased in STT:
+    // the keyterm budget (≤ 100) goes to painting commands.
+    if (a.page === "demo") continue;
     for (const p of a.voicePhrases) {
       if (!seen.has(p)) {
         seen.add(p);

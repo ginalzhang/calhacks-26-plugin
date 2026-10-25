@@ -25,1250 +25,2111 @@
     {
       "id": "pen_toggle",
       "label": "Pen",
-      "page": "header",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P0",
-      "tilePhase": "P0",
+      "voicePhrases": [],
+      "typed": null,
       "key": "F8",
+      "scope": "both",
+      "phase": "P0",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "toggle": true,
+      "page": "header",
       "help": "Lower or lift the pen. A pedal sending F8 does the same.",
-      "arg": null,
-      "typed": null
+      "tilePhase": "P0",
+      "arg": null
     },
     {
       "id": "pen_down",
       "label": "Pen down",
+      "voicePhrases": [
+        "down"
+      ],
+      "typed": "down",
+      "key": null,
+      "scope": "both",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "paint",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "down"
+      "arg": null
     },
     {
       "id": "pen_up",
       "label": "Pen up",
+      "voicePhrases": [
+        "up"
+      ],
+      "typed": "up",
+      "key": null,
+      "scope": "both",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "paint",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "up"
+      "arg": null
     },
     {
       "id": "pause",
       "label": "Pause",
-      "page": "header",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "pause",
+        "stop",
+        "resume"
+      ],
+      "phraseVariants": {
+        "pause": "pause",
+        "stop": "pause",
+        "resume": "resume"
+      },
+      "typed": "pause",
+      "key": "F9",
+      "scope": "both",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": "F9",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "header",
       "help": "Releases the pen. The pointer stays inside Steady's window until you resume. The tile reads Resume while paused.",
-      "arg": null,
-      "typed": "pause"
+      "toggle": false,
+      "arg": null
     },
     {
       "id": "mic",
       "label": "Mic",
-      "page": "header",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [],
+      "typed": null,
       "key": "F10",
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "toggle": true,
+      "page": "header",
       "help": "Hold F10 to talk, or tap Mic to open and tap again to close.",
-      "arg": null,
-      "typed": null
+      "tilePhase": "P2a",
+      "arg": null
     },
     {
       "id": "undo",
       "label": "Undo",
-      "page": "header",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "undo that"
+      ],
+      "typed": "undo",
+      "key": "F7",
+      "scope": "both",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": "F7",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "header",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "edit_undo"
+        },
+        "keys": "cmd+z"
+      },
+      "toggle": false,
       "help": null,
-      "arg": null,
-      "typed": "undo"
+      "arg": null
     },
     {
       "id": "redo",
       "label": "Redo",
-      "page": "header",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "redo"
+      ],
+      "typed": "redo",
+      "key": "F6",
+      "scope": "both",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": "F6",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "header",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "edit_redo"
+        },
+        "keys": "cmd+shift+z"
+      },
+      "toggle": false,
       "help": null,
-      "arg": null,
-      "typed": "redo"
+      "arg": null
     },
     {
       "id": "recenter",
       "label": "Recenter",
-      "page": "header",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "recenter"
+      ],
+      "typed": "recenter",
+      "key": "F5",
+      "scope": "canvas",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": "F5",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "header",
       "help": "Moves the tracked area to where your hand is now.",
-      "arg": null,
-      "typed": "recenter"
+      "toggle": false,
+      "arg": null
     },
     {
       "id": "other_hand",
       "label": "Other hand",
+      "voicePhrases": [
+        "other hand"
+      ],
+      "typed": "other hand",
+      "key": "F4",
+      "scope": "canvas",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "header",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
       "tilePhase": "P2b",
-      "key": "F4",
       "help": null,
-      "arg": null,
-      "typed": "other hand"
+      "arg": null
     },
     {
       "id": "latch",
       "label": "Latch",
-      "page": "header",
-      "toggle": true,
-      "destructive": false,
+      "voicePhrases": [
+        "latch"
+      ],
+      "typed": "latch",
+      "key": "F3",
+      "scope": "canvas",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": "F3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "header",
       "help": "Holding still no longer lifts the pen. Everything else still lifts it.",
-      "arg": null,
-      "typed": "latch"
+      "arg": null
     },
     {
       "id": "steadier",
       "label": "Steadier",
-      "page": "steady",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "steadier"
+      ],
+      "typed": "steadier",
+      "key": null,
+      "scope": "canvas",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": null,
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "steady",
       "help": "Steadiness +10 (the + tile next to the slider moves it by 5).",
-      "arg": null,
-      "typed": "steadier"
+      "toggle": false,
+      "arg": null
     },
     {
       "id": "looser",
       "label": "Looser",
-      "page": "steady",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "looser"
+      ],
+      "typed": "looser",
+      "key": null,
+      "scope": "canvas",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": null,
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "steady",
+      "toggle": false,
       "help": null,
-      "arg": null,
-      "typed": "looser"
+      "arg": null
     },
     {
       "id": "recalibrate",
       "label": "Recalibrate",
-      "page": "setup",
-      "toggle": false,
-      "destructive": false,
+      "voicePhrases": [
+        "recalibrate"
+      ],
+      "typed": "recalibrate",
+      "key": null,
+      "scope": "canvas",
       "phase": "P2a",
       "tilePhase": "P0",
-      "key": null,
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "setup",
+      "toggle": false,
       "help": null,
-      "arg": null,
-      "typed": "recalibrate"
+      "arg": null
+    },
+    {
+      "id": "use_last_setup",
+      "label": "Use last setup",
+      "voicePhrases": [
+        "use last setup"
+      ],
+      "typed": "use last setup",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "tilePhase": "P0",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "setup",
+      "help": "Reuses the last calibration for this hand, so you can start drawing within a few seconds.",
+      "toggle": false,
+      "arg": null
     },
     {
       "id": "smoothing_sketch",
       "label": "Sketch",
+      "voicePhrases": [
+        "sketch"
+      ],
+      "typed": "sketch",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P3",
       "tilePhase": "P3",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "sketch"
+      "arg": null
     },
     {
       "id": "smoothing_ink",
       "label": "Ink mode",
+      "voicePhrases": [
+        "ink mode"
+      ],
+      "typed": "ink mode",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P3",
       "tilePhase": "P3",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "ink mode"
+      "arg": null
     },
     {
       "id": "smoothing_shade",
       "label": "Shade",
+      "voicePhrases": [
+        "shade"
+      ],
+      "typed": "shade",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P3",
       "tilePhase": "P3",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "shade"
+      "arg": null
     },
     {
       "id": "pick_sticker_colour",
       "label": "Pick sticker colour",
-      "page": "setup",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P3",
-      "tilePhase": "P3",
+      "voicePhrases": [
+        "pick sticker colour"
+      ],
+      "typed": "pick sticker colour",
       "key": null,
+      "scope": "canvas",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "setup",
       "help": "Hold the sticker in the middle of the camera view, then press. Used by the Colour cap source for gloves and braces.",
-      "arg": null,
-      "typed": "pick sticker colour"
+      "toggle": false,
+      "tilePhase": "P3",
+      "arg": null
     },
     {
       "id": "lock_exposure",
       "label": "Lock exposure",
-      "page": "setup",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P3",
-      "tilePhase": "P3",
+      "voicePhrases": [
+        "lock exposure"
+      ],
+      "typed": "lock exposure",
       "key": null,
+      "scope": "canvas",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "setup",
+      "tilePhase": "P3",
       "help": null,
-      "arg": null,
-      "typed": "lock exposure"
+      "arg": null
     },
     {
       "id": "simulate_tremor",
       "label": "Simulate tremor",
-      "page": "demo",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P1",
-      "tilePhase": "P1",
+      "voicePhrases": [
+        "simulate tremor"
+      ],
+      "typed": "simulate tremor",
       "key": null,
+      "scope": "canvas",
+      "phase": "P1",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "demo",
+      "tilePhase": "P1",
       "help": null,
-      "arg": null,
-      "typed": "simulate tremor"
+      "arg": null
     },
     {
       "id": "next_judge",
       "label": "Next judge",
-      "page": "demo",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P1",
-      "tilePhase": "P1",
+      "voicePhrases": [
+        "next judge"
+      ],
+      "typed": "next judge",
       "key": null,
+      "scope": "canvas",
+      "phase": "P1",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "demo",
       "help": "Clears the practice canvas and metrics and reruns calibration.",
-      "arg": null,
-      "typed": "next judge"
+      "toggle": false,
+      "tilePhase": "P1",
+      "arg": null
     },
     {
       "id": "clear_practice",
       "label": "Clear practice",
-      "page": "steady",
-      "toggle": false,
-      "destructive": true,
+      "voicePhrases": [
+        "clear practice"
+      ],
+      "typed": "clear practice",
+      "key": null,
+      "scope": "canvas",
       "phase": "P1",
       "tilePhase": "P0",
-      "key": null,
+      "destructive": true,
+      "fuzzyAllowed": false,
+      "page": "steady",
+      "toggle": false,
       "help": null,
-      "arg": null,
-      "typed": "clear practice"
+      "arg": null
     },
     {
       "id": "brush",
       "label": "Brush",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "brush"
+      ],
+      "typed": "brush",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "preset",
+          "name": "basic"
+        },
+        "keys": "b",
+        "clearsEraser": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "brush"
+      "arg": null
     },
     {
       "id": "pencil",
       "label": "Pencil",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "pencil"
+      ],
+      "typed": "pencil",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "preset",
+          "name": "pencil"
+        },
+        "pluginOnly": true,
+        "clearsEraser": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "pencil"
+      "arg": null
     },
     {
       "id": "ink",
       "label": "Ink",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "ink"
+      ],
+      "typed": "ink",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "preset",
+          "name": "ink"
+        },
+        "pluginOnly": true,
+        "clearsEraser": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "ink"
+      "arg": null
     },
     {
       "id": "airbrush",
       "label": "Airbrush",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "airbrush",
+        "soft"
+      ],
+      "typed": "airbrush",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "preset",
+          "name": "airbrush"
+        },
+        "pluginOnly": true,
+        "clearsEraser": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "airbrush"
+      "arg": null
     },
     {
       "id": "eraser",
       "label": "Eraser",
-      "page": "paint",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "eraser"
+      ],
+      "typed": "eraser",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "toggle": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "erase_action"
+        },
+        "keys": "e"
+      },
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "eraser"
+      "arg": null
     },
     {
       "id": "bigger",
       "label": "Bigger",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "bigger"
+      ],
+      "typed": "bigger",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "increase_brush_size"
+        },
+        "keys": "]"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "bigger"
+      "arg": null
     },
     {
       "id": "smaller",
       "label": "Smaller",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "smaller"
+      ],
+      "typed": "smaller",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "decrease_brush_size"
+        },
+        "keys": "["
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "smaller"
+      "arg": null
     },
     {
       "id": "size",
       "label": "Size",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "size"
+      ],
+      "typed": "size",
       "key": null,
-      "help": "Say or type 'size' and a number, e.g. 'size 20'.",
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "arg": "number",
-      "typed": "size"
+      "page": "paint",
+      "help": "Say or type 'size' and a number, e.g. 'size 20'.",
+      "krita": {
+        "plugin": {
+          "cmd": "size",
+          "value": 20
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a"
     },
     {
       "id": "fade",
       "label": "Fade",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "fade"
+      ],
+      "typed": "fade",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "decrease_opacity"
+        },
+        "keys": "i"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "fade"
+      "arg": null
     },
     {
       "id": "solid",
       "label": "Solid",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "solid"
+      ],
+      "typed": "solid",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "opacity",
+          "value": 100
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "solid"
+      "arg": null
     },
     {
       "id": "opacity",
       "label": "Opacity",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "opacity"
+      ],
+      "typed": "opacity",
       "key": null,
-      "help": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "arg": "number",
-      "typed": "opacity"
+      "page": "paint",
+      "krita": {
+        "plugin": {
+          "cmd": "opacity",
+          "value": 50
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
+      "help": null
     },
     {
       "id": "colour_black",
       "label": "Black",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "black"
+      ],
+      "typed": "black",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#000000"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "black"
+      "arg": null
     },
     {
       "id": "colour_white",
       "label": "White",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "white"
+      ],
+      "typed": "white",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#ffffff"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "white"
+      "arg": null
     },
     {
       "id": "colour_red",
       "label": "Red",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "red"
+      ],
+      "typed": "red",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#d62828"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "red"
+      "arg": null
     },
     {
       "id": "colour_blue",
       "label": "Blue",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "blue"
+      ],
+      "typed": "blue",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#1d4ed8"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "blue"
+      "arg": null
     },
     {
       "id": "colour_green",
       "label": "Green",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "green"
+      ],
+      "typed": "green",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#2e7d32"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "green"
+      "arg": null
     },
     {
       "id": "colour_yellow",
       "label": "Yellow",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "yellow"
+      ],
+      "typed": "yellow",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#fdd835"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "yellow"
+      "arg": null
     },
     {
       "id": "colour_orange",
       "label": "Orange",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "orange"
+      ],
+      "typed": "orange",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#fb8c00"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "orange"
+      "arg": null
     },
     {
       "id": "colour_purple",
       "label": "Purple",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "purple"
+      ],
+      "typed": "purple",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#7b1fa2"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "purple"
+      "arg": null
     },
     {
       "id": "colour_brown",
       "label": "Brown",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "brown"
+      ],
+      "typed": "brown",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#6d4c41"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "brown"
+      "arg": null
     },
     {
       "id": "colour_grey",
       "label": "Grey",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "grey"
+      ],
+      "typed": "grey",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color",
+          "hex": "#808080"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "grey"
+      "arg": null
     },
     {
       "id": "lighter",
       "label": "Lighter",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "lighter"
+      ],
+      "typed": "lighter",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color_adjust",
+          "dv": 0.1
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "lighter"
+      "arg": null
     },
     {
       "id": "darker",
       "label": "Darker",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "darker"
+      ],
+      "typed": "darker",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "color_adjust",
+          "dv": -0.1
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "darker"
+      "arg": null
     },
     {
       "id": "skin",
       "label": "Skin",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "skin"
+      ],
+      "typed": "skin",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "colour",
       "help": "Your saved skin colour. Until one is saved the tile reads 'Save current colour as skin'. No default colour.",
-      "arg": null,
-      "typed": "skin"
+      "krita": {
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
+      "arg": null
     },
     {
       "id": "save_skin",
       "label": "Save current colour as skin",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "save skin"
+      ],
+      "typed": "save skin",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "colour",
+      "krita": {
+        "plugin": {
+          "cmd": "get_state"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "save skin"
+      "arg": null
     },
     {
       "id": "swap",
       "label": "Swap colours",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "swap"
+      ],
+      "typed": "swap",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "colour",
+      "krita": {
+        "keys": "x"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "swap"
+      "arg": null
     },
     {
       "id": "zoom_in",
       "label": "Zoom in",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "zoom in"
+      ],
+      "typed": "zoom in",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "view_zoom_in"
+        },
+        "keys": "+"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "zoom in"
+      "arg": null
     },
     {
       "id": "zoom_out",
       "label": "Zoom out",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "zoom out"
+      ],
+      "typed": "zoom out",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "view_zoom_out"
+        },
+        "keys": "-"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "zoom out"
+      "arg": null
     },
     {
       "id": "fit",
       "label": "Fit",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "fit"
+      ],
+      "typed": "fit",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "zoom_to_fit"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "fit"
+      "arg": null
     },
     {
       "id": "actual",
       "label": "Actual size",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "actual"
+      ],
+      "typed": "actual",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "zoom_to_100pct"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "actual"
+      "arg": null
     },
     {
       "id": "turn_left",
       "label": "Turn left",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "turn left"
+      ],
+      "typed": "turn left",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "rotate_canvas_left"
+        },
+        "keys": "4"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "turn left"
+      "arg": null
     },
     {
       "id": "turn_right",
       "label": "Turn right",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "turn right"
+      ],
+      "typed": "turn right",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "rotate_canvas_right"
+        },
+        "keys": "6"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "turn right"
+      "arg": null
     },
     {
       "id": "straight",
       "label": "Straight",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "straight"
+      ],
+      "typed": "straight",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "reset_canvas_rotation"
+        },
+        "keys": "5"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "straight"
+      "arg": null
     },
     {
       "id": "mirror",
       "label": "Mirror",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "mirror"
+      ],
+      "typed": "mirror",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "view",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "mirror_canvas"
+        },
+        "keys": "m"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "mirror"
+      "arg": null
     },
     {
       "id": "name_brush",
       "label": "Name this brush",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "call this brush"
+      ],
+      "typed": "alias",
       "key": null,
-      "help": "Saves the current brush under a word you choose. Say the word later to pick it. A word that is already a command is refused.",
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "arg": "word",
-      "typed": "alias"
+      "page": "paint",
+      "help": "Saves the current brush under a word you choose. Say the word later to pick it. A word that is already a command is refused.",
+      "krita": {
+        "plugin": {
+          "cmd": "get_state"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2b"
     },
     {
       "id": "new_layer",
       "label": "New layer",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "new layer"
+      ],
+      "typed": "new layer",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "layers",
+      "krita": {
+        "plugin": {
+          "cmd": "new_layer"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "new layer"
+      "arg": null
     },
     {
       "id": "merge_down",
       "label": "Merge down",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "merge"
+      ],
+      "typed": "merge",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "layers",
+      "krita": {
+        "lookupText": "merge with layer below",
+        "keys": "cmd+e"
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "merge"
+      "arg": null
     },
     {
       "id": "layer_up",
       "label": "Layer up",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "layer up"
+      ],
+      "typed": "layer up",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "layers",
+      "krita": {
+        "plugin": {
+          "cmd": "layer_nav",
+          "dir": "up"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "layer up"
+      "arg": null
     },
     {
       "id": "layer_down",
       "label": "Layer down",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "layer down"
+      ],
+      "typed": "layer down",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": true,
+      "page": "layers",
+      "krita": {
+        "plugin": {
+          "cmd": "layer_nav",
+          "dir": "down"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "layer down"
+      "arg": null
     },
     {
       "id": "hide_layer",
       "label": "Hide layer",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "hide"
+      ],
+      "typed": "hide",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "layers",
+      "krita": {
+        "plugin": {
+          "cmd": "layer_visible",
+          "visible": false
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "hide"
+      "arg": null
     },
     {
       "id": "show_layer",
       "label": "Show layer",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "show"
+      ],
+      "typed": "show",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "layers",
+      "krita": {
+        "plugin": {
+          "cmd": "layer_visible",
+          "visible": true
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "show"
+      "arg": null
     },
     {
       "id": "delete_layer",
       "label": "Delete layer",
-      "page": "layers",
-      "toggle": false,
-      "destructive": true,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "delete layer"
+      ],
+      "typed": "delete layer",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": true,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "layers",
+      "krita": {
+        "lookupText": "remove layer",
+        "keys": "shift+delete"
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "delete layer"
+      "arg": null
     },
     {
       "id": "clear_layer",
       "label": "Clear layer",
-      "page": "layers",
-      "toggle": false,
-      "destructive": true,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "clear layer"
+      ],
+      "typed": "clear layer",
       "key": null,
+      "scope": "krita",
+      "phase": "P2b",
+      "destructive": true,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "layers",
+      "krita": {
+        "lookupText": "clear",
+        "keys": "backspace"
+      },
+      "toggle": false,
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "clear layer"
+      "arg": null
     },
     {
       "id": "save",
       "label": "Save",
-      "page": "layers",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
-      "tilePhase": "P2a",
+      "voicePhrases": [
+        "save"
+      ],
+      "typed": "save",
       "key": null,
+      "scope": "krita",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "layers",
+      "krita": {
+        "plugin": {
+          "cmd": "action",
+          "action": "file_save"
+        },
+        "keys": "cmd+s"
+      },
+      "toggle": false,
+      "tilePhase": "P2a",
       "help": null,
-      "arg": null,
-      "typed": "save"
+      "arg": null
     },
     {
       "id": "pick",
       "label": "Pick colour",
-      "page": "colour",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P3",
-      "tilePhase": "P3",
+      "voicePhrases": [
+        "pick"
+      ],
+      "typed": "pick",
       "key": null,
+      "scope": "krita",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "colour",
+      "krita": {
+        "keys": "p"
+      },
+      "toggle": false,
+      "tilePhase": "P3",
       "help": null,
-      "arg": null,
-      "typed": "pick"
+      "arg": null
     },
     {
       "id": "pan",
       "label": "Pan",
+      "voicePhrases": [
+        "pan"
+      ],
+      "typed": "pan",
+      "key": null,
+      "scope": "krita",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "view",
       "toggle": false,
-      "destructive": false,
-      "phase": "P3",
       "tilePhase": "P3",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "pan"
+      "arg": null
     },
     {
       "id": "line",
       "label": "Line",
-      "page": "paint",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P3",
-      "tilePhase": "P3",
+      "voicePhrases": [
+        "line"
+      ],
+      "typed": "line",
       "key": null,
+      "scope": "krita",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "page": "paint",
+      "krita": {
+        "keys": "v"
+      },
+      "toggle": false,
+      "tilePhase": "P3",
       "help": null,
-      "arg": null,
-      "typed": "line"
+      "arg": null
     },
     {
       "id": "dots",
       "label": "Dots",
-      "page": "steady",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "dots"
+      ],
+      "typed": "dots",
       "key": null,
+      "scope": "both",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "steady",
+      "tilePhase": "P2b",
       "help": null,
-      "arg": null,
-      "typed": "dots"
+      "arg": null
     },
     {
       "id": "hatch",
       "label": "Hatch",
-      "page": "steady",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "hatch"
+      ],
+      "typed": "hatch",
       "key": null,
+      "scope": "both",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "steady",
       "help": "Forward passes only. Pair with Krita's parallel ruler assistant.",
-      "arg": null,
-      "typed": "hatch"
+      "tilePhase": "P2b",
+      "arg": null
     },
     {
       "id": "hatch_lr",
       "label": "Hatch left to right",
+      "voicePhrases": [
+        "hatch left to right"
+      ],
+      "typed": "hatch left to right",
+      "key": null,
+      "scope": "both",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
       "tilePhase": "P2b",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "hatch left to right"
+      "arg": null
     },
     {
       "id": "hatch_down",
       "label": "Hatch down",
+      "voicePhrases": [
+        "hatch down"
+      ],
+      "typed": "hatch down",
+      "key": null,
+      "scope": "both",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
       "tilePhase": "P2b",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "hatch down"
+      "arg": null
     },
     {
       "id": "hatch_alternate",
       "label": "Alternate hatch",
+      "voicePhrases": [
+        "alternate hatch"
+      ],
+      "typed": "alternate hatch",
+      "key": null,
+      "scope": "both",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
       "tilePhase": "P2b",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "alternate hatch"
+      "arg": null
     },
     {
       "id": "stop_hatching",
       "label": "Stop hatching",
+      "voicePhrases": [
+        "stop hatching"
+      ],
+      "typed": "stop hatching",
+      "key": null,
+      "scope": "both",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
       "tilePhase": "P2b",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "stop hatching"
+      "arg": null
     },
     {
       "id": "dash",
       "label": "Dash",
-      "page": "steady",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P3",
-      "tilePhase": "P3",
+      "voicePhrases": [
+        "dash"
+      ],
+      "typed": "dash",
       "key": null,
+      "scope": "both",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "steady",
+      "tilePhase": "P3",
       "help": null,
-      "arg": null,
-      "typed": "dash"
+      "arg": null
     },
     {
       "id": "repeat",
       "label": "Repeat stroke",
+      "voicePhrases": [
+        "repeat"
+      ],
+      "typed": "repeat",
+      "key": null,
+      "scope": "both",
+      "phase": "P3",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "steady",
       "toggle": false,
-      "destructive": false,
-      "phase": "P3",
       "tilePhase": "P3",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "repeat"
+      "arg": null
     },
     {
       "id": "later",
       "label": "Later",
+      "voicePhrases": [
+        "later"
+      ],
+      "typed": "later",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2b",
       "tilePhase": "P2b",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "later"
+      "arg": null
     },
     {
       "id": "quiet",
       "label": "Quiet",
-      "page": "steady",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P2b",
-      "tilePhase": "P2b",
+      "voicePhrases": [
+        "quiet mode",
+        "mic off"
+      ],
+      "typed": "quiet",
       "key": null,
+      "scope": "canvas",
+      "phase": "P2b",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "steady",
       "help": "Turns the mic, spoken replies and click sounds off. The ring and cursor stay.",
-      "arg": null,
-      "typed": "quiet"
+      "tilePhase": "P2b",
+      "arg": null
     },
     {
       "id": "preset_sore_joints",
       "label": "Sore joints, steady hand",
-      "page": "steady",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "sore joints"
+      ],
+      "typed": "sore joints",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "steady",
       "help": "Steadiness 25, gain 3×.",
-      "arg": null,
-      "typed": "sore joints"
+      "toggle": false,
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "preset_shakes_reaching",
       "label": "Shakes when holding still or reaching",
-      "page": "steady",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "shakes when reaching"
+      ],
+      "typed": "shakes when reaching",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "steady",
       "help": "Steadiness 70.",
-      "arg": null,
-      "typed": "shakes when reaching"
+      "toggle": false,
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "preset_slow_rest",
       "label": "Slow movements, shakes at rest",
-      "page": "steady",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "slow movements"
+      ],
+      "typed": "slow movements",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "steady",
       "help": "Steadiness 45, gain 4×, dwell 1200 ms, Latch on.",
-      "arg": null,
-      "typed": "slow movements"
+      "toggle": false,
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "preset_hard_still",
       "label": "Hard to hold still",
-      "page": "steady",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "hard to hold still"
+      ],
+      "typed": "hard to hold still",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "steady",
       "help": "Steadiness 60, Latch on, dwell radius 60, tiles count as hovered within 40 px.",
-      "arg": null,
-      "typed": "hard to hold still"
+      "toggle": false,
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "use_profile",
       "label": "Use profile",
-      "page": "setup",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "use profile"
+      ],
+      "typed": "profile",
       "key": null,
-      "help": "Switch to a saved profile by name, e.g. 'use profile shaky'. 'Steady day' and 'Shaky day' exist from the start.",
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "arg": "word",
-      "typed": "profile"
+      "page": "setup",
+      "help": "Switch to a saved profile by name, e.g. 'use profile shaky'. 'Steady day' and 'Shaky day' exist from the start.",
+      "toggle": false,
+      "tilePhase": "P4"
     },
     {
       "id": "save_profile",
       "label": "Save profile",
+      "voicePhrases": [
+        "save profile"
+      ],
+      "typed": "save profile",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "arg": "word",
       "page": "setup",
       "toggle": false,
-      "destructive": false,
-      "phase": "P4",
       "tilePhase": "P4",
-      "key": null,
-      "help": null,
-      "arg": "word",
-      "typed": "save profile"
+      "help": null
     },
     {
       "id": "show_numbers",
       "label": "Show numbers",
-      "page": "view",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "show numbers"
+      ],
+      "typed": "show numbers",
       "key": null,
+      "scope": "krita",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "page": "view",
       "help": "Numbers Krita's buttons; say 'click' and a number.",
-      "arg": null,
-      "typed": "show numbers"
+      "krita": {
+        "plugin": {
+          "cmd": "list_widgets"
+        },
+        "pluginOnly": true
+      },
+      "toggle": false,
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "hide_numbers",
       "label": "Hide numbers",
+      "voicePhrases": [
+        "hide numbers"
+      ],
+      "typed": "hide numbers",
+      "key": null,
+      "scope": "krita",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
       "page": "view",
       "toggle": false,
-      "destructive": false,
-      "phase": "P4",
       "tilePhase": "P4",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "hide numbers"
+      "arg": null
     },
     {
       "id": "click_number",
       "label": "Click number",
+      "voicePhrases": [
+        "click"
+      ],
+      "typed": "click",
+      "key": null,
+      "scope": "krita",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": false,
+      "arg": "number",
       "page": "view",
       "toggle": false,
-      "destructive": false,
-      "phase": "P4",
       "tilePhase": "P4",
-      "key": null,
-      "help": null,
-      "arg": "number",
-      "typed": "click"
+      "help": null
     },
     {
       "id": "head_mode",
       "label": "Head mode",
-      "page": "setup",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "head mode"
+      ],
+      "typed": "head mode",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "setup",
       "help": "The pointer follows your nose tip instead of your hand (gain 6×).",
-      "arg": null,
-      "typed": "head mode"
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "eyebrow_lift",
       "label": "Eyebrow lift",
-      "page": "setup",
-      "toggle": true,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "eyebrow lift"
+      ],
+      "typed": "eyebrow lift",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "toggle": true,
+      "page": "setup",
       "help": "Raising your eyebrows lifts the pen. Off by default.",
-      "arg": null,
-      "typed": "eyebrow lift"
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "app_profile",
       "label": "App: Krita",
-      "page": "setup",
-      "toggle": false,
-      "destructive": false,
-      "phase": "P4",
-      "tilePhase": "P4",
+      "voicePhrases": [
+        "krita mode",
+        "photoshop mode"
+      ],
+      "typed": "app",
       "key": null,
+      "scope": "canvas",
+      "phase": "P4",
+      "destructive": false,
+      "fuzzyAllowed": false,
+      "modeChanging": true,
+      "phraseVariants": {
+        "krita mode": "krita",
+        "photoshop mode": "photoshop"
+      },
+      "page": "setup",
       "help": "Which app's shortcuts Steady sends. Krita uses the plugin; other apps use keystrokes only.",
-      "arg": null,
-      "typed": "app"
+      "toggle": false,
+      "tilePhase": "P4",
+      "arg": null
     },
     {
       "id": "yes",
       "label": "Confirm",
+      "voicePhrases": [
+        "yes"
+      ],
+      "typed": "yes",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "yes"
+      "arg": null
     },
     {
       "id": "no",
       "label": "No",
+      "voicePhrases": [
+        "no"
+      ],
+      "typed": "no",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "no"
+      "arg": null
     },
     {
       "id": "cancel",
       "label": "Cancel",
+      "voicePhrases": [
+        "cancel"
+      ],
+      "typed": "cancel",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "cancel"
+      "arg": null
     },
     {
       "id": "choice_one",
       "label": "One",
+      "voicePhrases": [
+        "one"
+      ],
+      "typed": "1",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "1"
+      "arg": null
     },
     {
       "id": "choice_two",
       "label": "Two",
+      "voicePhrases": [
+        "two"
+      ],
+      "typed": "2",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "2"
+      "arg": null
     },
     {
       "id": "choice_three",
       "label": "Three",
+      "voicePhrases": [
+        "three"
+      ],
+      "typed": "3",
+      "key": null,
+      "scope": "canvas",
+      "phase": "P2a",
+      "destructive": false,
+      "fuzzyAllowed": false,
       "page": "dialog",
       "toggle": false,
-      "destructive": false,
-      "phase": "P2a",
       "tilePhase": "P2a",
-      "key": null,
       "help": null,
-      "arg": null,
-      "typed": "3"
+      "arg": null
     }
   ]
 }

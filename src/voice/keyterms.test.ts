@@ -6,7 +6,7 @@ import { ACTIONS, EXTRA_KEYTERMS } from "../actions";
 vi.mock("../pipeline/grammar", () => ({
   parseCommand: vi.fn(),
   closestActions: vi.fn(() => []),
-  keyterms: vi.fn(() => [...ACTIONS.flatMap((a) => a.voicePhrases), ...EXTRA_KEYTERMS]),
+  keyterms: vi.fn(() => [...ACTIONS.filter((a) => a.page !== "demo").flatMap((a) => a.voicePhrases), ...EXTRA_KEYTERMS]),
 }));
 
 import { KEYTERM_MAX_CHARS, KEYTERM_MAX_COUNT, limitKeyterms, sttKeyterms } from "./keyterms";

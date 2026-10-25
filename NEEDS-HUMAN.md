@@ -19,24 +19,29 @@ item. Hardware: camera, microphone, keyboard, mouse/touchpad (no pedal needed).
      said "listening on 127.0.0.1:8766".
    - [ ] After step 0 reinstalled the plugin (new panel code), **quit and reopen Krita** and check the
      connection status again. If Steady is greyed out in the Plugin Manager, hover it and paste the error.
-2. [ ] **Settings › Dockers › Steady is listed and opens the panel** [F, D]: dock it at the side of the
-   canvas. The panel shows Start, a status line and the tiles; nothing is cut off at the docker's width.
+2. [ ] **Settings › Dockers › Steady is listed and opens the panel** [F, D] (also **Tools › Steady › Show
+   panel**): dock it at the side of the canvas. The panel shows Start, the tracking word, the status line,
+   the eight core tiles (Pen … Latch) and the page tiles; no label is cut off at the docker's width. The
+   first-run Privacy box goes away with **Got it**.
 3. [ ] **Start → Camera + Microphone for "Steady Tracker"** [F, C]: press **Start**. macOS asks to allow the
    camera and the microphone for **"Steady Tracker"** (not "krita", not "python", not Terminal): Allow both.
    Check System Settings › Privacy & Security › Camera
    (`x-apple.systempreferences:com.apple.preference.security?Privacy_Camera`) and › Microphone
    (`...?Privacy_Microphone`) list "Steady Tracker" switched on. No Dock icon should appear. Write down
-   what the dialogs said.
+   what the dialogs said. If nothing happens on Start: the panel should say "Install the tracker: run
+   scripts/install-steady.sh" when `~/Applications/Steady Tracker.app` is missing; otherwise paste the end of
+   `~/Library/Logs/Steady/tracker.log`.
 4. [ ] **Accessibility + Input Monitoring for "Steady Tracker"** [F, C]:
+   - The panel shows "Steady Tracker needs permission" with an **Open … settings** button per missing one.
    - Accessibility: `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`, switch on
-     **Steady Tracker** (if it is not listed, click **+** and pick it from where the installer put it).
+     **Steady Tracker** (if it is not listed, click **+** and pick `~/Applications/Steady Tracker.app`).
    - Input Monitoring: `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent`, the same.
-   - Press **Stop**, then **Start** in the panel. The panel's permissions line shows all four granted.
+   - Press **Stop**, then **Start** in the panel. The permissions box disappears (all four granted).
      If the panel names a different app than "Steady Tracker", grant that one and note it here.
-5. [ ] **Camera list** [F, C]: the panel's camera list shows **Desk View** (iPhone wired over USB, looking
+5. [ ] **Camera list** [F, C]: panel › **Setup** page › Camera list shows **Desk View** (iPhone wired over USB, looking
    down at the desk) or, without an iPhone, the built-in camera. Write which one you used. The preview
    thumbnail shows your hand with the tracked point on the index knuckle. If the point moves the wrong way,
-   use the panel's Mirror / Rotate settings.
+   use **Mirror camera** / **Rotate camera** on the Setup page.
 6. [ ] **A stroke lands in Krita** [F, B, C]: with a picture open, rest your forearm on a towel; the pointer
    moves with the hand; hold still ~0.8 s on Krita's canvas → the pen lowers; move → a stroke lands in Krita;
    hold still ~1.2 s → the pen lifts. Hold still 10 s on the canvas: the pen lowers once and leaves no extra
@@ -51,7 +56,7 @@ item. Hardware: camera, microphone, keyboard, mouse/touchpad (no pedal needed).
 8. [ ] **Conflicts off** [F]: System Settings › Accessibility › Voice Control OFF; Pointer Control: Dwell,
    Head pointer, Alternate pointer actions OFF; **unplug any drawing tablet**. If F8 changes brightness or
    volume, turn on Keyboard › "Use F1, F2, etc. keys as standard function keys".
-9. [ ] **Calibrate on a real hand** [F, B]: panel › Calibrate: rest 3 s, circle 4 s, right-then-away 3 s. The
+9. [ ] **Calibrate on a real hand** [F, B]: panel › Setup › **Recalibrate**: rest 3 s, circle 4 s, right-then-away 3 s. The
    status says if an axis was flipped; a slow, arm-sized movement crosses the canvas. Stop/Start: the
    calibration is remembered (`~/Library/Application Support/Steady/calibration.json`).
 10. [ ] **Covering the camera mid-stroke ends the stroke** [F, C] within ~0.3 s: no scribble, status says
@@ -65,23 +70,26 @@ item. Hardware: camera, microphone, keyboard, mouse/touchpad (no pedal needed).
 13. [ ] **The button is never left held** [F, C]: lower the pen, then (a) press **Stop**, (b) quit Krita,
     (c) `pkill -9 -f steadytracker` in Terminal. (a) and (b) end the stroke; after (c), one click on the
     physical mouse or touchpad frees it (README). Note whether Steady Tracker quits by itself when Krita quits.
-14. [ ] **Panel tiles by dwell and by click** [F, D]: Undo, Steadiness − / +, a preset (Sketch / Ink mode /
-    Shade), a hand preset, Mic: each works by a plain click and by holding still over it. Nothing ever clicks
+14. [ ] **Panel tiles by dwell and by click** [F, D]: Undo, Steadiness − / + (Steady page), a smoothing preset
+    (Modes: Sketch / Ink mode / Shade), a hand preset (Presets), Mic, a page tile: each works by a plain click and by holding still over it. Nothing ever clicks
     in the menu bar, the Dock or another app.
-15. [ ] **Typed box + Claude** [F, E]: `ANTHROPIC_API_KEY` in `.env.local`, Stop/Start. Type `blue` (grammar),
+15. [ ] **Typed box + Claude** [F, E]: `ANTHROPIC_API_KEY` in `.env.local`, Stop/Start. Paint page › typed
+    box: type `blue` (grammar),
     then `make it thinner and a bit softer` → "Heard: …" shows smaller + airbrush (via Claude) within 2.5 s;
-    Undo reverses it. Without the key the panel says "key missing" and a mock answers.
+    Undo reverses it. Without the key the panel says "Claude key missing" and a local mock answers.
 16. [ ] **Sonic TTS** [E, F]: "save" is answered "Saved"; nothing is spoken on pen toggles or while the mic is
     open; "quiet mode" silences it.
 17. [ ] **Five-minute session** [F]: paint for 5 minutes with Krita in front: the panel's fps stays steady,
     no growing lag, Krita stays responsive. Note the fps.
 18. [ ] **Offline tracking** [F]: Wi-Fi off, Stop/Start: tracking still works (the hand model is local); voice
     and Claude say they are off; tiles, keys and the typed grammar still work.
-19. [ ] **Rebuild keeps permissions?** [F, C]: re-run `bash scripts/install-steady.sh` (it rebuilds Steady
-    Tracker), Start: are Camera / Accessibility / Input Monitoring still granted? If not, remove "Steady
+19. [ ] **Rebuild keeps permissions?** [F, C]: `bash scripts/install-steady.sh --rebuild-tracker` (a plain
+    re-run does not rebuild the app), Start: are Camera / Accessibility / Input Monitoring still granted? If not, remove "Steady
     Tracker" from those lists and add it again; note what happened.
 20. [ ] **Dwell-click on an enlarged Krita toolbox button** [F] (icons enlarged per `scripts/krita-setup.md`).
-21. [ ] **Krita bridge commands** [D] (unchanged from the website build; see "Fallback: website version"
+21. [ ] **Simulate tremor in the panel** [F, B]: Demo page › Simulate tremor: the live trace shows the faded raw
+    path under the drawn one and the deviation drops after **Steadier**. (Needed for the video's tremor shot.)
+22. [ ] **Krita bridge commands** [D] (unchanged from the website build; see "Fallback: website version"
     items 16–22 for `nc` checks of colour, presets, new layer, canvas_rect, brush smoothing → None once).
 
 ## Plugin build — Agent E
@@ -103,6 +111,17 @@ E4. [ ] **Claude live** [E]: with `ANTHROPIC_API_KEY` set, say "make it thinner 
 E5. [ ] **Spoken replies audible** [E]: "save" → you hear "Saved" through the Mac's output; tapping Mic while
     it speaks stops it at once.
 
+## Plugin build — Agent D
+Install with `scripts/krita-plugin-install.sh` (copies actions.json and steady_repo.txt too), quit and reopen Krita.
+1. **The docker appears:** Settings › Dockers › **Steady** (and Tools › Steady › Show panel) shows the dark Steady panel on the right. Check that the header shows Start, the dot and word ("Lost" before Start), "– fps", "Tracker stopped" and "Krita: waiting for tracker". Every tile should be ≥ 64 px, no label should be split mid-word, and text should be large (Krita's UI font must not override the 18 px). The first-run Privacy box should show until "Got it" and stay hidden after a Krita restart.
+2. **Tools › Steady submenu exists** with Start tracker / Stop tracker / Show panel / Connection status (a QMenu attached to a createAction item, untested on real Krita). If the actions land directly under Tools instead, note it. Tools › Scripts › "Steady: connection status" still shows "listening on 127.0.0.1:8766" plus a "panel:" line.
+3. **Start launches the tracker:** with `~/Applications/Steady Tracker.app` or `<repo>/build/Steady Tracker.app` present, Start runs `open -a … --args --panel-port 8767`. Within about 2 s the header should read "Tracker connected", the camera permission prompt should name **Steady Tracker** (not Krita), and Stop should quit the tracker (it disappears from Activity Monitor). Without the app, the status line should read "Install the tracker: run scripts/install-steady.sh".
+4. **Permissions box:** with Camera or Accessibility not yet granted, the panel names "Steady Tracker" and its buttons open the right System Settings pane (Camera, Microphone, Accessibility, Input Monitoring = Privacy_ListenEvent).
+5. **Pause clamps to the docker:** press Pause (or F9). The pointer should stay inside the Steady docker's rectangle (the panel_rect is mapToGlobal of the dock widget; check it is not offset by the title bar or by a Retina factor), the Resume tile should be reachable by dwell, and nothing should reach the canvas. Repeat with the docker floating.
+6. **Setup page preview:** the 160×120 camera thumbnail updates only while Setup is the page shown (switching away stops the tracker's preview messages). The camera tiles list the cameras with the selected one highlighted; tapping another switches. Calibrate shows "Calibrating: Step n of 3", the prompt and a moving bar.
+7. **Confirm dialog:** "delete layer" (typed or tile on Layers) opens a dialog over Krita with **Cancel focused**. Esc cancels. Tab to Confirm, then Enter, deletes. Saying "yes" closes the dialog via dialog_close. Check the dialog is reachable by dwell (it sits inside Krita's window).
+8. **Docker height:** on a 13–14" Mac, check how much page area remains below the pinned header (about 564 px). If it is too small, report it. The fix would be fewer header rows (e.g. page selector in 6 columns on a wide docker), not smaller tiles.
+
 ## For the submission
 42. [ ] **Record the video** [F] per `docs/demo-video.md`: first the guaranteed fallback cut, then the full
     Krita-panel script (≤ 2:00). Nothing staged that did not work.
@@ -116,6 +135,16 @@ E5. [ ] **Spoken replies audible** [E]: "save" → you hear "Saved" through the 
 45. [ ] **Pitch rehearsal** [F] per `docs/pitch.md` under the judging table's light.
 46. [ ] **README TODO markers** [F]: after the checks above, delete or confirm every *TODO* in README.md
     (real-hardware status, Sonic, overlay, website-only features, Claude examples).
+
+## Plugin build — Agent C
+Nothing below was run on real hardware: tests use replay frames, a fake landmarker, a fake pointer, a fake bridge and a fake brain.
+1. **Build and launch the app:** `bash scripts/build-tracker-app.sh --install`, then `open -g -a "Steady Tracker" --args --panel-port 8767` (or press Start in the panel). The first launch installs `tracker/.venv` (≈ 1 min). Log: `~/Library/Logs/Steady/tracker.log`.
+2. **Permission attribution:** the Camera prompt must say **"Steady Tracker"** with the text "Steady watches your resting hand…". Then grant Accessibility and Input Monitoring to **Steady Tracker** in System Settings › Privacy & Security (Input Monitoring needs a quit + relaunch: panel Stop, then Start). If a prompt names Python, Terminal or node instead, tell C (fallback: grant the named app).
+3. **Rebuilding resets grants:** the ad-hoc signature changes on every build; after `build-tracker-app.sh` re-grant (or don't rebuild).
+4. **Camera list / Desk View:** the panel's camera list must match the real devices, and choosing a camera must open that camera (index order is inferred from OpenCV's AVFoundation code). Check that Desk View appears and opens; if it doesn't, use the plain iPhone camera.
+5. **Tracking quality in Python MediaPipe:** detection fps ≥ 20 in the panel and the dot in the preview sits on the index knuckle; if the log says "using CPU", note the fps.
+6. **Pointer + F-keys:** with Krita in front, F9 pauses (pointer stays inside the panel), F8 toggles the pen, F10 push-to-talk; with another app in front the F-keys reach that app untouched.
+7. **Stuck button check:** while drawing, `kill -STOP` the brain's node process (`pgrep -f brain.mjs`): the button must release within ~0.3 s. `kill -CONT` it afterwards (or quit and reopen Steady).
 
 <!-- Plugin-build agents: add your items under `## Plugin build — Agent X` headings here, above the fallback section. -->
 

@@ -29,7 +29,8 @@ def test_desktop_file_fields():
 
 
 def test_plugin_files_compile():
-    for f in ("__init__.py", "bridge.py", "dispatch.py", "adapter.py"):
+    for f in ("__init__.py", "bridge.py", "dispatch.py", "adapter.py", "panel.py", "panel_model.py",
+              "tracker_client.py", "launcher.py"):
         py_compile.compile(str(PYKRITA / "steady" / f), doraise=True)
 
 
@@ -55,7 +56,10 @@ def test_install_script_into_temp_home(tmp_path):
     dest = tmp_path / "Library" / "Application Support" / "krita" / "pykrita"
     assert (dest / "steady.desktop").read_text() == (PYKRITA / "steady.desktop").read_text()
     installed = sorted(p.name for p in (dest / "steady").iterdir())
-    assert installed == ["__init__.py", "adapter.py", "bridge.py", "dispatch.py"]
+    assert installed == ["__init__.py", "actions.json", "adapter.py", "bridge.py", "dispatch.py", "launcher.py",
+                         "panel.py", "panel_model.py", "steady_repo.txt", "tracker_client.py"]
+    assert (dest / "steady" / "actions.json").read_text() == (PYKRITA / "steady" / "actions.json").read_text()
+    assert (dest / "steady" / "steady_repo.txt").read_text().strip() == str(ROOT)
     assert "Python Plugin Manager" in out.stdout
     # idempotent, and leaves other plugins alone
     (dest / "other_plugin.desktop").write_text("x")
@@ -71,4 +75,5 @@ def test_install_script_honours_override_dir(tmp_path):
     out = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
     assert (tmp_path / "pk" / "steady" / "dispatch.py").exists()
+    assert (tmp_path / "pk" / "steady" / "actions.json").exists()
     assert not (tmp_path / "home").exists()

@@ -178,8 +178,9 @@ describe("grammar (§6)", () => {
     expect(k).toContain("later");
     expect(k).toContain("undo that");
     expect(new Set(k).size).toBe(k.length);
-    // Every voice phrase in the table is a keyterm (nothing was dropped by the caps).
-    for (const a of ACTIONS) for (const p of a.voicePhrases) expect(k).toContain(p);
+    // Every voice phrase in the table is a keyterm (nothing was dropped by the caps), except demo-page controls.
+    for (const a of ACTIONS) if (a.page !== "demo") for (const p of a.voicePhrases) expect(k).toContain(p);
+    expect(k).not.toContain("simulate tremor");
   });
 
   it("@P2a alias collision refused: equal or within a phrase's fuzzy threshold", () => {
