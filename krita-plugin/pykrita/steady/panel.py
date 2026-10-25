@@ -69,6 +69,7 @@ from .panel_model import (
     COACHING_TEXT,
     HEADER_COLUMNS,
     INSTALL_HINT,
+    NOT_RUNNING_HINT,
     PAGES,
     PERMISSIONS_FOOTER,
     PRIVACY_TEXT,
@@ -123,6 +124,9 @@ def _enum(owner: Any, group: str, name: str) -> Any:
 ALIGN_CENTER = _enum(Qt, "AlignmentFlag", "AlignCenter")
 ALIGN_LEFT = _enum(Qt, "AlignmentFlag", "AlignLeft")
 HORIZONTAL = _enum(Qt, "Orientation", "Horizontal")
+VERTICAL = _enum(Qt, "Orientation", "Vertical")
+ELIDE_RIGHT = _enum(Qt, "TextElideMode", "ElideRight")
+SCROLL_AS_NEEDED = _enum(Qt, "ScrollBarPolicy", "ScrollBarAsNeeded")
 STRONG_FOCUS = _enum(Qt, "FocusPolicy", "StrongFocus")
 SCROLL_OFF = _enum(Qt, "ScrollBarPolicy", "ScrollBarAlwaysOff")
 TRANSPARENT_MOUSE = _enum(Qt, "WidgetAttribute", "WA_TransparentForMouseEvents")
@@ -149,6 +153,8 @@ STYLE = """
 #steadyRoot QLabel#muted { color: #c4c8d0; }
 #steadyRoot QLabel#title { font-size: 20px; font-weight: 700; }
 #steadyRoot QLabel#caption { color: #ffd166; font-weight: 700; }
+#steadyRoot QLabel#chipOn { border: 2px solid #7ee0a1; border-radius: 8px; padding: 0 6px; }
+#steadyRoot QLabel#chipOff { border: 2px solid #ff6b6b; border-radius: 8px; padding: 0 6px; color: #ffd0d0; }
 #steadyRoot QPushButton#tile {
   background: #262b36; border: 2px solid #7d8696; border-radius: 10px;
   min-width: 64px; min-height: 64px; padding: 4px;
@@ -193,6 +199,15 @@ DOT_STYLE = {
 }
 
 
+def status_text(ctl: PanelController, connected: bool, started: bool) -> str:
+    """The single status line; tracker connection state folds into it."""
+    if connected:
+        return ctl.local_status or ctl.model.status_text or "Ready"
+    if ctl.local_status:
+        return ctl.local_status
+    return "Connecting to Steady Tracker…" if started else NOT_RUNNING_HINT
+
+
 def _repolish(w: QWidget) -> None:
     try:
         st = w.style()
@@ -200,6 +215,52 @@ def _repolish(w: QWidget) -> None:
         st.polish(w)
     except Exception:
         pass
+
+
+class ElidedLabel(QLabel):
+    """One line, elided with … to the available width; the full text is the tooltip (and accessible name)."""
+
+    def __init__(self, text: str = "", name: str = ""):
+        super().__init__()
+        if name:
+            self.setObjectName(name)
+        self.setWordWrap(False)
+        self.setSizePolicy(EXPANDING, PREFERRED)
+        self._full = ""
+        self.set_full_text(text)
+
+    def full_text(self) -> str:
+        return self._full
+
+    def set_full_text(self, text: str) -> None:
+        if text == self._full and self.text():
+            return
+        self._full = text
+        self.setToolTip(text)
+        self.setAccessibleName(text)
+        self._elide()
+
+    def _elide(self) -> None:
+        shown = self._full
+        try:
+            el = self.fontMetrics().elidedText(self._full, ELIDE_RIGHT, max(10, self.width()))
+            if isinstance(el, str):
+                shown = el
+        except Exception:
+            pass
+        QLabel.setText(self, shown)
+
+    def minimumSizeHint(self):  # noqa: N802 (Qt API): never forces the docker wider
+        hint = super().minimumSizeHint()
+        try:
+            hint.setWidth(20)
+        except Exception:
+            pass
+        return hint
+
+    def resizeEvent(self, ev):  # noqa: N802 (Qt API)
+        super().resizeEvent(ev)
+        self._elide()
 
 
 def _label(text: str = "", name: str = "", wrap: bool = True) -> QLabel:
@@ -530,21 +591,27 @@ class SteadyPanel(QWidget):
         self.dialog: Optional[SteadyDialog] = None
         self._dialog_return_focus: Optional[QWidget] = None
 
+        # Everything scrolls (header first): a docker squeezed under other dockers (~550 px on a laptop)
+        # must still reach every page. The header is compact so a page row shows without scrolling.
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        root.addWidget(self._build_header())
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(SCROLL_OFF)
+        self.scroll.setHorizontalScrollBarPolicy(SCROLL_AS_NEEDED)
+        content = QWidget()
+        content.setObjectName("page")
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        cl.addWidget(self._build_header())
         holder = QWidget()
         holder.setObjectName("page")
         hl = QVBoxLayout(holder)
-        hl.setContentsMargins(12, 12, 12, 12)
+        hl.setContentsMargins(12, 8, 12, 12)
         hl.setSpacing(GAP)
-        # privacy / permissions / calibration sit at the top of the scrolling area, so the docker can
-        # stay short while the header (Start/Stop, status, core tiles, pages) stays pinned
         hl.addWidget(self._build_banners())
+        hl.addWidget(self._build_page_menu())
         for pid, label in PAGES:
             page = self._build_page(pid)
             page.setObjectName("page")
@@ -552,8 +619,13 @@ class SteadyPanel(QWidget):
             self.pages[pid] = page
             hl.addWidget(page)
         hl.addStretch(1)
-        self.scroll.setWidget(holder)
+        cl.addWidget(holder, 1)
+        self.scroll.setWidget(content)
         root.addWidget(self.scroll, 1)
+        try:  # keep the docker at least as wide as the tiles need (longest words + gaps)
+            self.scroll.setMinimumWidth(content.minimumSizeHint().width() + 14)
+        except Exception:
+            pass
 
         self.ctl.listeners.append(self._on_change)
         self.set_page(self.ctl.page if self.ctl.page in self.pages else "steady")
@@ -577,34 +649,34 @@ class SteadyPanel(QWidget):
         h = QFrame()
         h.setObjectName("header")
         lay = QVBoxLayout(h)
-        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setContentsMargins(12, 12, 12, 10)
         lay.setSpacing(GAP)
 
+        # row 1: [Start/Stop]  dot Tracking · 24 fps · Krita ✓ / one status line
         top = QHBoxLayout()
         top.setSpacing(GAP)
         self.start_tile = Tile("Start", self.hub.toggle_tracker)
         self.start_tile.set_flag("primary", True)
         self.start_tile.setSizePolicy(FIXED, MINIMUM)
-        self.start_tile.setFixedWidth(96)
+        self.start_tile.setFixedWidth(88)
         top.addWidget(self.start_tile)
         info = QVBoxLayout()
-        info.setSpacing(2)
+        info.setSpacing(4)
         line1 = QHBoxLayout()
         line1.setSpacing(6)
         self.dot = QLabel()
         self.dot.setFixedSize(20, 20)
-        self.tracking = _label("Lost", "title", wrap=False)
+        self.tracking = ElidedLabel("Lost", "title")
         self.fps = _label("– fps", "muted", wrap=False)
         self.fps.setAccessibleName("Detection frames per second")
+        self.krita = _label("Krita ✗", "chipOff", wrap=False)
         line1.addWidget(self.dot)
-        line1.addWidget(self.tracking)
-        line1.addStretch(1)
+        line1.addWidget(self.tracking, 1)
         line1.addWidget(self.fps)
+        line1.addWidget(self.krita)
         info.addLayout(line1)
-        self.conn = _label("", "muted")
-        self.krita = _label("", "muted")
-        info.addWidget(self.conn)
-        info.addWidget(self.krita)
+        self.status = ElidedLabel("", "status")
+        info.addWidget(self.status)
         top.addLayout(info, 1)
         lay.addLayout(top)
 
@@ -616,24 +688,46 @@ class SteadyPanel(QWidget):
         self.alert.setAccessibleName("Alert")
         al.addWidget(self.alert)
         lay.addWidget(self.alert_box)
-        self.status = _label("", "status")
-        self.status.setAccessibleName("Status")
-        lay.addWidget(self.status)
-        self.heard = _label("Heard: nothing yet", "muted")
-        self.undo = _label("Undo: nothing yet", "muted")
+        self.heard = ElidedLabel("", "muted")  # only once something was heard
+        self.undo = ElidedLabel("", "muted")  # only once something can be undone
         lay.addWidget(self.heard)
         lay.addWidget(self.undo)
 
         core = [self._action_tile(a["id"]) for a in header_actions(self.hub.table)]
         lay.addLayout(_grid(core, HEADER_COLUMNS))
 
+        # page row: Prev  [Steady / All pages]  Next   (one 64 px row; the full list opens below)
+        nav = QHBoxLayout()
+        nav.setSpacing(GAP)
+        self.prev_page = Tile("Prev", lambda: self.step_page(-1), accessible="Previous page")
+        self.next_page = Tile("Next", lambda: self.step_page(+1), accessible="Next page")
+        for t in (self.prev_page, self.next_page):
+            t.setSizePolicy(FIXED, MINIMUM)
+            t.setFixedWidth(72)
+        self.page_tile = Tile("Steady", self.toggle_page_menu)
+        self.page_tile.set_sub("All pages")
+        nav.addWidget(self.prev_page)
+        nav.addWidget(self.page_tile, 1)
+        nav.addWidget(self.next_page)
+        lay.addLayout(nav)
+        return h
+
+    def _build_page_menu(self) -> QWidget:
+        """All 12 pages as big tiles, shown in place of the page when the page tile is tapped."""
+        self.page_menu = QWidget()
+        self.page_menu.setObjectName("page")
+        ml = QVBoxLayout(self.page_menu)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.setSpacing(GAP)
+        ml.addWidget(_label("Pages", "title"))
         sel = []
         for pid, label in PAGES:
             t = Tile(label, (lambda p=pid: self.set_page(p)), accessible=f"{label} page")
             self.page_buttons[pid] = t
             sel.append(t)
-        lay.addLayout(_grid(sel, SELECTOR_COLUMNS))
-        return h
+        ml.addLayout(_grid(sel, SELECTOR_COLUMNS))
+        self.page_menu.setVisible(False)
+        return self.page_menu
 
     def _build_banners(self) -> QWidget:
         w = QWidget()
@@ -699,6 +793,10 @@ class SteadyPanel(QWidget):
             lay.addLayout(self._typed_box())
         if pid in ("steady", "krita"):
             sliders()
+        if pid == "krita":
+            room = Tile("Give Steady more room", self.hub.give_room)
+            room.setToolTip("Make the Steady docker taller in Krita's dock column.")
+            lay.addWidget(room)
         if pid == "setup":
             self._build_setup(lay, ids)
         elif pid == "input":
@@ -804,16 +902,28 @@ class SteadyPanel(QWidget):
         self.hub.acknowledge_privacy()
 
     def set_page(self, pid: str) -> None:
+        self.page_menu.setVisible(False)
         for p, w in self.pages.items():
             w.setVisible(p == pid)
         for p, t in self.page_buttons.items():
             t.set_flag("current", p == pid)
             t.setAccessibleDescription("current page" if p == pid else "")
+        label = dict(PAGES).get(pid, pid)
+        self.page_tile.set_label(label)
+        self.page_tile.setAccessibleName(f"{label} page. Show all pages")
         self.ctl.set_page(pid)
-        try:
-            self.scroll.verticalScrollBar().setValue(0)
-        except Exception:
-            pass
+
+    def step_page(self, d: int) -> None:
+        ids = [p for p, _ in PAGES]
+        cur = ids.index(self.ctl.page) if self.ctl.page in ids else 0
+        self.set_page(ids[(cur + d) % len(ids)])
+
+    def toggle_page_menu(self) -> None:
+        show = not self.page_menu.isVisible()
+        self.page_menu.setVisible(show)
+        for p, w in self.pages.items():
+            w.setVisible((p == self.ctl.page) and not show)
+        self.page_tile.set_sub("Back to page" if show else "All pages")
 
     # -- rendering --------------------------------------------------------------------
     def _on_change(self, topics: set) -> None:
@@ -892,15 +1002,22 @@ class SteadyPanel(QWidget):
                                    f"Start {TRACKER_APP_NAME} (camera, voice, pointer)")
         word, kind = tracking_view(m.state, connected)
         self.dot.setStyleSheet(DOT_STYLE[kind])
-        self.tracking.setText(tracking_text(m.state, connected))
+        self.tracking.set_full_text(tracking_text(m.state, connected))
         self.fps.setText(fps_text(m.state, connected))
-        self.conn.setText(connection_text(connected, started))
-        self.krita.setText(krita_text(m.state, connected))
+        k_on = connected and bool(m.state.get("kritaConnected"))
+        self.krita.setText("Krita ✓" if k_on else "Krita ✗")
+        self.krita.setObjectName("chipOn" if k_on else "chipOff")
+        _repolish(self.krita)
+        self.krita.setAccessibleName(krita_text(m.state, connected))
+        self.krita.setToolTip(krita_text(m.state, connected))
         self.alert.setText(m.alert_text)
         self.alert_box.setVisible(bool(m.alert_text))
-        self.status.setText(self.ctl.status_line())
-        self.heard.setText(heard_text(m.heard))
-        self.undo.setText(undo_text(m.state))
+        self.status.set_full_text(status_text(self.ctl, connected, started))
+        heard = m.heard.get("text") if m.heard else ""
+        self.heard.set_full_text(heard_text(m.heard) if heard else "")
+        self.heard.setVisible(bool(heard))
+        self.undo.set_full_text(undo_text(m.state) if m.state.get("undoLabel") else "")
+        self.undo.setVisible(bool(m.state.get("undoLabel")))
 
     def render_cameras(self) -> None:
         m = self.hub.model
@@ -1149,12 +1266,31 @@ class Hub:
                 if d.window().isActiveWindow() or len(self.dockers) == 1:
                     d.show()
                     d.raise_()
+                    request_room(d)
             except RuntimeError:
                 self.unregister(d)
         self.report_rect(force=True)
 
+    def give_room(self) -> None:
+        d = self.active_docker()
+        if d is not None:
+            request_room(d)
+
     def status_line(self) -> str:
         return connection_text(self.model.connected, self.client.started)
+
+
+def request_room(dock: Any) -> bool:
+    """Ask Krita's main window to make the Steady docker tall (it often lands under three other dockers
+    with ~550 px). max(700, 60 % of the window); Qt clamps it to what the dock column can give."""
+    try:
+        win = Krita.instance().activeWindow() if Krita is not None else None
+        qwin = win.qwindow() if win is not None else dock.window()
+        h = int(max(700, qwin.height() * 0.6))
+        qwin.resizeDocks([dock], [h], VERTICAL)
+        return True
+    except Exception:
+        return False
 
 
 def _plugin_version() -> str:
@@ -1197,6 +1333,9 @@ if DockWidget is not None:
         def showEvent(self, ev):  # noqa: N802 (Qt API)
             super().showEvent(ev)
             self.hub.report_rect(force=True)
+            if not getattr(self, "_asked_room", False):  # first show: ask for room once
+                self._asked_room = True
+                QTimer.singleShot(0, lambda: request_room(self))
 
         def hideEvent(self, ev):  # noqa: N802 (Qt API)
             super().hideEvent(ev)

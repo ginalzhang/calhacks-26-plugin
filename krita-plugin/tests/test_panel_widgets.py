@@ -69,7 +69,7 @@ def test_imports_with_stub_qt_and_builds_the_tree(env):
     assert len(p.sliders) == 9
     assert p.pages["steady"].isVisible() and not p.pages["setup"].isVisible()
     assert p.start_tile.text_label() == "Start"
-    assert p.status.text() == "Steady Tracker is not running. Press Start."
+    assert p.status.text() == "Tracker off. Press Start."
 
 
 def test_header_render_and_pause_resume(env):
@@ -82,12 +82,68 @@ def test_header_render_and_pause_resume(env):
     pen = p.action_tiles["pen_toggle"][0]
     assert pen.isCheckable() and pen.isChecked() and pen.accessibleName() == "Pen"
     assert p.tracking.text() == "Weak" and p.fps.text() == "24 fps"
-    assert p.krita.text() == "Krita connected" and p.undo.text() == "Undo: Brush"
+    assert p.krita.text() == "Krita ✓" and p.krita.accessibleName() == "Krita connected"
+    assert p.undo.isVisible() and p.undo.full_text() == "Undo: Brush"
     assert p.start_tile.text_label() == "Stop"
     pause.click()
     assert sent[-1]["action"] == "pause" and sent[-1]["variant"] == "resume"
     hub.ctl.on_message({"t": "state", "state": {"paused": False}})
     assert pause.text_label() == "Pause"
+
+
+def test_compact_header_hides_empty_lines(env):
+    panel, hub, docker, sent, app = env
+    p = docker.panel
+    assert not p.heard.isVisible() and not p.undo.isVisible() and not p.alert_box.isVisible()
+    hub.client.started = True
+    p.render_header()
+    assert p.status.full_text() == "Connecting to Steady Tracker…"
+    connect(hub, undoLabel=None)
+    assert p.status.full_text() == "Ready" and not p.undo.isVisible()
+    long = "Tracking back. Pen is up. " * 6
+    hub.ctl.on_message({"t": "status", "text": long, "level": "status"})
+    assert p.status.full_text() == long and p.status.toolTip() == long  # elided on screen, full in tooltip
+    hub.ctl.on_message({"t": "heard", "text": "undo", "via": "grammar"})
+    assert p.heard.isVisible() and p.heard.full_text() == "Heard: undo"
+    hub.ctl.on_message({"t": "state", "undoLabel": "Brush stroke"})
+    assert p.undo.isVisible()
+
+
+def test_page_row_prev_next_and_all_pages(env):
+    panel, hub, docker, sent, app = env
+    p = docker.panel
+    assert p.page_tile.text_label() == "Steady" and p.pages["steady"].isVisible()
+    p.next_page.click()
+    assert p.page_tile.text_label() == "Presets" and p.pages["presets"].isVisible()
+    p.prev_page.click()
+    p.prev_page.click()
+    assert hub.ctl.page == "demo" and p.pages["demo"].isVisible()  # wraps around
+    p.page_tile.click()  # show all pages
+    assert p.page_menu.isVisible() and not p.pages["demo"].isVisible()
+    assert len(p.page_buttons) == 12 and p.page_buttons["demo"].property("current") is True
+    p.page_buttons["layers"].click()
+    assert not p.page_menu.isVisible() and p.pages["layers"].isVisible() and hub.ctl.page == "layers"
+
+
+def test_request_room_asks_the_main_window(env, monkeypatch):
+    panel, hub, docker, sent, app = env
+    calls = []
+
+    class QWin:
+        def height(self): return 1000
+        def resizeDocks(self, docks, sizes, orient): calls.append((docks, sizes, orient))
+
+    class Win:
+        def qwindow(self): return QWin()
+
+    app.activeWindow = lambda: Win()
+    hub.give_room()
+    assert calls == [([docker], [700], "Vertical")]
+    QWin.height = lambda self: 1400
+    hub.show_panel()
+    assert calls[-1][1] == [840]
+    app.activeWindow = lambda: None  # never raises into Krita
+    assert panel.request_room(docker) in (True, False)
 
 
 def test_toggle_click_follows_state_not_the_click(env):
@@ -251,7 +307,9 @@ def test_panel_rect_and_disconnect(env):
     hub.report_rect()
     assert sent[-1]["rect"]["w"] == 380
     hub.ctl.on_disconnected()
-    assert docker.panel.tracking.text() == "Lost" and docker.panel.krita.text() == "Krita: waiting for tracker"
+    assert docker.panel.tracking.text() == "Lost" and docker.panel.krita.text() == "Krita ✗"
+    assert docker.panel.krita.accessibleName() == "Krita: waiting for tracker"
+    assert docker.panel.status.full_text() == "Tracker off. Press Start."
 
 
 def test_start_stop(env, monkeypatch):

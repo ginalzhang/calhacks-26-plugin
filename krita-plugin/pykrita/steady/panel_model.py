@@ -45,7 +45,7 @@ COACHING_TEXT = (
 )
 TRACKER_APP_NAME = "Steady Tracker"
 INSTALL_HINT = "Install the tracker: run scripts/install-steady.sh"
-NOT_RUNNING_HINT = "Steady Tracker is not running. Press Start."
+NOT_RUNNING_HINT = "Tracker off. Press Start."  # short: the status line is one elided line
 
 # --------------------------------------------------------------------------- action table
 
@@ -549,6 +549,7 @@ class PanelModel:
         self.dialog = None
         self.preview = None
         self.alert_text = ""
+        self.heard = None
 
 
 # --------------------------------------------------------------------------- view-model
