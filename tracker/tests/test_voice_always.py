@@ -229,7 +229,9 @@ def test_ambient_speech_never_goes_to_claude(tmp_path):
     r.feed_frames(speech(0.6))
     r.feed_frames(silent(0.6))
     assert r.interp.calls == [] and r.dispatch.items == []
-    assert r.statuses()[-1] == "Heard: “so I said to her” (not a command)."
+    # Room chatter is never shown or spoken (user screenshot 19:12 Sat).
+    assert not any("so I said to her" in t for t in r.statuses())
+    assert not any("so I said to her" in t for t, _via in r.heard.items)
 
 
 def test_utterance_capped_at_mic_cap(tmp_path):

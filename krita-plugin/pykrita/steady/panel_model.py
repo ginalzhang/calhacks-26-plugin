@@ -26,15 +26,17 @@ MAX_LINE = 4 << 20  # a preview JPEG is ~10 KB of base64; anything near 4 MiB is
 
 # --------------------------------------------------------------------------- privacy (§0 rule 9)
 # Sentences 1-2 are the spec / website text verbatim. Adapted for the plugin build (lead decision):
-# sentence 3 — there is no Steady server, the tracker calls Anthropic directly; sentence 4 — Steady
+# sentence 3 — no Steady server, and Claude help is OFF by default (user decision 19:10 Sat): nothing goes to
+# Anthropic unless the user turns it on; sentence 4 — Steady
 # Tracker (not "the helper") owns the sockets and, since it talks to Cartesia and Anthropic itself,
 # sends "nothing else" off the machine.
 PRIVACY_SENTENCES = (
     "Camera frames never leave this computer; the camera sees the desk, so papers on it are visible to the app, "
     "and processing is local only.",
     "Microphone audio goes to Cartesia only while the mic is open.",
-    "When the local grammar can't match a command, its text (never audio) plus the current tool, preset, size, "
-    "opacity, colour, Steadiness and your last three actions go from this Mac directly to Anthropic.",
+    "Commands are matched on this Mac; nothing goes to Anthropic unless you turn on Claude help, and then only "
+    "the text of a command the local grammar can't match (never audio) plus the current tool, preset, size, "
+    "opacity, colour, Steadiness and your last three actions.",
     "Steady Tracker and the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine.",
 )
 PRIVACY_TEXT = " ".join(PRIVACY_SENTENCES)
@@ -240,7 +242,7 @@ def next_landmark(i: Any) -> int:
 # (label, settings path). A dotted path means a nested key: inputs.dwell.
 SETTING_TOGGLES: Dict[str, List[Tuple[str, str]]] = {
     "setup": [("Mirror camera", "mirrorCamera"), ("Rotate camera", "rotateCamera")],
-    "input": [("Dwell click", "dwellClickEnabled"), ("Click anywhere", "clickAnywhere"), ("All dwell", "inputs.dwell"), ("Keys", "inputs.keys"),
+    "input": [("Dwell click", "dwellClickEnabled"), ("Click anywhere", "clickAnywhere"), ("Claude help", "claudeFallback"), ("All dwell", "inputs.dwell"), ("Keys", "inputs.keys"),
               ("Camera", "inputs.camera"), ("Voice", "inputs.voice"), ("Always listening", "alwaysListen"), ("Speech replies", "tts"),
               ("Sounds", "earcons")],
 }

@@ -450,12 +450,9 @@ def test_privacy_text_matches_spec_sentence_by_sentence():
     assert len(spec) == len(ours) == 4
     assert ours[:2] == spec[:2]  # camera and Cartesia sentences unchanged
     assert spec[2].endswith("go to our server and on to Anthropic.")
-    # plugin build: no Steady server, the tracker calls Anthropic directly (lead decision)
-    assert ours[2] == spec[2].replace("go to our server and on to Anthropic.",
-                                      "go from this Mac directly to Anthropic.")
-    assert ours[2] == ("When the local grammar can't match a command, its text (never audio) plus the current "
-                       "tool, preset, size, opacity, colour, Steadiness and your last three actions go from this "
-                       "Mac directly to Anthropic.")
+    # plugin build: no Steady server, and Claude help is off by default (user decision 19:10 Sat)
+    assert ours[2].startswith("Commands are matched on this Mac; nothing goes to Anthropic unless you turn on Claude help")
+    assert "never audio" in ours[2]
     assert spec[3] == "The helper and the Krita plugin listen on 127.0.0.1 only and send nothing off the machine."
     assert ours[3] == "Steady Tracker and the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine."
     assert PRIVACY_TEXT == " ".join(PRIVACY_SENTENCES)

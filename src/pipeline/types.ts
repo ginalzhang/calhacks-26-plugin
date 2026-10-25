@@ -135,6 +135,9 @@ export interface SteadySettings {
    * detector sends ONLY speech segments to Cartesia; each segment is finalised after `utteranceEndMs` of silence.
    */
   alwaysListen?: boolean;
+  /** Ask Claude to interpret text the grammar can't match. Default OFF (user decision 19:10 Sat): Cartesia does the
+   * speech-to-text and Steady's grammar does all matching; nothing is sent to Anthropic unless this is on. */
+  claudeFallback?: boolean;
   /** End-of-utterance silence for always-listening and tap mode (default 450 ms, slider 250–1500). */
   utteranceEndMs?: number;
   micCapMs: number; // 15000–60000, default 15000

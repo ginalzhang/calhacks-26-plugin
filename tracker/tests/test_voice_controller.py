@@ -255,7 +255,7 @@ def test_tts_setting_off(tmp_path):
 
 def test_nomatch_goes_to_claude_two_commands_50ms_apart(tmp_path):
     resp = {"kind": "actions", "first": "smaller", "second": "airbrush", "arg": None, "latencyMs": 500, "mock": False}
-    r = Rig(tmp_path, transcript=("make it thinner", " and a bit softer"), response=resp)
+    r = Rig(tmp_path, transcript=("make it thinner", " and a bit softer"), response=resp, settings={"claudeFallback": True})
     r.vc.open("ptt")
     r.feed(voiced())
     r.vc.close()
@@ -276,7 +276,7 @@ def test_coalesced_undo_is_sent_once_with_its_count(tmp_path):
 def test_clarify_dialog_answered_by_voice_then_by_panel(tmp_path):
     resp = {"kind": "clarify", "options": ["lighter", "fade"], "latencyMs": 400, "mock": False}
     parse = Parse({"two": match({"action": "choice_two"}), "make it lighter": {"kind": "nomatch", "closest": []}})
-    r = Rig(tmp_path, transcript=("make it lighter",), parse=parse, response=resp)
+    r = Rig(tmp_path, transcript=("make it lighter",), parse=parse, response=resp, settings={"claudeFallback": True})
     r.vc.submit_text("make it lighter")
     d = r.dialogs.items[-1]
     assert d["t"] == "dialog" and d["kind"] == "clarify" and d["dialog_id"].startswith("v-dlg-")
@@ -374,3 +374,15 @@ def test_threaded_smoke(tmp_path):
         time.sleep(0.01)
     assert dispatch.items == [("colour_blue", None, None, "voice")]
     vc.shutdown()
+
+
+@pytest.mark.P2a
+def test_claude_is_off_by_default_nothing_goes_to_anthropic(tmp_path):
+    """User decision (19:10 Sat): Cartesia hears, Steady's grammar decides. Unmatched text never reaches Claude."""
+    resp = {"kind": "actions", "first": "smaller", "second": "airbrush", "arg": None, "latencyMs": 500, "mock": False}
+    r = Rig(tmp_path, transcript=("make it thinner", " and a bit softer"), response=resp)
+    r.vc.open("ptt")
+    r.feed(voiced())
+    r.vc.close()
+    assert r.dispatch.items == []
+    assert all(via != "claude" for _t, via in r.heard.items)

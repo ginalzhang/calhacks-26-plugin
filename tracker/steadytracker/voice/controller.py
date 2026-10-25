@@ -251,7 +251,13 @@ class VoiceController:
             return False
         return self.tts.speak(text)
 
+    def claude_enabled(self) -> bool:
+        """settings.claudeFallback (default OFF since 19:10 Sat, user decision: Cartesia hears, Steady's own grammar
+        decides; nothing goes to Anthropic unless the user turns this on)."""
+        return bool(_get(self._safe(self._settings, None), "claudeFallback", False))
+
     def resolve_text(self, text: str, mode: str = "typed", allow_claude: bool = True) -> Dict[str, Any]:
+        allow_claude = allow_claude and self.claude_enabled()
         mine = self._clarify is not None
         ext = self._safe(self._dialog_open, False) if self._dialog_open is not None else None
         dialog_open = True if (mine or ext) else (False if ext is not None else None)
@@ -375,10 +381,11 @@ class VoiceController:
             self.tokens.get()
         except Exception:
             pass
-        try:
-            self.interpreter.prewarm()
-        except Exception:
-            pass
+        if self.claude_enabled():
+            try:
+                self.interpreter.prewarm()
+            except Exception:
+                pass
 
     def _handle(self, cmd: tuple) -> None:
         op = cmd[0]
@@ -464,7 +471,10 @@ class VoiceController:
     def _stt_handlers(self) -> SttHandlers:
         def on_delta(full: str, _final: bool) -> None:
             self._post(("activity",))
-            self._status(f"Heard: {full}…", "status")
+            # Live partials only for an explicit Mic/F10 utterance; always-listening hears the room, so nothing
+            # partial is shown (the final text appears only if it is a command).
+            if self.is_open:
+                self._status(f"Heard: {full}…", "status")
 
         def on_error(m: str) -> None:
             self._status(f"Voice: {m}", "alert")
@@ -861,8 +871,11 @@ class VoiceController:
         else:
             r = self.resolve_text(text, mode)
         heard = r.get("heard") or text
-        self._heard(heard, "claude" if r.get("via") == "claude" else "grammar")
         kind = r.get("kind")
+        # Always-listening hears the whole room: only show text that became a command. Chatter is never put on
+        # screen (real-Mac screenshot 19:12 Sat: "Heard: Bro, I have leg warmers…").
+        if not always or kind == "commands":
+            self._heard(heard, "claude" if r.get("via") == "claude" else "grammar")
         log.info("heard %r -> %s %s", text[:60], kind,
                  [c.get("action") for c in (r.get("commands") or [])] if kind == "commands" else "")
         clarify = self._clarify
@@ -899,8 +912,7 @@ class VoiceController:
         elif kind == "none":
             refused = r.get("refused")
             if always and not refused:
-                self._status(f"Heard: \u201c{heard}\u201d (not a command).", "status")
-                return
+                return  # room chatter: say nothing, show nothing (it is only in the local log)
             if refused:
                 self.speak(confirmation_text("word_taken") or "")
                 return
