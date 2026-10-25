@@ -10,6 +10,11 @@
 # 3. hand model: public/mediapipe/hand_landmarker.task, else float16 download to
 #    ~/Library/Application Support/Steady/models/hand_landmarker.task
 set -euo pipefail
+# Launched from Krita (via `open`), the tracker inherits Krita's Python environment (PYTHONHOME/PYTHONPATH pointing
+# at Krita's bundled Python 3.13), which makes our Python 3.12 load the wrong stdlib and crash at import time.
+# Clear every PYTHON* variable (and pyenv/conda/virtualenv leftovers) before anything runs Python.
+for v in $(env | sed -n 's/^\(PYTHON[A-Z_]*\)=.*/\1/p'); do unset "$v"; done
+unset VIRTUAL_ENV CONDA_PREFIX __PYVENV_LAUNCHER__ || true
 cd "$(dirname "$0")/.."
 REPO=$(pwd)
 VENV=tracker/.venv
