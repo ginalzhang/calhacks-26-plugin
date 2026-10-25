@@ -216,6 +216,7 @@ class TrackerApp:
             except Exception:
                 log.exception("hotkey listener failed to start")
         self.source.start(self._on_frame)
+        self._apply_camera_mirror()
         self._spawn(self._tick_loop())
         self._spawn(self._rects_loop())
         self._spawn(self._permissions_loop())
@@ -328,9 +329,15 @@ class TrackerApp:
             s["profiles"] = profiles
         return s
 
-    def persist_settings(self, patch: Dict[str, Any]) -> None:
+    def persist_settings(self, patch: Dict[str, Any], remember_camera: bool = True) -> None:
         """Partial settings → settings.json; `aliases` → aliases.json, `profiles` → profiles.json (whole)."""
         patch = dict(patch)
+        if remember_camera and "mirrorCamera" in patch:
+            name = self._current_camera_name()
+            if name:
+                prefs = dict(self.store.tracker_prefs().get("mirror_by_camera") or {})
+                prefs[name] = bool(patch["mirrorCamera"])
+                self.store.set_tracker_pref("mirror_by_camera", prefs)
         if isinstance(patch.get("aliases"), dict):
             self.store.save("aliases", patch.pop("aliases"))
         if isinstance(patch.get("profiles"), dict):
@@ -412,6 +419,8 @@ class TrackerApp:
                     self._apply_state(st)
                     self.panel.send_state(st)
             elif t == "status":
+                if msg.get("text"):
+                    log.info("status[%s]: %s", msg.get("level", "status"), msg.get("text"))
                 self.panel.send({"t": "status", "text": str(msg.get("text", "")), "level": msg.get("level", "status")})
             elif t == "krita":
                 self._spawn(self._relay_krita(msg))
@@ -459,6 +468,11 @@ class TrackerApp:
             log.exception("brain message %r failed", t)
 
     def _apply_state(self, st: Dict[str, Any]) -> None:
+        prev = self.brain_state or {}
+        for k in ("tracking", "reason", "pen", "paused", "kritaConnected", "calibrating"):
+            if prev.get(k) != st.get(k):
+                log.info("state %s: %s -> %s (fps cam %.0f det %.0f)", k, prev.get(k), st.get(k),
+                         float(st.get("cameraFps") or 0), float(st.get("detectionFps") or 0))
         self.brain_state = st
         paused = bool(st.get("paused"))
         if paused and not self.pointer.paused:
@@ -485,11 +499,18 @@ class TrackerApp:
         kind = ev.get("type")
         p = self.pointer
         x, y = float(ev.get("x", 0.0)), float(ev.get("y", 0.0))
+        if kind != "move":
+            log.info("pen %s at (%.0f, %.0f)%s", kind, x, y, f" reason={ev.get('reason')}" if ev.get("reason") else "")
+        else:
+            self._moves_logged = getattr(self, "_moves_logged", 0) + 1
+            if self._moves_logged % 150 == 1:
+                log.info("pen move (#%d) at (%.0f, %.0f)", self._moves_logged, x, y)
         if kind == "move":
             self._schedule_pump(p.move(x, y))
         elif kind in ("down", "middle_down"):
             code = self._down_refusal()
             if code is not None:
+                log.warning("pen %s refused: %s (front=%r)", kind, code, self._front)
                 self._helper_event("refused_down", _refusal(code, "left" if kind == "down" else "middle"))
                 return
             self._schedule_pump(p.move(x, y))
@@ -628,7 +649,12 @@ class TrackerApp:
     def _refresh_frontmost(self) -> None:
         try:
             self.system.pump()
-            self._front = self.system.frontmost_bundle_id()
+            front = self.system.frontmost_bundle_id()
+            # Our own process (Python.app / Steady Tracker) is never "the front app" for safety decisions:
+            # if it ever shows up, keep the previous real app.
+            if front in ("org.python.python", "org.steady.tracker"):
+                return
+            self._front = front
         except Exception:
             log.debug("frontmost refresh failed", exc_info=True)
 
@@ -872,8 +898,37 @@ class TrackerApp:
             return False, f"internal: {type(exc).__name__}"
         if match:
             self.store.set_tracker_pref("camera", match[0]["name"])
+        self._apply_camera_mirror()
         self.panel.send(self._cameras_message())
         return True, None
+
+    # ------------------------------------------------------------------ per-camera mirror
+    def _current_camera_name(self) -> Optional[str]:
+        try:
+            sel = int(getattr(self.source, "selected", 0) or 0)
+            for c in self.source.cameras():
+                if int(c.get("index", -1)) == sel:
+                    return str(c.get("name"))
+        except Exception:
+            pass
+        return None
+
+    def _apply_camera_mirror(self) -> None:
+        """Mirror is remembered per camera. Default: ON for a camera that faces the user (built-in /
+        Continuity front camera: moving the hand right must move the pointer right), OFF for Desk View
+        (looks down at the desk). The user's toggle on the Setup page overrides and is stored."""
+        name = self._current_camera_name()
+        if not name:
+            return
+        prefs = self.store.tracker_prefs().get("mirror_by_camera") or {}
+        want = prefs.get(name)
+        if want is None:
+            want = "desk view" not in name.lower()
+        want = bool(want)
+        if bool(self.settings.get("mirrorCamera")) != want:
+            log.info("camera %r: mirror %s", name, "on" if want else "off")
+            self.persist_settings({"mirrorCamera": want}, remember_camera=False)
+            self.brain_send({"t": "settings", "settings": {"mirrorCamera": want}})
 
     # ------------------------------------------------------------------ typed / voice text
     async def parse(self, text: str, mode: str, extra: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:

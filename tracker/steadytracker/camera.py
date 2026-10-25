@@ -143,6 +143,44 @@ def _cv2_open(index: int):
     return cap
 
 
+class VideoFileCapture:
+    """Test camera: plays a video file in a loop at its own frame rate through the REAL MediaPipe path
+    (`--video clip.mp4`). Same read()/release()/isOpened() surface as cv2.VideoCapture."""
+
+    def __init__(self, path: str, loop: bool = True) -> None:
+        import cv2
+
+        self._cv2 = cv2
+        self.path = path
+        self.loop = loop
+        self.cap = cv2.VideoCapture(path)
+        fps = self.cap.get(cv2.CAP_PROP_FPS) or CAMERA_FPS
+        self.dt = 1.0 / max(1.0, min(60.0, float(fps)))
+        self._next = None
+        self.finished = False
+
+    def isOpened(self) -> bool:
+        return bool(self.cap.isOpened())
+
+    def read(self):
+        import time
+
+        now = time.monotonic()
+        if self._next is not None and now < self._next:
+            time.sleep(self._next - now)
+        self._next = max(time.monotonic(), (self._next or 0.0)) + self.dt
+        ok, img = self.cap.read()
+        if not ok and self.loop:
+            self.cap.set(self._cv2.CAP_PROP_POS_FRAMES, 0)
+            ok, img = self.cap.read()
+        if not ok:
+            self.finished = True
+        return ok, img
+
+    def release(self) -> None:
+        self.cap.release()
+
+
 class CameraSource(FrameSource):
     """Real camera → HandLandmarker. Everything system-facing is injectable for tests:
     `open_capture(index)` → object with read()/release()/isOpened(); `tracker` with detect(rgb, t);

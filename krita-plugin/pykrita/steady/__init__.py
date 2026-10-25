@@ -148,7 +148,7 @@ if Krita is not None and Krita.instance() is not None:
             b = self.bridge
             conns = b.connections if b else 0
             handled = b.handled if b else 0
-            helper = "helper connected" if conns else "helper not connected (run: npm run helper)"
+            helper = "Steady Tracker connected" if conns else "Steady Tracker not connected (press Start in the Steady panel)"
             if Hub is None:
                 panel = f"panel: failed to load ({PANEL_ERROR})"
             else:

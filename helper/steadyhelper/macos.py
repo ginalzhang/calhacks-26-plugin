@@ -17,7 +17,7 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Optional, Tuple
 
-from .config import KRITA_BUNDLE_ID
+from .config import KRITA_BUNDLE_ALIASES, KRITA_BUNDLE_ID
 from .keys import KeyStroke
 
 log = logging.getLogger("steady.macos")
@@ -161,11 +161,16 @@ class MacSystem:
 
     def frontmost_bundle_id(self) -> Optional[str]:
         app = self._A.NSWorkspace.sharedWorkspace().frontmostApplication()
-        return str(app.bundleIdentifier()) if app is not None and app.bundleIdentifier() else None
+        bid = str(app.bundleIdentifier()) if app is not None and app.bundleIdentifier() else None
+        return KRITA_BUNDLE_ID if bid in KRITA_BUNDLE_ALIASES else bid
 
     def _krita_app(self):
-        apps = self._A.NSRunningApplication.runningApplicationsWithBundleIdentifier_(self.target_bundle)
-        return apps[0] if apps and len(apps) else None
+        ids = KRITA_BUNDLE_ALIASES if self.target_bundle in KRITA_BUNDLE_ALIASES else (self.target_bundle,)
+        for bid in ids:
+            apps = self._A.NSRunningApplication.runningApplicationsWithBundleIdentifier_(bid)
+            if apps and len(apps):
+                return apps[0]
+        return None
 
     def krita_pid(self) -> Optional[int]:
         app = self._krita_app()

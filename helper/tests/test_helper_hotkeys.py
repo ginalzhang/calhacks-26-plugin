@@ -12,7 +12,7 @@ pytestmark = pytest.mark.P1
 F = FKEY_KEYCODES
 
 
-def make(front="org.kde.krita", client=True):
+def make(front="org.krita", client=True):
     emitted = []
     state = {"front": front, "client": client}
     r = HotkeyRouter(emit=emitted.append, frontmost=lambda: state["front"], has_client=lambda: state["client"])

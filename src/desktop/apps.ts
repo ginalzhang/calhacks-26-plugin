@@ -67,7 +67,7 @@ const photoshopKeys: Record<string, AppKey> = {
 };
 
 export const APP_PROFILES: Record<AppId, AppProfile> = {
-  krita: { id: "krita", label: "Krita", bundleId: "org.kde.krita", helperArg: "krita", plugin: true, keys: kritaKeys },
+  krita: { id: "krita", label: "Krita", bundleId: "org.krita", helperArg: "krita", plugin: true, keys: kritaKeys },
   photoshop: {
     id: "photoshop",
     label: "Photoshop",

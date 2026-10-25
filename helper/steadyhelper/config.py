@@ -33,7 +33,10 @@ WINDOW_RECT_PERIOD_S = 1.0
 #: How often the main-thread Cocoa run loop is pumped (keeps NSWorkspace.frontmostApplication fresh).
 RUNLOOP_PUMP_S = 0.050
 
-KRITA_BUNDLE_ID = "org.kde.krita"
+# Verified on the real Mac (Krita 5.3.4 from krita.org): the bundle id is "org.krita". Some builds/docs use
+# "org.kde.krita"; macos.py normalises that alias to KRITA_BUNDLE_ID.
+KRITA_BUNDLE_ID = "org.krita"
+KRITA_BUNDLE_ALIASES = ("org.krita", "org.kde.krita")
 PHOTOSHOP_BUNDLE_ID = "com.adobe.Photoshop"
 
 #: `--app` / STEADY_APP choices (P4 "any drawing app"): which app keys go to, which app's

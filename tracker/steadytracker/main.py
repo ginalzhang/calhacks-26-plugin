@@ -33,6 +33,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--no-hotkeys", action="store_true", help="do not install the global F-key tap")
     ap.add_argument("--no-voice", action="store_true", help="do not load the voice module")
     ap.add_argument("--fake-camera", metavar="REPLAY_JSON", default=None, help="replay landmarks instead of the camera")
+    ap.add_argument("--video", metavar="VIDEO", default=None, help="test: play a video file (looped) as the camera, through real MediaPipe")
     ap.add_argument("--replay-speed", type=float, default=1.0)
     ap.add_argument("--replay-loop", action="store_true")
     ap.add_argument("--brain-cmd", default=None, help="override the brain command (default: node tracker/brain/dist/brain.mjs)")
@@ -118,7 +119,18 @@ def build_app(args: argparse.Namespace, *, overrides: Optional[Dict[str, Any]] =
                 if app is not None:
                     app.on_voice_status(text, "alert")
 
-            source = CameraSource(lambda: HandTracker(model, on_warning=warn), on_warning=warn)
+            if args.video:
+                from .camera import VideoFileCapture
+
+                vpath = args.video
+                source = CameraSource(
+                    lambda: HandTracker(model, on_warning=warn),
+                    open_capture=lambda _i: VideoFileCapture(vpath),
+                    lister=lambda: [{"index": 0, "name": f"Video: {os.path.basename(vpath)}", "unique_id": "video"}],
+                    on_warning=warn,
+                )
+            else:
+                source = CameraSource(lambda: HandTracker(model, on_warning=warn), on_warning=warn)
             source.selected = pick_default(source.cameras(), store.tracker_prefs().get("camera"))
 
     # brain
@@ -208,6 +220,23 @@ async def _run(app, install_signals: bool = True) -> None:
 
 
 def main(argv=None) -> int:
+    import faulthandler
+    import signal as _signal
+
+    # Steady Tracker must NEVER become the front app: the exec'd Python.app is not LSUIElement, and once
+    # AppKit/AVFoundation load it became frontmost on the real Mac ("org.python.python"), stealing focus from
+    # Krita and making every pen-down refuse with krita_not_frontmost. Prohibited = no Dock icon, never active.
+    try:
+        import AppKit
+
+        AppKit.NSApplication.sharedApplication().setActivationPolicy_(AppKit.NSApplicationActivationPolicyProhibited)
+    except Exception:
+        pass
+    # `kill -USR1 <pid>` dumps every thread's Python stack into the log (diagnosing hangs on real Macs).
+    try:
+        faulthandler.register(_signal.SIGUSR1, all_threads=True)
+    except Exception:
+        pass
     args = parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -220,7 +249,7 @@ def main(argv=None) -> int:
     else:
         from . import permissions as perms_mod
 
-        perms_mod.request_startup(camera=not args.fake_camera)
+        perms_mod.request_startup(camera=not (args.fake_camera or args.video))
     try:
         app = build_app(args)
     except OSError as exc:

@@ -15,7 +15,7 @@ const MAC_COMBO = /^((cmd|ctrl|alt|shift)\+)*([a-z0-9]|f\d{1,2}|[[\]=\-+]|delete
 describe("app profiles", () => {
   it("@P4 two profiles with bundle ids matching the helper's --app choices", () => {
     expect(APP_IDS.sort()).toEqual(["krita", "photoshop"]);
-    expect(APP_PROFILES.krita.bundleId).toBe("org.kde.krita");
+    expect(APP_PROFILES.krita.bundleId).toBe("org.krita");
     expect(APP_PROFILES.photoshop.bundleId).toBe("com.adobe.Photoshop");
     expect(APP_PROFILES.photoshop.helperArg).toBe("photoshop");
     expect(APP_PROFILES.krita.plugin).toBe(true);

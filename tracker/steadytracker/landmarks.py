@@ -56,10 +56,16 @@ class MonotonicStamps:
         return ts
 
 
+_RETIRED: list = []
+
+
 class HandTracker:
     """Wraps mediapipe HandLandmarker. `detect(rgb, t_ms)` → result (or None on failure)."""
 
-    def __init__(self, model_path: str, *, prefer_gpu: bool = True, on_warning=None) -> None:
+    def __init__(self, model_path: str, *, prefer_gpu: bool = False, on_warning=None) -> None:
+        # CPU by default. Measured on the real Mac (M-series, 18:25 Sat): the GPU delegate rejects 3-channel
+        # frames, finds no hand on 4-channel ones, and is slower (5.2 vs 3.1 ms/frame). Its CPU fallback also
+        # left a retired landmarker whose __del__ deadlocked the main loop when GC ran it there.
         self.model_path = model_path
         self.delegate = "GPU" if prefer_gpu else "CPU"
         self._on_warning = on_warning
@@ -73,10 +79,9 @@ class HandTracker:
         from mediapipe.tasks.python import vision
 
         if self._lm is not None:
-            try:
-                self._lm.close()
-            except Exception:
-                pass
+            # Never close()/GC a retired landmarker: its __del__ → close() waits on MediaPipe's serial
+            # dispatcher and deadlocked the asyncio thread on a real Mac. Keep it alive (one per switch).
+            _RETIRED.append(self._lm)
             self._lm = None
         d = mp_tasks.BaseOptions.Delegate.GPU if delegate == "GPU" else mp_tasks.BaseOptions.Delegate.CPU
         opts = vision.HandLandmarkerOptions(
