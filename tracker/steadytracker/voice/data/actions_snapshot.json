@@ -1,1147 +1,1148 @@
 {
- "generatedFrom": "src/actions.ts",
- "buildPhase": "P4",
- "extraKeyterms": [
-  "layer"
- ],
- "presetFamilies": [
-  "basic",
-  "pencil",
-  "ink",
-  "airbrush",
-  "eraser"
- ],
- "actions": [
-  {
-   "id": "pen_toggle",
-   "label": "Pen",
-   "voicePhrases": [],
-   "typed": null,
-   "phase": "P0",
-   "page": "header",
-   "destructive": false,
-   "help": "Lower or lift the pen. A pedal sending F8 does the same."
-  },
-  {
-   "id": "pen_down",
-   "label": "Pen down",
-   "voicePhrases": [
-    "down"
-   ],
-   "typed": "down",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "pen_up",
-   "label": "Pen up",
-   "voicePhrases": [
-    "up"
-   ],
-   "typed": "up",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "pause",
-   "label": "Pause",
-   "voicePhrases": [
-    "pause",
-    "stop",
-    "resume"
-   ],
-   "typed": "pause",
-   "phase": "P2a",
-   "page": "header",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Releases the pen. The pointer stays inside Steady's window until you resume. The tile reads Resume while paused."
-  },
-  {
-   "id": "mic",
-   "label": "Mic",
-   "voicePhrases": [],
-   "typed": null,
-   "phase": "P2a",
-   "page": "header",
-   "destructive": false,
-   "help": "Hold F10 to talk, or tap Mic to open and tap again to close."
-  },
-  {
-   "id": "undo",
-   "label": "Undo",
-   "voicePhrases": [
-    "undo that"
-   ],
-   "typed": "undo",
-   "phase": "P2a",
-   "page": "header",
-   "destructive": false
-  },
-  {
-   "id": "redo",
-   "label": "Redo",
-   "voicePhrases": [
-    "redo"
-   ],
-   "typed": "redo",
-   "phase": "P2a",
-   "page": "header",
-   "destructive": false
-  },
-  {
-   "id": "recenter",
-   "label": "Recenter",
-   "voicePhrases": [
-    "recenter"
-   ],
-   "typed": "recenter",
-   "phase": "P2a",
-   "page": "header",
-   "destructive": false,
-   "help": "Moves the tracked area to where your hand is now."
-  },
-  {
-   "id": "other_hand",
-   "label": "Other hand",
-   "voicePhrases": [
-    "other hand"
-   ],
-   "typed": "other hand",
-   "phase": "P2b",
-   "page": "header",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "latch",
-   "label": "Latch",
-   "voicePhrases": [
-    "latch"
-   ],
-   "typed": "latch",
-   "phase": "P2a",
-   "page": "header",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Holding still no longer lifts the pen. Everything else still lifts it."
-  },
-  {
-   "id": "steadier",
-   "label": "Steadier",
-   "voicePhrases": [
-    "steadier"
-   ],
-   "typed": "steadier",
-   "phase": "P2a",
-   "page": "steady",
-   "destructive": false,
-   "help": "Steadiness +10 (the + tile next to the slider moves it by 5)."
-  },
-  {
-   "id": "looser",
-   "label": "Looser",
-   "voicePhrases": [
-    "looser"
-   ],
-   "typed": "looser",
-   "phase": "P2a",
-   "page": "steady",
-   "destructive": false
-  },
-  {
-   "id": "recalibrate",
-   "label": "Recalibrate",
-   "voicePhrases": [
-    "recalibrate"
-   ],
-   "typed": "recalibrate",
-   "phase": "P2a",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "use_last_setup",
-   "label": "Use last setup",
-   "voicePhrases": [
-    "use last setup"
-   ],
-   "typed": "use last setup",
-   "phase": "P2a",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Reuses the last calibration for this hand, so you can start drawing within a few seconds."
-  },
-  {
-   "id": "smoothing_sketch",
-   "label": "Sketch",
-   "voicePhrases": [
-    "sketch"
-   ],
-   "typed": "sketch",
-   "phase": "P3",
-   "page": "steady",
-   "destructive": false
-  },
-  {
-   "id": "smoothing_ink",
-   "label": "Ink mode",
-   "voicePhrases": [
-    "ink mode"
-   ],
-   "typed": "ink mode",
-   "phase": "P3",
-   "page": "steady",
-   "destructive": false
-  },
-  {
-   "id": "smoothing_shade",
-   "label": "Shade",
-   "voicePhrases": [
-    "shade"
-   ],
-   "typed": "shade",
-   "phase": "P3",
-   "page": "steady",
-   "destructive": false
-  },
-  {
-   "id": "pick_sticker_colour",
-   "label": "Pick sticker colour",
-   "voicePhrases": [
-    "pick sticker colour"
-   ],
-   "typed": "pick sticker colour",
-   "phase": "P3",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Hold the sticker in the middle of the camera view, then press. Used by the Colour cap source for gloves and braces."
-  },
-  {
-   "id": "lock_exposure",
-   "label": "Lock exposure",
-   "voicePhrases": [
-    "lock exposure"
-   ],
-   "typed": "lock exposure",
-   "phase": "P3",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "simulate_tremor",
-   "label": "Simulate tremor",
-   "voicePhrases": [
-    "simulate tremor"
-   ],
-   "typed": "simulate tremor",
-   "phase": "P1",
-   "page": "demo",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "next_judge",
-   "label": "Next judge",
-   "voicePhrases": [
-    "next judge"
-   ],
-   "typed": "next judge",
-   "phase": "P1",
-   "page": "demo",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Clears the practice canvas and metrics and reruns calibration."
-  },
-  {
-   "id": "clear_practice",
-   "label": "Clear practice",
-   "voicePhrases": [
-    "clear practice"
-   ],
-   "typed": "clear practice",
-   "phase": "P1",
-   "page": "steady",
-   "destructive": true
-  },
-  {
-   "id": "brush",
-   "label": "Brush",
-   "voicePhrases": [
-    "brush"
-   ],
-   "typed": "brush",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "pencil",
-   "label": "Pencil",
-   "voicePhrases": [
-    "pencil"
-   ],
-   "typed": "pencil",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "ink",
-   "label": "Ink",
-   "voicePhrases": [
-    "ink"
-   ],
-   "typed": "ink",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "airbrush",
-   "label": "Airbrush",
-   "voicePhrases": [
+  "generatedFrom": "src/actions.ts",
+  "buildPhase": "P4",
+  "extraKeyterms": [
+    "layer"
+  ],
+  "presetFamilies": [
+    "basic",
+    "pencil",
+    "ink",
     "airbrush",
-    "soft"
-   ],
-   "typed": "airbrush",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "eraser",
-   "label": "Eraser",
-   "voicePhrases": [
     "eraser"
-   ],
-   "typed": "eraser",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "bigger",
-   "label": "Bigger",
-   "voicePhrases": [
-    "bigger"
-   ],
-   "typed": "bigger",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "smaller",
-   "label": "Smaller",
-   "voicePhrases": [
-    "smaller"
-   ],
-   "typed": "smaller",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "size",
-   "label": "Size",
-   "voicePhrases": [
-    "size"
-   ],
-   "typed": "size",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false,
-   "arg": "number",
-   "help": "Say or type 'size' and a number, e.g. 'size 20'."
-  },
-  {
-   "id": "fade",
-   "label": "Fade",
-   "voicePhrases": [
-    "fade"
-   ],
-   "typed": "fade",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "solid",
-   "label": "Solid",
-   "voicePhrases": [
-    "solid"
-   ],
-   "typed": "solid",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "opacity",
-   "label": "Opacity",
-   "voicePhrases": [
-    "opacity"
-   ],
-   "typed": "opacity",
-   "phase": "P2a",
-   "page": "paint",
-   "destructive": false,
-   "arg": "number"
-  },
-  {
-   "id": "colour_black",
-   "label": "Black",
-   "voicePhrases": [
-    "black"
-   ],
-   "typed": "black",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_white",
-   "label": "White",
-   "voicePhrases": [
-    "white"
-   ],
-   "typed": "white",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_red",
-   "label": "Red",
-   "voicePhrases": [
-    "red"
-   ],
-   "typed": "red",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_blue",
-   "label": "Blue",
-   "voicePhrases": [
-    "blue"
-   ],
-   "typed": "blue",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_green",
-   "label": "Green",
-   "voicePhrases": [
-    "green"
-   ],
-   "typed": "green",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_yellow",
-   "label": "Yellow",
-   "voicePhrases": [
-    "yellow"
-   ],
-   "typed": "yellow",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_orange",
-   "label": "Orange",
-   "voicePhrases": [
-    "orange"
-   ],
-   "typed": "orange",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_purple",
-   "label": "Purple",
-   "voicePhrases": [
-    "purple"
-   ],
-   "typed": "purple",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_brown",
-   "label": "Brown",
-   "voicePhrases": [
-    "brown"
-   ],
-   "typed": "brown",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "colour_grey",
-   "label": "Grey",
-   "voicePhrases": [
-    "grey"
-   ],
-   "typed": "grey",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "lighter",
-   "label": "Lighter",
-   "voicePhrases": [
-    "lighter"
-   ],
-   "typed": "lighter",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "darker",
-   "label": "Darker",
-   "voicePhrases": [
-    "darker"
-   ],
-   "typed": "darker",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "skin",
-   "label": "Skin",
-   "voicePhrases": [
-    "skin"
-   ],
-   "typed": "skin",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false,
-   "help": "Your saved skin colour. Until one is saved the tile reads 'Save current colour as skin'. No default colour."
-  },
-  {
-   "id": "save_skin",
-   "label": "Save current colour as skin",
-   "voicePhrases": [
-    "save skin"
-   ],
-   "typed": "save skin",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "swap",
-   "label": "Swap colours",
-   "voicePhrases": [
-    "swap"
-   ],
-   "typed": "swap",
-   "phase": "P2a",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "zoom_in",
-   "label": "Zoom in",
-   "voicePhrases": [
-    "zoom in"
-   ],
-   "typed": "zoom in",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "zoom_out",
-   "label": "Zoom out",
-   "voicePhrases": [
-    "zoom out"
-   ],
-   "typed": "zoom out",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "fit",
-   "label": "Fit",
-   "voicePhrases": [
-    "fit"
-   ],
-   "typed": "fit",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "actual",
-   "label": "Actual size",
-   "voicePhrases": [
-    "actual"
-   ],
-   "typed": "actual",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "turn_left",
-   "label": "Turn left",
-   "voicePhrases": [
-    "turn left"
-   ],
-   "typed": "turn left",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "turn_right",
-   "label": "Turn right",
-   "voicePhrases": [
-    "turn right"
-   ],
-   "typed": "turn right",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "straight",
-   "label": "Straight",
-   "voicePhrases": [
-    "straight"
-   ],
-   "typed": "straight",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "mirror",
-   "label": "Mirror",
-   "voicePhrases": [
-    "mirror"
-   ],
-   "typed": "mirror",
-   "phase": "P2a",
-   "page": "view",
-   "destructive": false
-  },
-  {
-   "id": "name_brush",
-   "label": "Name this brush",
-   "voicePhrases": [
-    "call this brush"
-   ],
-   "typed": "alias",
-   "phase": "P2b",
-   "page": "paint",
-   "destructive": false,
-   "modeChanging": true,
-   "arg": "word",
-   "help": "Saves the current brush under a word you choose. Say the word later to pick it. A word that is already a command is refused."
-  },
-  {
-   "id": "new_layer",
-   "label": "New layer",
-   "voicePhrases": [
-    "new layer"
-   ],
-   "typed": "new layer",
-   "phase": "P2a",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "merge_down",
-   "label": "Merge down",
-   "voicePhrases": [
-    "merge"
-   ],
-   "typed": "merge",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "layer_up",
-   "label": "Layer up",
-   "voicePhrases": [
-    "layer up"
-   ],
-   "typed": "layer up",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "layer_down",
-   "label": "Layer down",
-   "voicePhrases": [
-    "layer down"
-   ],
-   "typed": "layer down",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "hide_layer",
-   "label": "Hide layer",
-   "voicePhrases": [
-    "hide"
-   ],
-   "typed": "hide",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "show_layer",
-   "label": "Show layer",
-   "voicePhrases": [
-    "show"
-   ],
-   "typed": "show",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "delete_layer",
-   "label": "Delete layer",
-   "voicePhrases": [
-    "delete layer"
-   ],
-   "typed": "delete layer",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": true,
-   "modeChanging": true
-  },
-  {
-   "id": "clear_layer",
-   "label": "Clear layer",
-   "voicePhrases": [
-    "clear layer"
-   ],
-   "typed": "clear layer",
-   "phase": "P2b",
-   "page": "layers",
-   "destructive": true,
-   "modeChanging": true
-  },
-  {
-   "id": "save",
-   "label": "Save",
-   "voicePhrases": [
-    "save"
-   ],
-   "typed": "save",
-   "phase": "P2a",
-   "page": "layers",
-   "destructive": false
-  },
-  {
-   "id": "pick",
-   "label": "Pick colour",
-   "voicePhrases": [
-    "pick"
-   ],
-   "typed": "pick",
-   "phase": "P3",
-   "page": "colour",
-   "destructive": false
-  },
-  {
-   "id": "pan",
-   "label": "Pan",
-   "voicePhrases": [
-    "pan"
-   ],
-   "typed": "pan",
-   "phase": "P3",
-   "page": "view",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "line",
-   "label": "Line",
-   "voicePhrases": [
-    "line"
-   ],
-   "typed": "line",
-   "phase": "P3",
-   "page": "paint",
-   "destructive": false
-  },
-  {
-   "id": "dots",
-   "label": "Dots",
-   "voicePhrases": [
-    "dots"
-   ],
-   "typed": "dots",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "hatch",
-   "label": "Hatch",
-   "voicePhrases": [
-    "hatch"
-   ],
-   "typed": "hatch",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Forward passes only. Pair with Krita's parallel ruler assistant."
-  },
-  {
-   "id": "hatch_lr",
-   "label": "Hatch left to right",
-   "voicePhrases": [
-    "hatch left to right"
-   ],
-   "typed": "hatch left to right",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "hatch_down",
-   "label": "Hatch down",
-   "voicePhrases": [
-    "hatch down"
-   ],
-   "typed": "hatch down",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "hatch_alternate",
-   "label": "Alternate hatch",
-   "voicePhrases": [
-    "alternate hatch"
-   ],
-   "typed": "alternate hatch",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "stop_hatching",
-   "label": "Stop hatching",
-   "voicePhrases": [
-    "stop hatching"
-   ],
-   "typed": "stop hatching",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "dash",
-   "label": "Dash",
-   "voicePhrases": [
-    "dash"
-   ],
-   "typed": "dash",
-   "phase": "P3",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "repeat",
-   "label": "Repeat stroke",
-   "voicePhrases": [
-    "repeat"
-   ],
-   "typed": "repeat",
-   "phase": "P3",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "later",
-   "label": "Later",
-   "voicePhrases": [
-    "later"
-   ],
-   "typed": "later",
-   "phase": "P2b",
-   "page": "dialog",
-   "destructive": false
-  },
-  {
-   "id": "quiet",
-   "label": "Quiet",
-   "voicePhrases": [
-    "quiet mode",
-    "mic off"
-   ],
-   "typed": "quiet",
-   "phase": "P2b",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Turns the mic, spoken replies and click sounds off. The ring and cursor stay."
-  },
-  {
-   "id": "preset_sore_joints",
-   "label": "Sore joints, steady hand",
-   "voicePhrases": [
-    "sore joints"
-   ],
-   "typed": "sore joints",
-   "phase": "P4",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Steadiness 25, gain 3×."
-  },
-  {
-   "id": "preset_shakes_reaching",
-   "label": "Shakes when holding still or reaching",
-   "voicePhrases": [
-    "shakes when reaching"
-   ],
-   "typed": "shakes when reaching",
-   "phase": "P4",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Steadiness 70."
-  },
-  {
-   "id": "preset_slow_rest",
-   "label": "Slow movements, shakes at rest",
-   "voicePhrases": [
-    "slow movements"
-   ],
-   "typed": "slow movements",
-   "phase": "P4",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Steadiness 45, gain 4×, dwell 1200 ms, Latch on."
-  },
-  {
-   "id": "preset_hard_still",
-   "label": "Hard to hold still",
-   "voicePhrases": [
-    "hard to hold still"
-   ],
-   "typed": "hard to hold still",
-   "phase": "P4",
-   "page": "steady",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Steadiness 60, Latch on, dwell radius 60, tiles count as hovered within 40 px."
-  },
-  {
-   "id": "use_profile",
-   "label": "Use profile",
-   "voicePhrases": [
-    "use profile"
-   ],
-   "typed": "profile",
-   "phase": "P4",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "arg": "word",
-   "help": "Switch to a saved profile by name, e.g. 'use profile shaky'. 'Steady day' and 'Shaky day' exist from the start."
-  },
-  {
-   "id": "save_profile",
-   "label": "Save profile",
-   "voicePhrases": [
-    "save profile"
-   ],
-   "typed": "save profile",
-   "phase": "P4",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "arg": "word"
-  },
-  {
-   "id": "show_numbers",
-   "label": "Show numbers",
-   "voicePhrases": [
-    "show numbers"
-   ],
-   "typed": "show numbers",
-   "phase": "P4",
-   "page": "view",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Numbers Krita's buttons; say 'click' and a number."
-  },
-  {
-   "id": "hide_numbers",
-   "label": "Hide numbers",
-   "voicePhrases": [
-    "hide numbers"
-   ],
-   "typed": "hide numbers",
-   "phase": "P4",
-   "page": "view",
-   "destructive": false,
-   "modeChanging": true
-  },
-  {
-   "id": "click_number",
-   "label": "Click number",
-   "voicePhrases": [
-    "click"
-   ],
-   "typed": "click",
-   "phase": "P4",
-   "page": "view",
-   "destructive": false,
-   "arg": "number"
-  },
-  {
-   "id": "head_mode",
-   "label": "Head mode",
-   "voicePhrases": [
-    "head mode"
-   ],
-   "typed": "head mode",
-   "phase": "P4",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "The pointer follows your nose tip instead of your hand (gain 6×)."
-  },
-  {
-   "id": "eyebrow_lift",
-   "label": "Eyebrow lift",
-   "voicePhrases": [
-    "eyebrow lift"
-   ],
-   "typed": "eyebrow lift",
-   "phase": "P4",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Raising your eyebrows lifts the pen. Off by default."
-  },
-  {
-   "id": "app_profile",
-   "label": "App: Krita",
-   "voicePhrases": [
-    "krita mode",
-    "photoshop mode"
-   ],
-   "typed": "app",
-   "phase": "P4",
-   "page": "setup",
-   "destructive": false,
-   "modeChanging": true,
-   "help": "Which app's shortcuts Steady sends. Krita uses the plugin; other apps use keystrokes only."
-  },
-  {
-   "id": "yes",
-   "label": "Confirm",
-   "voicePhrases": [
-    "yes"
-   ],
-   "typed": "yes",
-   "phase": "P2a",
-   "page": "dialog",
-   "destructive": false
-  },
-  {
-   "id": "no",
-   "label": "No",
-   "voicePhrases": [
-    "no"
-   ],
-   "typed": "no",
-   "phase": "P2a",
-   "page": "dialog",
-   "destructive": false
-  },
-  {
-   "id": "cancel",
-   "label": "Cancel",
-   "voicePhrases": [
-    "cancel"
-   ],
-   "typed": "cancel",
-   "phase": "P2a",
-   "page": "dialog",
-   "destructive": false
-  },
-  {
-   "id": "choice_one",
-   "label": "One",
-   "voicePhrases": [
-    "one"
-   ],
-   "typed": "1",
-   "phase": "P2a",
-   "page": "dialog",
-   "destructive": false
-  },
-  {
-   "id": "choice_two",
-   "label": "Two",
-   "voicePhrases": [
-    "two"
-   ],
-   "typed": "2",
-   "phase": "P2a",
-   "page": "dialog",
-   "destructive": false
-  },
-  {
-   "id": "choice_three",
-   "label": "Three",
-   "voicePhrases": [
-    "three"
-   ],
-   "typed": "3",
-   "phase": "P2a",
-   "page": "dialog",
-   "destructive": false
-  }
- ]
+  ],
+  "actions": [
+    {
+      "id": "pen_toggle",
+      "label": "Pen",
+      "voicePhrases": [],
+      "typed": null,
+      "phase": "P0",
+      "page": "header",
+      "destructive": false,
+      "help": "Lower or lift the pen. A pedal sending F8 does the same."
+    },
+    {
+      "id": "pen_down",
+      "label": "Pen down",
+      "voicePhrases": [
+        "down"
+      ],
+      "typed": "down",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "pen_up",
+      "label": "Pen up",
+      "voicePhrases": [
+        "up"
+      ],
+      "typed": "up",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "pause",
+      "label": "Pause",
+      "voicePhrases": [
+        "pause",
+        "stop",
+        "resume"
+      ],
+      "typed": "pause",
+      "phase": "P2a",
+      "page": "header",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Releases the pen. The pointer stays inside Steady's window until you resume. The tile reads Resume while paused."
+    },
+    {
+      "id": "mic",
+      "label": "Mic",
+      "voicePhrases": [],
+      "typed": null,
+      "phase": "P2a",
+      "page": "header",
+      "destructive": false,
+      "help": "Hold F10 to talk, or tap Mic to open and tap again to close."
+    },
+    {
+      "id": "undo",
+      "label": "Undo",
+      "voicePhrases": [
+        "undo that",
+        "undo"
+      ],
+      "typed": "undo",
+      "phase": "P2a",
+      "page": "header",
+      "destructive": false
+    },
+    {
+      "id": "redo",
+      "label": "Redo",
+      "voicePhrases": [
+        "redo"
+      ],
+      "typed": "redo",
+      "phase": "P2a",
+      "page": "header",
+      "destructive": false
+    },
+    {
+      "id": "recenter",
+      "label": "Recenter",
+      "voicePhrases": [
+        "recenter"
+      ],
+      "typed": "recenter",
+      "phase": "P2a",
+      "page": "header",
+      "destructive": false,
+      "help": "Moves the tracked area to where your hand is now."
+    },
+    {
+      "id": "other_hand",
+      "label": "Other hand",
+      "voicePhrases": [
+        "other hand"
+      ],
+      "typed": "other hand",
+      "phase": "P2b",
+      "page": "header",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "latch",
+      "label": "Latch",
+      "voicePhrases": [
+        "latch"
+      ],
+      "typed": "latch",
+      "phase": "P2a",
+      "page": "header",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Holding still no longer lifts the pen. Everything else still lifts it."
+    },
+    {
+      "id": "steadier",
+      "label": "Steadier",
+      "voicePhrases": [
+        "steadier"
+      ],
+      "typed": "steadier",
+      "phase": "P2a",
+      "page": "steady",
+      "destructive": false,
+      "help": "Steadiness +10 (the + tile next to the slider moves it by 5)."
+    },
+    {
+      "id": "looser",
+      "label": "Looser",
+      "voicePhrases": [
+        "looser"
+      ],
+      "typed": "looser",
+      "phase": "P2a",
+      "page": "steady",
+      "destructive": false
+    },
+    {
+      "id": "recalibrate",
+      "label": "Recalibrate",
+      "voicePhrases": [
+        "recalibrate"
+      ],
+      "typed": "recalibrate",
+      "phase": "P2a",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "use_last_setup",
+      "label": "Use last setup",
+      "voicePhrases": [
+        "use last setup"
+      ],
+      "typed": "use last setup",
+      "phase": "P2a",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Reuses the last calibration for this hand, so you can start drawing within a few seconds."
+    },
+    {
+      "id": "smoothing_sketch",
+      "label": "Sketch",
+      "voicePhrases": [
+        "sketch"
+      ],
+      "typed": "sketch",
+      "phase": "P3",
+      "page": "steady",
+      "destructive": false
+    },
+    {
+      "id": "smoothing_ink",
+      "label": "Ink mode",
+      "voicePhrases": [
+        "ink mode"
+      ],
+      "typed": "ink mode",
+      "phase": "P3",
+      "page": "steady",
+      "destructive": false
+    },
+    {
+      "id": "smoothing_shade",
+      "label": "Shade",
+      "voicePhrases": [
+        "shade"
+      ],
+      "typed": "shade",
+      "phase": "P3",
+      "page": "steady",
+      "destructive": false
+    },
+    {
+      "id": "pick_sticker_colour",
+      "label": "Pick sticker colour",
+      "voicePhrases": [
+        "pick sticker colour"
+      ],
+      "typed": "pick sticker colour",
+      "phase": "P3",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Hold the sticker in the middle of the camera view, then press. Used by the Colour cap source for gloves and braces."
+    },
+    {
+      "id": "lock_exposure",
+      "label": "Lock exposure",
+      "voicePhrases": [
+        "lock exposure"
+      ],
+      "typed": "lock exposure",
+      "phase": "P3",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "simulate_tremor",
+      "label": "Simulate tremor",
+      "voicePhrases": [
+        "simulate tremor"
+      ],
+      "typed": "simulate tremor",
+      "phase": "P1",
+      "page": "demo",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "next_judge",
+      "label": "Next judge",
+      "voicePhrases": [
+        "next judge"
+      ],
+      "typed": "next judge",
+      "phase": "P1",
+      "page": "demo",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Clears the practice canvas and metrics and reruns calibration."
+    },
+    {
+      "id": "clear_practice",
+      "label": "Clear practice",
+      "voicePhrases": [
+        "clear practice"
+      ],
+      "typed": "clear practice",
+      "phase": "P1",
+      "page": "steady",
+      "destructive": true
+    },
+    {
+      "id": "brush",
+      "label": "Brush",
+      "voicePhrases": [
+        "brush"
+      ],
+      "typed": "brush",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "pencil",
+      "label": "Pencil",
+      "voicePhrases": [
+        "pencil"
+      ],
+      "typed": "pencil",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "ink",
+      "label": "Ink",
+      "voicePhrases": [
+        "ink"
+      ],
+      "typed": "ink",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "airbrush",
+      "label": "Airbrush",
+      "voicePhrases": [
+        "airbrush",
+        "soft"
+      ],
+      "typed": "airbrush",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "eraser",
+      "label": "Eraser",
+      "voicePhrases": [
+        "eraser"
+      ],
+      "typed": "eraser",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "bigger",
+      "label": "Bigger",
+      "voicePhrases": [
+        "bigger"
+      ],
+      "typed": "bigger",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "smaller",
+      "label": "Smaller",
+      "voicePhrases": [
+        "smaller"
+      ],
+      "typed": "smaller",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "size",
+      "label": "Size",
+      "voicePhrases": [
+        "size"
+      ],
+      "typed": "size",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false,
+      "arg": "number",
+      "help": "Say or type 'size' and a number, e.g. 'size 20'."
+    },
+    {
+      "id": "fade",
+      "label": "Fade",
+      "voicePhrases": [
+        "fade"
+      ],
+      "typed": "fade",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "solid",
+      "label": "Solid",
+      "voicePhrases": [
+        "solid"
+      ],
+      "typed": "solid",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "opacity",
+      "label": "Opacity",
+      "voicePhrases": [
+        "opacity"
+      ],
+      "typed": "opacity",
+      "phase": "P2a",
+      "page": "paint",
+      "destructive": false,
+      "arg": "number"
+    },
+    {
+      "id": "colour_black",
+      "label": "Black",
+      "voicePhrases": [
+        "black"
+      ],
+      "typed": "black",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_white",
+      "label": "White",
+      "voicePhrases": [
+        "white"
+      ],
+      "typed": "white",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_red",
+      "label": "Red",
+      "voicePhrases": [
+        "red"
+      ],
+      "typed": "red",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_blue",
+      "label": "Blue",
+      "voicePhrases": [
+        "blue"
+      ],
+      "typed": "blue",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_green",
+      "label": "Green",
+      "voicePhrases": [
+        "green"
+      ],
+      "typed": "green",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_yellow",
+      "label": "Yellow",
+      "voicePhrases": [
+        "yellow"
+      ],
+      "typed": "yellow",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_orange",
+      "label": "Orange",
+      "voicePhrases": [
+        "orange"
+      ],
+      "typed": "orange",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_purple",
+      "label": "Purple",
+      "voicePhrases": [
+        "purple"
+      ],
+      "typed": "purple",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_brown",
+      "label": "Brown",
+      "voicePhrases": [
+        "brown"
+      ],
+      "typed": "brown",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "colour_grey",
+      "label": "Grey",
+      "voicePhrases": [
+        "grey"
+      ],
+      "typed": "grey",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "lighter",
+      "label": "Lighter",
+      "voicePhrases": [
+        "lighter"
+      ],
+      "typed": "lighter",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "darker",
+      "label": "Darker",
+      "voicePhrases": [
+        "darker"
+      ],
+      "typed": "darker",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "skin",
+      "label": "Skin",
+      "voicePhrases": [
+        "skin"
+      ],
+      "typed": "skin",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false,
+      "help": "Your saved skin colour. Until one is saved the tile reads 'Save current colour as skin'. No default colour."
+    },
+    {
+      "id": "save_skin",
+      "label": "Save current colour as skin",
+      "voicePhrases": [
+        "save skin"
+      ],
+      "typed": "save skin",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "swap",
+      "label": "Swap colours",
+      "voicePhrases": [
+        "swap"
+      ],
+      "typed": "swap",
+      "phase": "P2a",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "zoom_in",
+      "label": "Zoom in",
+      "voicePhrases": [
+        "zoom in"
+      ],
+      "typed": "zoom in",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "zoom_out",
+      "label": "Zoom out",
+      "voicePhrases": [
+        "zoom out"
+      ],
+      "typed": "zoom out",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "fit",
+      "label": "Fit",
+      "voicePhrases": [
+        "fit"
+      ],
+      "typed": "fit",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "actual",
+      "label": "Actual size",
+      "voicePhrases": [
+        "actual"
+      ],
+      "typed": "actual",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "turn_left",
+      "label": "Turn left",
+      "voicePhrases": [
+        "turn left"
+      ],
+      "typed": "turn left",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "turn_right",
+      "label": "Turn right",
+      "voicePhrases": [
+        "turn right"
+      ],
+      "typed": "turn right",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "straight",
+      "label": "Straight",
+      "voicePhrases": [
+        "straight"
+      ],
+      "typed": "straight",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "mirror",
+      "label": "Mirror",
+      "voicePhrases": [
+        "mirror"
+      ],
+      "typed": "mirror",
+      "phase": "P2a",
+      "page": "view",
+      "destructive": false
+    },
+    {
+      "id": "name_brush",
+      "label": "Name this brush",
+      "voicePhrases": [
+        "call this brush"
+      ],
+      "typed": "alias",
+      "phase": "P2b",
+      "page": "paint",
+      "destructive": false,
+      "modeChanging": true,
+      "arg": "word",
+      "help": "Saves the current brush under a word you choose. Say the word later to pick it. A word that is already a command is refused."
+    },
+    {
+      "id": "new_layer",
+      "label": "New layer",
+      "voicePhrases": [
+        "new layer"
+      ],
+      "typed": "new layer",
+      "phase": "P2a",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "merge_down",
+      "label": "Merge down",
+      "voicePhrases": [
+        "merge"
+      ],
+      "typed": "merge",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "layer_up",
+      "label": "Layer up",
+      "voicePhrases": [
+        "layer up"
+      ],
+      "typed": "layer up",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "layer_down",
+      "label": "Layer down",
+      "voicePhrases": [
+        "layer down"
+      ],
+      "typed": "layer down",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "hide_layer",
+      "label": "Hide layer",
+      "voicePhrases": [
+        "hide"
+      ],
+      "typed": "hide",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "show_layer",
+      "label": "Show layer",
+      "voicePhrases": [
+        "show"
+      ],
+      "typed": "show",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "delete_layer",
+      "label": "Delete layer",
+      "voicePhrases": [
+        "delete layer"
+      ],
+      "typed": "delete layer",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": true,
+      "modeChanging": true
+    },
+    {
+      "id": "clear_layer",
+      "label": "Clear layer",
+      "voicePhrases": [
+        "clear layer"
+      ],
+      "typed": "clear layer",
+      "phase": "P2b",
+      "page": "layers",
+      "destructive": true,
+      "modeChanging": true
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "voicePhrases": [
+        "save"
+      ],
+      "typed": "save",
+      "phase": "P2a",
+      "page": "layers",
+      "destructive": false
+    },
+    {
+      "id": "pick",
+      "label": "Pick colour",
+      "voicePhrases": [
+        "pick"
+      ],
+      "typed": "pick",
+      "phase": "P3",
+      "page": "colour",
+      "destructive": false
+    },
+    {
+      "id": "pan",
+      "label": "Pan",
+      "voicePhrases": [
+        "pan"
+      ],
+      "typed": "pan",
+      "phase": "P3",
+      "page": "view",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "line",
+      "label": "Line",
+      "voicePhrases": [
+        "line"
+      ],
+      "typed": "line",
+      "phase": "P3",
+      "page": "paint",
+      "destructive": false
+    },
+    {
+      "id": "dots",
+      "label": "Dots",
+      "voicePhrases": [
+        "dots"
+      ],
+      "typed": "dots",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "hatch",
+      "label": "Hatch",
+      "voicePhrases": [
+        "hatch"
+      ],
+      "typed": "hatch",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Forward passes only. Pair with Krita's parallel ruler assistant."
+    },
+    {
+      "id": "hatch_lr",
+      "label": "Hatch left to right",
+      "voicePhrases": [
+        "hatch left to right"
+      ],
+      "typed": "hatch left to right",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "hatch_down",
+      "label": "Hatch down",
+      "voicePhrases": [
+        "hatch down"
+      ],
+      "typed": "hatch down",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "hatch_alternate",
+      "label": "Alternate hatch",
+      "voicePhrases": [
+        "alternate hatch"
+      ],
+      "typed": "alternate hatch",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "stop_hatching",
+      "label": "Stop hatching",
+      "voicePhrases": [
+        "stop hatching"
+      ],
+      "typed": "stop hatching",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "dash",
+      "label": "Dash",
+      "voicePhrases": [
+        "dash"
+      ],
+      "typed": "dash",
+      "phase": "P3",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "repeat",
+      "label": "Repeat stroke",
+      "voicePhrases": [
+        "repeat"
+      ],
+      "typed": "repeat",
+      "phase": "P3",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "later",
+      "label": "Later",
+      "voicePhrases": [
+        "later"
+      ],
+      "typed": "later",
+      "phase": "P2b",
+      "page": "dialog",
+      "destructive": false
+    },
+    {
+      "id": "quiet",
+      "label": "Quiet",
+      "voicePhrases": [
+        "quiet mode",
+        "mic off"
+      ],
+      "typed": "quiet",
+      "phase": "P2b",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Turns the mic, spoken replies and click sounds off. The ring and cursor stay."
+    },
+    {
+      "id": "preset_sore_joints",
+      "label": "Sore joints, steady hand",
+      "voicePhrases": [
+        "sore joints"
+      ],
+      "typed": "sore joints",
+      "phase": "P4",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Steadiness 25, gain 3×."
+    },
+    {
+      "id": "preset_shakes_reaching",
+      "label": "Shakes when holding still or reaching",
+      "voicePhrases": [
+        "shakes when reaching"
+      ],
+      "typed": "shakes when reaching",
+      "phase": "P4",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Steadiness 70."
+    },
+    {
+      "id": "preset_slow_rest",
+      "label": "Slow movements, shakes at rest",
+      "voicePhrases": [
+        "slow movements"
+      ],
+      "typed": "slow movements",
+      "phase": "P4",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Steadiness 45, gain 4×, dwell 1200 ms, Latch on."
+    },
+    {
+      "id": "preset_hard_still",
+      "label": "Hard to hold still",
+      "voicePhrases": [
+        "hard to hold still"
+      ],
+      "typed": "hard to hold still",
+      "phase": "P4",
+      "page": "steady",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Steadiness 60, Latch on, dwell radius 60, tiles count as hovered within 40 px."
+    },
+    {
+      "id": "use_profile",
+      "label": "Use profile",
+      "voicePhrases": [
+        "use profile"
+      ],
+      "typed": "profile",
+      "phase": "P4",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "arg": "word",
+      "help": "Switch to a saved profile by name, e.g. 'use profile shaky'. 'Steady day' and 'Shaky day' exist from the start."
+    },
+    {
+      "id": "save_profile",
+      "label": "Save profile",
+      "voicePhrases": [
+        "save profile"
+      ],
+      "typed": "save profile",
+      "phase": "P4",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "arg": "word"
+    },
+    {
+      "id": "show_numbers",
+      "label": "Show numbers",
+      "voicePhrases": [
+        "show numbers"
+      ],
+      "typed": "show numbers",
+      "phase": "P4",
+      "page": "view",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Numbers Krita's buttons; say 'click' and a number."
+    },
+    {
+      "id": "hide_numbers",
+      "label": "Hide numbers",
+      "voicePhrases": [
+        "hide numbers"
+      ],
+      "typed": "hide numbers",
+      "phase": "P4",
+      "page": "view",
+      "destructive": false,
+      "modeChanging": true
+    },
+    {
+      "id": "click_number",
+      "label": "Click number",
+      "voicePhrases": [
+        "click"
+      ],
+      "typed": "click",
+      "phase": "P4",
+      "page": "view",
+      "destructive": false,
+      "arg": "number"
+    },
+    {
+      "id": "head_mode",
+      "label": "Head mode",
+      "voicePhrases": [
+        "head mode"
+      ],
+      "typed": "head mode",
+      "phase": "P4",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "The pointer follows your nose tip instead of your hand (gain 6×)."
+    },
+    {
+      "id": "eyebrow_lift",
+      "label": "Eyebrow lift",
+      "voicePhrases": [
+        "eyebrow lift"
+      ],
+      "typed": "eyebrow lift",
+      "phase": "P4",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Raising your eyebrows lifts the pen. Off by default."
+    },
+    {
+      "id": "app_profile",
+      "label": "App: Krita",
+      "voicePhrases": [
+        "krita mode",
+        "photoshop mode"
+      ],
+      "typed": "app",
+      "phase": "P4",
+      "page": "setup",
+      "destructive": false,
+      "modeChanging": true,
+      "help": "Which app's shortcuts Steady sends. Krita uses the plugin; other apps use keystrokes only."
+    },
+    {
+      "id": "yes",
+      "label": "Confirm",
+      "voicePhrases": [
+        "yes"
+      ],
+      "typed": "yes",
+      "phase": "P2a",
+      "page": "dialog",
+      "destructive": false
+    },
+    {
+      "id": "no",
+      "label": "No",
+      "voicePhrases": [
+        "no"
+      ],
+      "typed": "no",
+      "phase": "P2a",
+      "page": "dialog",
+      "destructive": false
+    },
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "voicePhrases": [
+        "cancel"
+      ],
+      "typed": "cancel",
+      "phase": "P2a",
+      "page": "dialog",
+      "destructive": false
+    },
+    {
+      "id": "choice_one",
+      "label": "One",
+      "voicePhrases": [
+        "one"
+      ],
+      "typed": "1",
+      "phase": "P2a",
+      "page": "dialog",
+      "destructive": false
+    },
+    {
+      "id": "choice_two",
+      "label": "Two",
+      "voicePhrases": [
+        "two"
+      ],
+      "typed": "2",
+      "phase": "P2a",
+      "page": "dialog",
+      "destructive": false
+    },
+    {
+      "id": "choice_three",
+      "label": "Three",
+      "voicePhrases": [
+        "three"
+      ],
+      "typed": "3",
+      "phase": "P2a",
+      "page": "dialog",
+      "destructive": false
+    }
+  ]
 }

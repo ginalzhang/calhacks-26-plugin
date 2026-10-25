@@ -120,7 +120,8 @@
       "id": "undo",
       "label": "Undo",
       "voicePhrases": [
-        "undo that"
+        "undo that",
+        "undo"
       ],
       "typed": "undo",
       "key": "F7",

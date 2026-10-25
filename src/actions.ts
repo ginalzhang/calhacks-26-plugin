@@ -183,7 +183,9 @@ export const ACTIONS: Action[] = [
   {
     id: "undo",
     label: "Undo",
-    voicePhrases: ["undo that"],
+    // "undo" added at the user's request (18:30 Sat): people say the bare word. Exact match only (< 5 chars,
+    // never fuzzy), so it can't be confused with "redo".
+    voicePhrases: ["undo that", "undo"],
     typed: "undo",
     key: "F7",
     scope: "both",

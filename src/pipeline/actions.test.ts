@@ -47,10 +47,10 @@ describe("action table (src/actions.ts)", () => {
     expect(DEFAULT_KEYS).toEqual(Object.fromEntries(Object.entries(CORE_KEYS).map(([id, k]) => [k, id])));
   });
 
-  it("@P0 no bare 'pen' or bare 'undo' voice phrase; mode-changing actions are never fuzzy", () => {
+  it("@P0 no bare 'pen' voice phrase; bare 'undo' (user request) is exact-only; mode-changing actions are never fuzzy", () => {
     const phrases = ACTIONS.flatMap((a) => a.voicePhrases);
     expect(phrases).not.toContain("pen");
-    expect(phrases).not.toContain("undo");
+    expect(phrases.filter((p) => p === "undo")).toHaveLength(1);
     for (const a of ACTIONS) if (a.modeChanging) expect(a.fuzzyAllowed, a.id).toBe(false);
   });
 });

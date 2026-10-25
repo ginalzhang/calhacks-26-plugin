@@ -142,7 +142,9 @@ describe("grammar (§6)", () => {
 
   it("@P2a typed mode also matches typed forms; voice mode does not", () => {
     expect(ids("undo", T)).toEqual(["undo"]);
-    expect(ids("undo", V)).toBeNull(); // bare "undo" is not a voice phrase
+    expect(ids("undo", V)).toEqual(["undo"]); // bare "undo" added as a voice phrase at the user's request
+    expect(ids("redo", V)).toEqual(["redo"]);
+    expect(ids("1", V)).toBeNull(); // typed-only form
     expect(ids("1", T)).toEqual(["choice_one"]);
     expect(ids("down", V)).toEqual(["pen_down"]);
   });
