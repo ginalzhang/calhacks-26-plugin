@@ -368,7 +368,7 @@ class SteadyPipeline implements Pipeline {
     this.flushPendingLift(t, events);
     const tf = { mirror: this.settings.mirrorCamera, rotate: this.settings.rotateCamera };
     const choice = this.settings.inputs.camera
-      ? this.lock.choose(frame.hands, tf, this.extra().lockLandmark ?? 0)
+      ? this.lock.choose(frame.hands, tf, this.extra().lockLandmark ?? 0, t)
       : { hand: null, wrist: null, reason: null as null };
     const hand = choice.hand;
     const score = hand?.score ?? 0;
