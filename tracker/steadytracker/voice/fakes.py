@@ -1,16 +1,11 @@
-"""Fakes for agent E's voice tests (no microphone, no audio output, no network)."""
+"""Fakes for the voice tests (tracker/tests/test_voice_*.py) and for C's integration tests: no microphone, no
+audio output, no network. Never imported by the runtime code."""
 
 from __future__ import annotations
 
 import json
 import queue
-import sys
 import threading
-from pathlib import Path
-
-TRACKER = Path(__file__).resolve().parents[1]
-if str(TRACKER) not in sys.path:
-    sys.path.insert(0, str(TRACKER))
 
 
 class Closed(Exception):

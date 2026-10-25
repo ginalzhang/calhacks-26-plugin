@@ -65,7 +65,7 @@ class Resolver:
         self,
         text: str,
         mode: str = "voice",
-        dialog_open: bool = False,
+        dialog_open: Optional[bool] = None,
         context: Optional[Dict[str, Any]] = None,
         aliases: Optional[Dict[str, str]] = None,
         on_status: Optional[StatusFn] = None,
@@ -76,7 +76,11 @@ class Resolver:
         status = on_status or (lambda _t, _l: None)
 
         # (1) grammar (the brain)
-        opts: Dict[str, Any] = {"mode": mode, "dialogOpen": bool(dialog_open)}
+        # dialog_open None = unknown here: the brain fills dialogOpen from its own dialog state (and merges its
+        # stored aliases), so only send what we know.
+        opts: Dict[str, Any] = {"mode": mode}
+        if dialog_open is not None:
+            opts["dialogOpen"] = bool(dialog_open)
         if aliases:
             opts["aliases"] = dict(aliases)
         try:

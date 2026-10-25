@@ -4,9 +4,13 @@ import math
 import struct
 from array import array
 
+import sys
+from pathlib import Path
+
 import pytest
 
-import voice_fakes  # noqa: F401  (sys.path)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from steadytracker.voice.audio import CHUNK, MAX_GAIN, CaptureProcessor, float32_bytes_to_list, float_to_int16
 from steadytracker.voice.micpolicy import VOICE_LEVEL, auto_close_reason, new_mic_timing, note_activity
 

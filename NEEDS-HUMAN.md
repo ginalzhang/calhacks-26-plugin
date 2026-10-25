@@ -84,6 +84,25 @@ item. Hardware: camera, microphone, keyboard, mouse/touchpad (no pedal needed).
 21. [ ] **Krita bridge commands** [D] (unchanged from the website build; see "Fallback: website version"
     items 16–22 for `nc` checks of colour, presets, new layer, canvas_rect, brush smoothing → None once).
 
+## Plugin build — Agent E
+
+E1. [ ] **Microphone permission goes to "Steady Tracker"** [E, C]: the first Mic tap shows macOS's microphone
+    prompt for Steady Tracker (not Krita). If the status says "The microphone could not be opened", allow it in
+    System Settings › Privacy & Security › Microphone and Stop/Start. A denied mic records silence: the status
+    then says "Didn't hear anything." after a tap-close.
+E2. [ ] **Close rules with a real voice** [E]: tap Mic, wait 5 s without speaking (it stays open: no onset
+    timeout), say "blue" → it closes ~2 s after you stop (Timing slider "Mic silence"); hold F10, say "bigger",
+    pause 5 s, keep holding (stays open), release → it acts. Say a long sentence in tap mode: closes at the cap
+    (15 s from when you started speaking).
+E3. [ ] **Quiet speech / headset** [E]: speak softly from 60 cm: still recognised (gain normalisation). If you
+    have a Bluetooth headset, switch the input to it while Steady runs, tap Mic again: it still works
+    (the device rate is re-read on every open).
+E4. [ ] **Claude live** [E]: with `ANTHROPIC_API_KEY` set, say "make it thinner and a bit softer" → Heard: … via
+    Claude → smaller + airbrush; say "make it lighter" → a clarify dialog with One/Two tiles; say "two" → fade.
+    `~/Library/Application Support/Steady/claude-log.jsonl` has one line per call (no audio, no key).
+E5. [ ] **Spoken replies audible** [E]: "save" → you hear "Saved" through the Mac's output; tapping Mic while
+    it speaks stops it at once.
+
 ## For the submission
 42. [ ] **Record the video** [F] per `docs/demo-video.md`: first the guaranteed fallback cut, then the full
     Krita-panel script (≤ 2:00). Nothing staged that did not work.

@@ -1,17 +1,33 @@
 """VoiceController: the tracker's voice front door (agent E). Agent C constructs one and calls it.
 
     vc = VoiceController(parse, dispatch, status, heard, speak_enabled, settings_getter, keys,
-                         context_getter=..., dialog_open=..., aliases_getter=..., on_mic=..., on_level=...)
-    vc.open("tile" | "ptt")      # Mic tile on / F10 down (brain {t:"mic", open:true})
-    vc.close()                   # Mic tile off / F10 up -> finalize -> grammar -> Claude -> dispatch
+                         dialog=..., dialog_open=..., context_getter=..., on_mic=..., on_level=...)
+      parse(text, opts) -> ParseResult        brain {t:"parse"} round trip (blocking, from voice threads)
+      dispatch(action, variant, arg, source)  -> brain {t:"action", ..., source: "voice"|"typed"|"claude"};
+                                              several commands are sent 50 ms apart by us; a coalesced
+                                              {undo, arg N} is sent once (the brain spaces the N undos)
+      status(text, level)                     -> panel {t:"status"}
+      heard(text, via)                        -> panel {t:"heard", via: "grammar"|"claude"}
+      speak_enabled() -> bool                 extra TTS gate (settings.tts is also honoured)
+      settings_getter() -> SteadySettings     dict (micSilenceMs, micCapMs, quiet, tts, inputs.voice, steadiness)
+      keys                                    dict/obj/callable with CARTESIA_API_KEY, ANTHROPIC_API_KEY,
+                                              CARTESIA_VOICE_ID (see keys.load_keys)
+      dialog(msg)                             -> panel: {t:"dialog", dialog_id:"v-dlg-N", kind:"clarify", text,
+                                              options} or {t:"dialog_close", dialog_id} (Claude clarify)
+      dialog_open() -> bool                   True while a *brain* dialog (b-dlg-*) is open; omitted -> the brain
+                                              decides dialogOpen inside parse
+      on_mic(open, reason)                    the mic really opened/closed -> brain {t:"action", action:"mic",
+                                              variant:"opened"|"closed", source:"system"}
+    vc.open("tile" | "ptt")      # brain {t:"mic", open:true, reason}
+    vc.close()                   # brain {t:"mic", open:false} / F10 up -> finalize -> grammar -> Claude -> dispatch
     vc.toggle()                  # tap semantics
-    vc.on_brain_mic(open, reason)  # brain {t:"mic"} message, reason "ptt"|"tile"|"quiet"|"dialog"
+    vc.on_brain_mic(open, reason)  # brain {t:"mic"} message as is, reason "ptt"|"tile"|"quiet"|"dialog"
     vc.set_quiet(True)           # quiet mode: mic cancelled (no transcript), TTS off
-    vc.on_settings(settings)     # SteadySettings (partial ok): micSilenceMs, micCapMs, quiet, tts, inputs.voice
+    vc.on_settings(settings)     # SteadySettings (partial ok)
     vc.speak(text)               # brain {t:"speak"}: only when enabled, not quiet, mic closed
-    vc.submit_text(text)         # typed box: same resolution path, async; heard() + dispatch() when done
+    vc.submit_text(text)         # panel {t:"typed"}: same resolution path, async
+    vc.dialog_answer(dialog_id, answer) -> bool  # panel {t:"dialog_answer"}; True if it was our v-dlg-* dialog
     vc.resolve_text(text, mode)  # synchronous resolution (returns the Resolution dict; no dispatch)
-    vc.clarify_closed(accepted)  # Claude clarify prompt answered (log accepted/rejected)
     vc.shutdown()
 
 Close rules (§8, micpolicy.py): tap mode closes on the next tap, on settings.micSilenceMs of silence *after
@@ -40,11 +56,14 @@ from .mic import MicError, SoundDeviceMic
 from .micpolicy import VOICE_LEVEL, MicTiming, auto_close_reason, new_mic_timing, note_activity
 from .resolve import Resolver
 from .stt import SttConnection, SttHandlers, websockets_connect
-from .tts import TtsClient
+from .tts import TtsClient, confirmation_text
 
 DEFAULT_SILENCE_MS = 2000
 DEFAULT_CAP_MS = 15000
 TICK_S = 0.1
+COMMAND_GAP_S = 0.05  # "blue bigger": commands of one utterance go to the brain 50 ms apart
+CHOICE_INDEX = {"choice_one": 0, "choice_two": 1, "choice_three": 2}
+CHOICE_WORDS = ["One", "Two", "Three"]
 
 MSG = {
     "listening": "Listening…",
@@ -76,13 +95,14 @@ class VoiceController:
     def __init__(
         self,
         parse: Callable[[str, Dict[str, Any]], Dict[str, Any]],
-        dispatch: Callable[[Dict[str, Any]], None],
+        dispatch: Callable[[str, Optional[str], Optional[float], str], None],
         status: Callable[[str, str], None],
         heard: Callable[[str, str], None],
         speak_enabled: Any,
         settings_getter: Callable[[], Any],
         keys: Any,
         *,
+        dialog: Optional[Callable[[Dict[str, Any]], None]] = None,
         context_getter: Optional[Callable[[], Dict[str, Any]]] = None,
         dialog_open: Optional[Callable[[], bool]] = None,
         aliases_getter: Optional[Callable[[], Optional[Dict[str, str]]]] = None,
@@ -97,6 +117,7 @@ class VoiceController:
         tts: Optional[TtsClient] = None,
         keyterms: Optional[List[str]] = None,
         now_ms: Optional[Callable[[], float]] = None,
+        sleep: Callable[[float], None] = time.sleep,
         threaded: bool = True,
         prewarm: bool = True,
     ) -> None:
@@ -108,7 +129,13 @@ class VoiceController:
         self._settings = settings_getter
         self._keys = keys
         self._context = context_getter or (lambda: {"steadiness": _get(self._settings(), "steadiness", 50)})
-        self._dialog_open = dialog_open or (lambda: False)
+        self._dialog_cb = dialog
+        self._dialog_open = dialog_open  # None: the brain decides dialogOpen
+        self._sleep = sleep
+        self._clarify: Optional[Dict[str, Any]] = None
+        self._clarify_seq = 0
+        self._clarify_lock = threading.RLock()
+        self._last_via: Optional[str] = None
         self._aliases = aliases_getter or (lambda: None)
         self._on_mic = on_mic
         self._on_level = on_level
@@ -184,14 +211,31 @@ class VoiceController:
         return self.tts.speak(text)
 
     def resolve_text(self, text: str, mode: str = "typed") -> Dict[str, Any]:
+        mine = self._clarify is not None
+        ext = self._safe(self._dialog_open, False) if self._dialog_open is not None else None
+        dialog_open = True if (mine or ext) else (False if ext is not None else None)
         return self.resolver.resolve(
             text,
             mode=mode,
-            dialog_open=bool(self._dialog_open()),
+            dialog_open=dialog_open,
             context=self._safe(self._context, {}),
             aliases=self._safe(self._aliases, None),
             on_status=self._status,
         )
+
+    @property
+    def clarify_open(self) -> bool:
+        return self._clarify is not None
+
+    def dialog_answer(self, dialog_id: str, answer: str) -> bool:
+        """Panel answered a dialog. Returns False (not ours) for the brain's b-dlg-* dialogs."""
+        with self._clarify_lock:
+            c = self._clarify
+            if c is None or c["id"] != dialog_id:
+                return False
+            self._clarify = None
+        self._answer_clarify(c, answer, from_panel=True)
+        return True
 
     def submit_text(self, text: str, mode: str = "typed") -> None:
         """Typed box: resolve off-thread, then heard() + dispatch()."""
@@ -199,9 +243,6 @@ class VoiceController:
             threading.Thread(target=self._resolve_and_dispatch, args=(text, mode), name="steady-voice-typed", daemon=True).start()
         else:
             self._resolve_and_dispatch(text, mode)
-
-    def clarify_closed(self, accepted: bool) -> None:
-        self.resolver.resolve_clarify(accepted)
 
     def claude_undone(self) -> None:
         self.resolver.mark_last_rejected()
@@ -332,12 +373,18 @@ class VoiceController:
             self.tts.shutdown()
 
     # ------------------------------------------------------------------ open
+    def _refuse_open(self, message: str, level: str = "status") -> None:
+        # The brain may already think the mic is open (it sent {t:"mic", open:true}): tell it it is not.
+        if self._on_mic:
+            self._on_mic(False, "refused")
+        self._status(message, level)
+
     def _do_open(self, mode: str, reason: str) -> None:
         if self.quiet:
-            self._status(MSG["quiet"], "status")
+            self._refuse_open(MSG["quiet"])
             return
         if not self._voice_enabled():
-            self._status(MSG["voice_off"], "status")
+            self._refuse_open(MSG["voice_off"])
             return
         if self.is_open:
             if self.timing is not None and mode != self.timing.mode:
@@ -345,7 +392,7 @@ class VoiceController:
                 self.mode = mode
             return
         if not read_key(self._keys, "CARTESIA_API_KEY"):
-            self._status(MSG["no_cartesia_key"], "status")
+            self._refuse_open(MSG["no_cartesia_key"])
             return
         self.is_open = True
         self.mode = mode
@@ -516,5 +563,83 @@ class VoiceController:
         if not text:
             return
         r = self.resolve_text(text, mode)
-        self._heard(r.get("heard") or text, "claude" if r.get("via") == "claude" else "grammar")
-        self._dispatch(r)
+        heard = r.get("heard") or text
+        self._heard(heard, "claude" if r.get("via") == "claude" else "grammar")
+        kind = r.get("kind")
+        clarify = self._clarify
+        if clarify is not None:
+            # Our clarify prompt is open: exact "one/two/three/cancel/no" answer it; any other exact command
+            # dismisses it (rejected) and still executes (§0 rule 5).
+            if kind == "commands":
+                cmds = r.get("commands") or []
+                first = cmds[0].get("action") if cmds else None
+                if first in CHOICE_INDEX or first in ("cancel", "no"):
+                    with self._clarify_lock:
+                        if self._clarify is clarify:
+                            self._clarify = None
+                    self._answer_clarify(clarify, first, from_panel=False)
+                    return
+                with self._clarify_lock:
+                    if self._clarify is clarify:
+                        self._clarify = None
+                self._answer_clarify(clarify, "cancel", from_panel=False, quiet=True)
+            else:
+                self._status("Say one, two or three, or cancel.", "status")
+                return
+        if kind == "commands":
+            source = "claude" if r.get("via") == "claude" else ("typed" if mode == "typed" else "voice")
+            cmds = list(r.get("commands") or [])
+            if cmds and cmds[0].get("action") == "undo" and self._last_via == "claude":
+                self.resolver.mark_last_rejected()  # "undo that" right after a Claude action
+            self._last_via = r.get("via")
+            self._send_commands(cmds, source)
+        elif kind == "clarify":
+            self._open_clarify(r.get("options") or [], heard)
+        elif kind == "noop":
+            self._last_via = None
+        elif kind == "none":
+            refused = r.get("refused")
+            if refused:
+                self.speak(confirmation_text("word_taken") or "")
+                return
+            names = [self.resolver.table.by_id[c].label for c in r.get("closest") or [] if c in self.resolver.table.by_id]
+            tail = f" Closest: {', '.join(names)}." if names else ""
+            self._status(f"Didn't catch that. Heard: \u201c{heard}\u201d.{tail}", "status")
+            self.speak(confirmation_text("didnt_catch", heard) or "")
+
+    def _send_commands(self, cmds: List[Dict[str, Any]], source: str) -> None:
+        for i, c in enumerate(cmds):
+            if i:
+                self._sleep(COMMAND_GAP_S)
+            self._dispatch(str(c.get("action")), c.get("variant"), c.get("arg"), source)
+
+    def _open_clarify(self, options: List[str], heard: str) -> None:
+        t = self.resolver.table
+        with self._clarify_lock:
+            self._clarify_seq += 1
+            c = {"id": f"v-dlg-{self._clarify_seq}", "options": list(options[:3]), "heard": heard}
+            self._clarify = c
+        opts = [{"id": o, "label": f"{CHOICE_WORDS[i]}: {t.by_id[o].label if o in t.by_id else o}"} for i, o in enumerate(c["options"])]
+        text = f"Heard \u201c{heard}\u201d. Which did you mean? Say one, two or three, or cancel."
+        if self._dialog_cb is not None:
+            self._dialog_cb({"t": "dialog", "dialog_id": c["id"], "kind": "clarify", "text": text, "options": opts})
+        else:
+            self._status(text + " " + "; ".join(o["label"] for o in opts), "status")
+
+    def _answer_clarify(self, c: Dict[str, Any], answer: str, from_panel: bool, quiet: bool = False) -> None:
+        if not from_panel and self._dialog_cb is not None:
+            self._dialog_cb({"t": "dialog_close", "dialog_id": c["id"]})
+        pick: Optional[str] = None
+        if answer in CHOICE_INDEX:
+            i = CHOICE_INDEX[answer]
+            pick = c["options"][i] if i < len(c["options"]) else None
+        elif answer in c["options"]:
+            pick = answer
+        if pick is None:
+            self.resolver.resolve_clarify(False)
+            if not quiet:
+                self._status("Cancelled.", "status")
+            return
+        self.resolver.resolve_clarify(True)
+        self._last_via = "claude"
+        self._dispatch(pick, None, None, "claude")
