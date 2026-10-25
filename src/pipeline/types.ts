@@ -124,6 +124,13 @@ export interface SteadySettings {
   /** Dash mode pause that ends a mark (slider 100–600). */
   dashPauseMs: number;
   micSilenceMs: number; // 1000–8000, default 2000
+  /**
+   * Always listening (user request, 18:35 Sat; opt-in, off by default): the mic stays open and a local voice-activity
+   * detector sends ONLY speech segments to Cartesia; each segment is finalised after `utteranceEndMs` of silence.
+   */
+  alwaysListen?: boolean;
+  /** End-of-utterance silence for always-listening and tap mode (default 450 ms, slider 250–1500). */
+  utteranceEndMs?: number;
   micCapMs: number; // 15000–60000, default 15000
   quiet: boolean;
   tts: boolean;
