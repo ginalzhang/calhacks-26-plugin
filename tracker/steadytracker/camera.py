@@ -43,7 +43,10 @@ def list_cameras() -> List[Dict[str, Any]]:
 
 
 def pick_default(cameras: List[Dict[str, Any]], preferred_name: Optional[str] = None) -> int:
-    """Saved camera name → first "Desk View" → index 0."""
+    """Saved camera name → first "Desk View" → the Mac's built-in camera → index 0.
+
+    Real-Mac fix (19:03 Sat): with no Desk View, index 0 was a wireless Continuity iPhone ("iPhone (2) Camera")
+    lying face down — "too dark", 12 fps. A built-in camera is the safer default; the user's pick is remembered."""
     if preferred_name:
         for c in cameras:
             if c.get("name") == preferred_name:
@@ -51,7 +54,11 @@ def pick_default(cameras: List[Dict[str, Any]], preferred_name: Optional[str] = 
     for c in cameras:
         if "desk view" in str(c.get("name", "")).lower():
             return int(c["index"])
-    return 0
+    for c in cameras:
+        n = str(c.get("name", "")).lower()
+        if any(k in n for k in ("macbook", "facetime", "built-in", "imac", "studio display")):
+            return int(c["index"])
+    return int(cameras[0]["index"]) if cameras else 0
 
 
 # ------------------------------------------------------------------ base

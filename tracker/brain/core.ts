@@ -367,6 +367,11 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
     return out.reverse();
   }
 
+  /** True when this very frame lifted the pen because tracking was lost (the stroke was in progress). */
+  function pendingStrokeLoss(o: { events: Array<{ type: string; reason?: string }> }): boolean {
+    return o.events.some((e) => e.type === "up" && e.reason === "tracking_lost");
+  }
+
   function panelState(): PanelState {
     const snap = pipeline.snapshot();
     const o = last;
@@ -437,7 +442,12 @@ export function createBrain(send: (m: FromBrain) => void, opts: BrainOptions = {
     if (calibrator && frame) feedCalibrator(out, frame);
 
     if (out.tracking !== lastTracking) {
-      if (out.tracking === "Lost" && everTracked) alert(lostReasonText(out.reason));
+      // Taking the hand away is also how people stop (real-Mac feedback 19:03 Sat): only a loss mid-stroke is
+      // an alert (that one also lifts the pen, below); with the pen up it is a quiet status line.
+      if (out.tracking === "Lost" && everTracked) {
+        if (pipeline.snapshot().pen === "DRAWING" || pendingStrokeLoss(out)) alert(lostReasonText(out.reason));
+        else status(lostReasonText(out.reason));
+      }
       else if (lastTracking === "Lost" && out.tracking !== "Lost" && everTracked) {
         if (currentAlert.startsWith("Tracking lost") || currentAlert.startsWith("Hand outside") || currentAlert.startsWith("Pen lifted"))
           clearAlert();
