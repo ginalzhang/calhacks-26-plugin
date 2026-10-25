@@ -130,8 +130,11 @@ def load_table(path: Optional[os.PathLike] = None) -> ActionTable:
         for r in data["actions"]:
             if not isinstance(r, dict) or "id" not in r:
                 continue
-            merged = dict(snap_rows.get(r["id"], {}))
-            merged.update({k: v for k, v in _norm_row(r).items() if v is not None})
+            row = _norm_row(r)
+            # D's file carries every field now: use it as is. Only an old-style row without voicePhrases is
+            # completed from the snapshot by id.
+            merged = {} if "voicePhrases" in row else dict(snap_rows.get(r["id"], {}))
+            merged.update({k: v for k, v in row.items() if v is not None})
             rows.append(_row(merged))
         if rows:
             return ActionTable(

@@ -164,6 +164,19 @@
    "modeChanging": true
   },
   {
+   "id": "use_last_setup",
+   "label": "Use last setup",
+   "voicePhrases": [
+    "use last setup"
+   ],
+   "typed": "use last setup",
+   "phase": "P2a",
+   "page": "setup",
+   "destructive": false,
+   "modeChanging": true,
+   "help": "Reuses the last calibration for this hand, so you can start drawing within a few seconds."
+  },
+  {
    "id": "smoothing_sketch",
    "label": "Sketch",
    "voicePhrases": [

@@ -29,6 +29,8 @@ def grammar_keyterms(t: Optional[ActionTable] = None, phase: str = "P4") -> List
     for a in t.actions:
         if a.phase in PHASE_ORDER and PHASE_ORDER.index(a.phase) > maxp:
             continue
+        if a.page == "demo":  # grammar.ts: demo controls are matched but not biased in STT (budget <= 100)
+            continue
         for p in a.voice_phrases:
             if p not in seen:
                 seen.add(p)
