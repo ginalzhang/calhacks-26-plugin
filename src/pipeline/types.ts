@@ -105,6 +105,12 @@ export interface SteadySettings {
   cameraDeviceId: string | null;
   simulateTremor: boolean;
   hatchLagMs: number;
+  /**
+   * Click anywhere (user request 19:05 Sat: "the hands replace the stylus and the mouse"): dwell-clicks are allowed
+   * anywhere on any screen (menu bar, Krita dialogs and menus, the Dock, other apps), not only inside Krita's main
+   * window and the Steady panel. Ink still only on Krita's canvas; Pause still clamps to the panel. Opt-in.
+   */
+  clickAnywhere?: boolean;
   /** P4 hand presets: floor for the dwell radius r_in (target units). */
   dwellRadius?: number | null;
   /** P4: tiles count as hovered within this many px of their edge. */

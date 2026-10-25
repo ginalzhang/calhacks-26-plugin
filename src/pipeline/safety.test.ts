@@ -114,3 +114,13 @@ describe("force_lift", () => {
     expect(ev3[0].type === "up" && ev3[0].reason).toBe("socket"); // unknown reason → "socket"
   });
 });
+
+describe("click anywhere (user opt-in)", () => {
+  it("@P4 with clickAnywhere the menu bar, the Dock and other apps are clickable; without it they are not", () => {
+    const rects = { canvas: null, chrome: null, krita: { x: 100, y: 30, w: 900, h: 800 }, screen: { x: 0, y: 0, w: 1440, h: 900 }, usable: { x: 0, y: 25, w: 1440, h: 800 } };
+    expect(clickZone({ x: 50, y: 10 }, rects, "P4")).toBeNull();
+    expect(clickZone({ x: 50, y: 10 }, rects, "P4", true)).toBe("anywhere");
+    expect(clickZone({ x: 1300, y: 870 }, rects, "P4", true)).toBe("anywhere");
+    expect(clickZone({ x: 500, y: 400 }, rects, "P4", true)).toBe("krita");
+  });
+});

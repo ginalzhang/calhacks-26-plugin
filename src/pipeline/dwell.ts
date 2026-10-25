@@ -99,14 +99,21 @@ export class DwellDetector {
   }
 }
 
-export type ClickZone = "chrome" | "krita" | null;
+export type ClickZone = "anywhere" | "chrome" | "krita" | null;
 
 /**
  * Where a dwell-click is allowed (screen points): inside Chrome's own window (P1) or, from
  * P2a, Krita's main window; never in the menu bar (top 40 pt), title bars, outside the usable
  * area (`rects.usable`, the screen's visible frame: no Dock) when known, or anywhere else.
  */
-export function clickZone(p: Vec2, rects: PipelineRects, phase: Phase): ClickZone {
+export function clickZone(p: Vec2, rects: PipelineRects, phase: Phase, anywhere = false): ClickZone {
+  if (anywhere) {
+    // settings.clickAnywhere: any point on any screen (the pointer is already clamped to the screens).
+    const inBody = (r: Rect | null) => !!r && inRect(p, r) && p.y >= r.y + TITLE_BAR_PT;
+    if (inBody(rects.chrome)) return "chrome";
+    if (inBody(rects.krita)) return "krita";
+    return "anywhere";
+  }
   const screenTop = rects.screen?.y ?? 0;
   if (p.y < screenTop + MENU_BAR_PT) return null;
   // The helper's visible frame excludes the menu bar and the Dock (R8).

@@ -240,7 +240,7 @@ def next_landmark(i: Any) -> int:
 # (label, settings path). A dotted path means a nested key: inputs.dwell.
 SETTING_TOGGLES: Dict[str, List[Tuple[str, str]]] = {
     "setup": [("Mirror camera", "mirrorCamera"), ("Rotate camera", "rotateCamera")],
-    "input": [("Dwell click", "dwellClickEnabled"), ("All dwell", "inputs.dwell"), ("Keys", "inputs.keys"),
+    "input": [("Dwell click", "dwellClickEnabled"), ("Click anywhere", "clickAnywhere"), ("All dwell", "inputs.dwell"), ("Keys", "inputs.keys"),
               ("Camera", "inputs.camera"), ("Voice", "inputs.voice"), ("Always listening", "alwaysListen"), ("Speech replies", "tts"),
               ("Sounds", "earcons")],
 }

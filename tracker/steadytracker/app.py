@@ -545,6 +545,10 @@ class TrackerApp:
     def _click_refusal(self, x: float, y: float) -> Optional[str]:
         if not self.pointer.enabled:
             return "permission"
+        if self.pointer.paused and not inside(self.clamp_rect(), x, y):
+            return "outside_panel"
+        if self.settings.get("clickAnywhere") and not self.pointer.paused:
+            return None  # user opted in: the hand is the mouse, anywhere on screen
         if not (inside(self.krita_rect, x, y) or inside(self.panel_rect, x, y)):
             return "outside_krita"
         try:

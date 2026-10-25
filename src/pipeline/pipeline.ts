@@ -552,7 +552,8 @@ class SteadyPipeline implements Pipeline {
       }
     } else {
       kind = "click";
-      const zoneOk = this.target === "canvas" ? true : clickZone(pointer, this.rects, this.phase) !== null;
+      const anywhere = !!(this.settings as { clickAnywhere?: boolean }).clickAnywhere && !this.paused;
+      const zoneOk = this.target === "canvas" ? true : clickZone(pointer, this.rects, this.phase, anywhere) !== null;
       gated = !zoneOk || !this.settings.dwellClickEnabled || this.pinned;
       if (!gated && !this.rearm && t >= this.suppressClicksUntil) {
         params = { kind, ms: this.settings.dwellDownMs, rIn, tight: false };
