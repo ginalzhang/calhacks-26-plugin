@@ -716,3 +716,10 @@ demo-check P4: PASS
 ```
 - strict AXE_GATE=1: 0 violations at 100 %/200 %. integration-check: PASS (16:19). Tile-label overflow check (all 12 pages, 1280 and 320 px): none.
 - Remaining before Sun 09:00 is human work only: NEEDS-HUMAN.md items 0–5 first, then record the fallback video (docs/demo-video.md), then the Devpost form. Feature work stopped at P4; nothing real-hardware is claimed.
+
+## PIVOT — Steady as a Krita plugin (2026-10-24 17:04 PDT)
+User decision: no website; everything inside Krita (a Steady panel/docker) + a hidden "Steady Tracker.app" for camera work; voice now; no pedal (keyboard F-keys, mouse/touchpad, camera, mic only).
+- Why a separate tracker app: Krita.app has no NSCameraUsageDescription / camera entitlement (checked with plutil/codesign), so camera access from Krita or a child it spawns directly is blocked by TCC. Launched via `open`, the tracker app is its own responsible process.
+- Reuse: the tested TS pipeline/grammar/dispatch runs as a Node "brain" (esbuild bundle) driven over stdin/stdout by the Python tracker; helper's pointer/watchdog/hotkeys/krita_relay reused; plugin bridge unchanged + new panel.
+- Verified availability: mediapipe 1.1.1 (py3-none macOS arm64), opencv-python-headless 4.10 (abi3 arm64), sounddevice 0.5.6 wheels exist for Python 3.12. Krita's PyQt5 has QtNetwork (panel ↔ tracker via QTcpSocket) but no QtMultimedia.
+- Contracts: tracker/PROTOCOL.md, tracker/brain/protocol.ts. The website (src/app, src/components, src/tracking) stays in the repo untouched as a fallback demo.
