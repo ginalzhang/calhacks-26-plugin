@@ -120,6 +120,8 @@ class BrainProcess:
         try:
             for raw in iter(proc.stderr.readline, b""):
                 text = raw.decode("utf-8", "replace").rstrip()
+                if text.startswith("[brain] "):
+                    text = text[8:]
                 if text:
                     log.info("[brain] %s", text)
         except (OSError, ValueError):

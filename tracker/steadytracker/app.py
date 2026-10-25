@@ -21,7 +21,6 @@ Everything system-facing is injected so pytest drives the real app with fakes.
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional
@@ -149,6 +148,7 @@ class TrackerApp:
         self.brain_ready = False
         self.brain_dead = False
         self._parse_waiters: Dict[str, asyncio.Future] = {}
+        self._hb = 0
 
         # keys + relay
         self.key_out = KeyOutput(
@@ -174,6 +174,7 @@ class TrackerApp:
         # mirrored state
         self.settings: Dict[str, Any] = store.settings()
         self.preview_on = bool(self.settings.get("preview", False))
+        self.apply_keymap()
         self.permissions: Dict[str, bool] = {}
         self.panel_rect: Optional[Dict[str, float]] = None
         self.krita_rect: Optional[Dict[str, float]] = None
@@ -181,8 +182,8 @@ class TrackerApp:
         self._krita_running = False
         self._last_rects: Optional[Dict[str, Any]] = None
         self.brain_state: Optional[Dict[str, Any]] = None
-        self.dialog_open = False
-        self._tracker_dialogs: Dict[str, Dict[str, Any]] = {}
+        #: open brain dialogs (b-dlg-*): parse gets dialogOpen while any is open
+        self._brain_dialogs: set = set()
         self._last_frame: Optional[Dict[str, Any]] = None
         self._last_image: Any = None
         self._frame_seq = 0
@@ -244,11 +245,8 @@ class TrackerApp:
             except (asyncio.CancelledError, Exception):
                 pass
         await asyncio.get_running_loop().run_in_executor(None, self.brain.stop)
-        if self.voice is not None and hasattr(self.voice, "close"):
-            try:
-                self.voice.close()
-            except Exception:
-                log.exception("voice close failed")
+        if self.voice is not None:
+            await asyncio.get_running_loop().run_in_executor(None, self._voice_call, "shutdown")
         if self.relay is not None:
             await self.relay.stop()
         await self.panel.stop()
@@ -287,18 +285,69 @@ class TrackerApp:
             self.brain_dead = True
             self.panel.send({"t": "status", "text": f"Steady could not start ({type(exc).__name__}).", "level": "alert"})
             return
-        self.brain_send(
-            {
-                "t": "init",
-                "settings": dict(self.settings),
-                "calibration": self.store.latest_calibration(),
-                "now": self.clock(),
-            }
-        )
+        cals = {k: v for k, v in self.store.calibrations().items() if k in ("Left", "Right") and isinstance(v, dict)}
+        init: Dict[str, Any] = {
+            "t": "init",
+            "settings": self.init_settings(),
+            "calibration": self.store.latest_calibration(),
+            "now": self.clock(),
+        }
+        if cals:
+            init["calibrations"] = cals
+        self.brain_send(init)
         self._last_rects = None
         self._send_rects()
         if self.relay is not None and self.relay.connected:
-            self._helper_event("krita_state", {"connected": True})
+            self._helper_event("krita_state", {"connected": True, "window_rect": self.krita_rect})
+
+    def init_settings(self) -> Dict[str, Any]:
+        """settings.json + the brain-owned keys kept in aliases.json / profiles.json."""
+        s = dict(self.settings)
+        aliases = self.store.aliases()
+        if aliases:
+            s["aliases"] = aliases
+        profiles = self.store.profiles()
+        if profiles:
+            s["profiles"] = profiles
+        return s
+
+    def persist_settings(self, patch: Dict[str, Any]) -> None:
+        """Partial settings → settings.json; `aliases` → aliases.json, `profiles` → profiles.json (whole)."""
+        patch = dict(patch)
+        if isinstance(patch.get("aliases"), dict):
+            self.store.save("aliases", patch.pop("aliases"))
+        if isinstance(patch.get("profiles"), dict):
+            self.store.save("profiles", patch.pop("profiles"))
+        patch.pop("aliases", None)
+        patch.pop("profiles", None)
+        if patch:
+            self.settings = self.store.merge_settings(patch)
+        if "keymap" in patch:
+            self.apply_keymap()
+        if "preview" in patch:
+            self.preview_on = bool(patch["preview"])
+
+    def apply_keymap(self) -> bool:
+        """settings.keymap ({combo: actionId | hotkeyName}, same rules as keymapMessage in
+        src/desktop/krita.ts) → the F-key router. Empty → the default F3–F10 map."""
+        from steadyhelper.hotkeys import BadKeymap, build_keymap, default_keycode_map
+
+        km = self.settings.get("keymap") or {}
+        if not isinstance(km, dict) or not km:
+            self.router.set_keymap(default_keycode_map())
+            return True
+        wire: Dict[str, str] = {}
+        for combo, value in km.items():
+            key = str(combo).strip().lower()
+            name = ACTION_TO_HOTKEY.get(str(value)) or (str(value) if str(value) in HOTKEY_KEYS else None)
+            if key and name:
+                wire[key] = name
+        try:
+            self.router.set_keymap(build_keymap(wire))
+            return True
+        except BadKeymap as e:
+            log.warning("keymap refused (%s); keeping the previous keys", e)
+            return False
 
     def _brain_line(self, msg: Dict[str, Any]) -> None:
         """Brain reader thread: every line is a heartbeat; handle it on the loop thread."""
@@ -352,12 +401,17 @@ class TrackerApp:
             elif t == "keys":
                 self._spawn(self._post_keys(msg))
             elif t == "parsed":
+                if str(msg.get("id", "")).startswith("hb-"):
+                    return  # heartbeat reply (already fed the watchdog)
                 fut = self._parse_waiters.pop(str(msg.get("id")), None)
                 if fut is not None and not fut.done():
                     fut.set_result(msg.get("result"))
             elif t == "dialog":
-                self.dialog_open = True
+                self._brain_dialogs.add(str(msg.get("dialog_id", "")))
                 self.panel.send({k: v for k, v in msg.items()})
+            elif t == "dialog_close":
+                self._brain_dialogs.discard(str(msg.get("dialog_id", "")))
+                self.panel.send({"t": "dialog_close", "dialog_id": str(msg.get("dialog_id", ""))})
             elif t == "calibration":
                 cal = msg.get("calibration")
                 if isinstance(cal, dict):
@@ -365,14 +419,15 @@ class TrackerApp:
             elif t == "settings_changed":
                 patch = msg.get("settings")
                 if isinstance(patch, dict):
-                    self.settings = self.store.merge_settings(patch)
+                    self.persist_settings(patch)
+                    self._voice_call("on_settings", dict(self.settings))
             elif t == "speak":
                 self._voice_call("speak", str(msg.get("text", "")))
             elif t == "mic":
                 opening = bool(msg.get("open"))
                 if opening and self._request_microphone is not None and self.allow_input:
                     self._request_microphone()
-                self._voice_call("on_mic", opening, str(msg.get("reason", "tile")))
+                self._voice_call("on_brain_mic", opening, str(msg.get("reason", "tile")))
             elif t == "ready":
                 self.brain_ready = True
                 log.info("brain ready (%s)", msg.get("version"))
@@ -388,8 +443,7 @@ class TrackerApp:
         self.brain_state = st
         paused = bool(st.get("paused"))
         if paused and not self.pointer.paused:
-            if self.panel_rect:
-                self.pointer.set_chrome_rect(self.panel_rect)
+            self._update_clamp()
             self.pointer.pause()
         elif not paused and self.pointer.paused:
             self.pointer.resume()
@@ -398,6 +452,16 @@ class TrackerApp:
             self.preview_on = bool(s["preview"])
 
     # ------------------------------------------------------------------ pen → pointer
+    def clamp_rect(self) -> Optional[Dict[str, float]]:
+        """Pause clamp / paused-click rect: the panel's rect, or Krita's main window while the
+        panel is hidden (`panel_rect {rect:null}`)."""
+        return self.panel_rect or self.krita_rect
+
+    def _update_clamp(self) -> None:
+        rect = self.clamp_rect()
+        with self.pointer._lock:
+            self.pointer.chrome_rect = dict(rect) if rect else None
+
     def _pen(self, ev: Dict[str, Any]) -> None:
         kind = ev.get("type")
         p = self.pointer
@@ -407,13 +471,13 @@ class TrackerApp:
         elif kind in ("down", "middle_down"):
             code = self._down_refusal()
             if code is not None:
-                self._helper_event("refused_down", {"code": code, "button": "left" if kind == "down" else "middle"})
+                self._helper_event("refused_down", _refusal(code, "left" if kind == "down" else "middle"))
                 return
             self._schedule_pump(p.move(x, y))
             try:
                 self._schedule_pump(p.down() if kind == "down" else p.middle_down())
             except Refused as r:
-                self._helper_event("refused_down", {"code": r.code, "button": "left" if kind == "down" else "middle"})
+                self._helper_event("refused_down", _refusal(r.code, "left" if kind == "down" else "middle"))
         elif kind == "up":
             self._schedule_pump(p.up())
         elif kind == "middle_up":
@@ -421,12 +485,12 @@ class TrackerApp:
         elif kind == "click":
             code = self._click_refusal(x, y)
             if code is not None:
-                self._helper_event("refused_down", {"code": code, "button": "left", "click": True, "x": x, "y": y})
+                self._helper_event("refused_down", {**_refusal(code, "left"), "click": True, "x": x, "y": y})
                 return
             try:
                 p.click(x, y)
             except Refused as r:
-                self._helper_event("refused_down", {"code": r.code, "button": "left", "click": True, "x": x, "y": y})
+                self._helper_event("refused_down", {**_refusal(r.code, "left"), "click": True, "x": x, "y": y})
 
     def _down_refusal(self) -> Optional[str]:
         if self.pointer.paused:
@@ -448,7 +512,7 @@ class TrackerApp:
             ok = None
         if ok is False:
             return "outside_usable"
-        if self.pointer.paused and not inside(self.panel_rect, x, y):
+        if self.pointer.paused and not inside(self.clamp_rect(), x, y):
             return "outside_panel"
         return None
 
@@ -513,7 +577,7 @@ class TrackerApp:
         self._helper_event("krita_reply", data)
 
     def _on_krita_state(self, connected: bool) -> None:
-        self._helper_event("krita_state", {"connected": bool(connected)})
+        self._helper_event("krita_state", {"connected": bool(connected), "window_rect": self.krita_rect})
         if not connected:
             self.canvas_rect = None
             self._send_rects()
@@ -534,7 +598,11 @@ class TrackerApp:
         self._last_frame = frame
         self._last_image = image
         self._frame_seq += 1
-        if self.brain.send({"t": "frame", "frame": frame}):
+        msg: Dict[str, Any] = {"t": "frame", "frame": frame}
+        fps = getattr(self.source, "camera_fps", None)
+        if isinstance(fps, (int, float)) and fps > 0:
+            msg["cameraFps"] = float(fps)
+        if self.brain.send(msg):
             self.frames_sent += 1
 
     # ================================================================== periodic loops
@@ -546,10 +614,21 @@ class TrackerApp:
             log.debug("frontmost refresh failed", exc_info=True)
 
     async def _tick_loop(self) -> None:
+        n = 0
         while True:
             self._refresh_frontmost()
             self.brain_send({"t": "tick", "now": self.clock()})
+            n += 1
+            if self.pointer.any_down and n % 2 == 0:
+                self.heartbeat()
             await asyncio.sleep(self.tick_s)
+
+    def heartbeat(self) -> None:
+        """While a button is held: a request the brain must answer (`parse ""` → `parsed`), so a hung
+        brain (alive but not reading/answering) stops feeding the 300 ms watchdog. The brain has no
+        timers of its own and prints nothing on a plain tick."""
+        self._hb += 1
+        self.brain_send({"t": "parse", "id": f"hb-{self._hb}", "text": "", "opts": {"mode": "typed"}})
 
     def _rects(self) -> Dict[str, Any]:
         screen = None
@@ -588,6 +667,8 @@ class TrackerApp:
         if self._krita_running and not running:
             self.pointer.release("krita quit")
         self._krita_running = running
+        if self.panel_rect is None:
+            self._update_clamp()
         if self.relay is not None and self.relay.connected:
             try:
                 reply = await self.relay.request({"id": f"trk-canvas-{uuid.uuid4().hex[:8]}", "cmd": "canvas_rect"})
@@ -691,15 +772,17 @@ class TrackerApp:
             text = str(msg.get("text", "")).strip()
             if not text:
                 return False, "empty"
-            self._spawn(self.resolve_text(text, "typed"))
+            if self.voice is not None and hasattr(self.voice, "submit_text"):
+                self._voice_call("submit_text", text, "typed")
+            else:
+                self._spawn(self.resolve_text(text, "typed"))
             return True, None
         if t == "settings":
             patch = msg.get("settings")
             if not isinstance(patch, dict):
                 return False, "bad_args"
-            self.settings = self.store.merge_settings(patch)
-            if "preview" in patch:
-                self.preview_on = bool(patch["preview"])
+            self.persist_settings(patch)
+            self._voice_call("on_settings", dict(self.settings))
             return self._brain_ok({"t": "settings", "settings": patch})
         if t == "calibrate":
             steps = [s for s in (msg.get("steps") or [1, 2, 3]) if s in (1, 2, 3)]
@@ -709,22 +792,27 @@ class TrackerApp:
         if t == "mic":
             on = bool(msg.get("on"))
             return self._brain_ok(
-                {"t": "action", "action": "mic", "variant": "open" if on else "close", "source": "tile", "now": now}
+                {"t": "action", "action": "mic", "variant": "on" if on else "off", "source": "tile", "now": now}
             )
         if t == "panel_rect":
             rect = msg.get("rect")
+            if rect is None:  # panel hidden: no stale clamp; Pause clamps to Krita's window instead
+                self.panel_rect = None
+                self._update_clamp()
+                self._send_rects()
+                return True, None
             if not _is_rect(rect):
                 return False, "bad_args"
             self.panel_rect = {k: float(rect[k]) for k in ("x", "y", "w", "h")}
-            self.pointer.set_chrome_rect(self.panel_rect)
+            self._update_clamp()
             self._send_rects()
             return True, None
         if t == "dialog_answer":
             did = str(msg.get("dialog_id", ""))
-            self.dialog_open = False
-            if did in self._tracker_dialogs:
-                self._answer_tracker_dialog(did, str(msg.get("answer", "")))
-                return True, None
+            answer = str(msg.get("answer", ""))
+            if self._voice_call("dialog_answer", did, answer) is True:
+                return True, None  # E's Claude clarify (v-dlg-*)
+            self._brain_dialogs.discard(did)
             return self._brain_ok({"t": "dialog_answer", "dialog_id": did, "answer": str(msg.get("answer", "")), "now": now})
         if t == "quit":
             self.pointer.release("quit")
@@ -757,11 +845,17 @@ class TrackerApp:
         return True, None
 
     # ------------------------------------------------------------------ typed / voice text
-    async def parse(self, text: str, mode: str) -> Optional[Dict[str, Any]]:
+    async def parse(self, text: str, mode: str, extra: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         rid = f"p-{uuid.uuid4().hex[:10]}"
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         self._parse_waiters[rid] = fut
-        opts = {"mode": mode, "dialogOpen": self.dialog_open, "aliases": self.store.aliases()}
+        opts: Dict[str, Any] = {"mode": mode, "aliases": self.store.aliases()}
+        if self._brain_dialogs:
+            opts["dialogOpen"] = True
+        for k, v in (extra or {}).items():
+            if v is not None:
+                opts[k] = v
+        opts["mode"] = "voice" if opts.get("mode") == "voice" else "typed"
         if not self.brain_send({"t": "parse", "id": rid, "text": text, "opts": opts}):
             self._parse_waiters.pop(rid, None)
             return None
@@ -784,96 +878,120 @@ class TrackerApp:
             self.brain_send(out)
 
     async def resolve_text(self, text: str, mode: str = "typed") -> str:
-        """typed box / voice transcript → brain grammar → (Claude fallback via voice) → actions.
-        Returns "grammar" | "claude" | "clarify" | "none" (for tests and logs)."""
+        """Grammar-only path, used when the voice module (agent E) is unavailable: brain `parse` →
+        actions, else status "Didn't catch that" + the closest commands. With voice present, typed text
+        goes to VoiceController.submit_text (grammar → Claude fallback → dispatch/heard/dialog)."""
         source = "typed" if mode == "typed" else "voice"
         result = await self.parse(text, mode)
         if isinstance(result, dict) and result.get("kind") == "match":
             self.panel.send({"t": "heard", "text": text, "via": "grammar"})
             self._run_commands(result.get("commands") or [], source)
             return "grammar"
-        closest: List[str] = list((result or {}).get("closest") or []) if isinstance(result, dict) else []
-        refused = (result or {}).get("refused") if isinstance(result, dict) else None
+        closest: List[str] = list(result.get("closest") or []) if isinstance(result, dict) else []
+        refused = result.get("refused") if isinstance(result, dict) else None
         if refused and refused.get("reason") == "alias_taken":
             self.panel.send({"t": "status", "text": f'"{refused.get("word")}" is already a command.', "level": "status"})
             return "none"
-        res = await self._claude_fallback(text)
-        if isinstance(res, dict):
-            kind = res.get("kind")
-            if kind == "commands" and res.get("commands"):
-                self.panel.send({"t": "heard", "text": res.get("heard") or text, "via": "claude"})
-                self._run_commands(res["commands"], "claude")
-                return "claude"
-            if kind == "clarify" and res.get("options"):
-                self._open_clarify(text, [str(o) for o in res["options"]][:4])
-                return "clarify"
-            if kind == "noop":
-                self.panel.send({"t": "heard", "text": res.get("heard") or text, "via": "claude"})
-                return "none"
-            closest = list(res.get("closest") or closest)
         self.panel.send({"t": "status", "text": _didnt_catch(closest), "level": "status"})
         return "none"
 
-    async def _claude_fallback(self, text: str):
-        fn = getattr(self.voice, "resolve_text", None) if self.voice is not None else None
-        if fn is None:
-            return None
-        try:
-            res = fn(text, self.brain_state)
-            if inspect.isawaitable(res):
-                res = await asyncio.wait_for(res, 8.0)
-            return res
-        except Exception:
-            log.exception("Claude fallback failed")
-            return None
-
-    def _open_clarify(self, heard: str, options: List[str]) -> None:
-        did = f"trk-{uuid.uuid4().hex[:8]}"
-        self._tracker_dialogs[did] = {"options": options}
-        self.dialog_open = True
-        self.panel.send(
-            {
-                "t": "dialog",
-                "dialog_id": did,
-                "kind": "clarify",
-                "text": f'Did you mean… ("{heard}")',
-                "options": [{"id": o, "label": o.replace("_", " ").capitalize()} for o in options]
-                + [{"id": "cancel", "label": "Cancel"}],
-            }
+    # ------------------------------------------------------------------ voice (agent E) callbacks
+    def voice_kwargs(self, keys: Dict[str, str]) -> Dict[str, Any]:
+        """Arguments for steadytracker.voice.VoiceController (see its module docstring). Every callback
+        is thread-safe (E calls them from its own threads)."""
+        return dict(
+            parse=self.parse_blocking,
+            dispatch=self.voice_dispatch,
+            status=self.on_voice_status,
+            heard=self.on_voice_heard,
+            speak_enabled=lambda: not bool((self.brain_state or {}).get("quiet")),
+            settings_getter=lambda: dict(self.settings),
+            keys=dict(keys),
+            dialog=self.on_voice_dialog,
+            dialog_open=lambda: bool(self._brain_dialogs),
+            aliases_getter=self.store.aliases,
+            on_mic=self.on_mic_state,
         )
 
-    def _answer_tracker_dialog(self, did: str, answer: str) -> None:
-        d = self._tracker_dialogs.pop(did, None)
-        if d and answer in d["options"]:
-            self._run_commands([{"action": answer}], "claude")
+    def parse_blocking(self, text: str, opts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Brain `parse` round trip for voice threads (never call from the loop thread)."""
+        loop = self.loop
+        nomatch: Dict[str, Any] = {"kind": "nomatch", "closest": []}
+        if loop is None or loop.is_closed():
+            return nomatch
+        o = dict(opts or {})
+        fut = asyncio.run_coroutine_threadsafe(self.parse(text, str(o.get("mode") or "voice"), o), loop)
+        try:
+            res = fut.result(self.parse_timeout + 0.5)
+        except Exception:
+            return nomatch
+        return res if isinstance(res, dict) else nomatch
 
-    # ------------------------------------------------------------------ voice hooks (agent E)
-    def on_transcript(self, text: str) -> None:
-        """E calls this (any thread) with a final transcript."""
-        text = (text or "").strip()
-        if text:
-            self._call_soon(lambda: self._spawn(self.resolve_text(text, "voice")))
+    def voice_dispatch(self, action: str, variant: Optional[str], arg: Optional[float], source: str) -> None:
+        msg: Dict[str, Any] = {"t": "action", "action": str(action), "source": source or "voice", "now": self.clock()}
+        if variant is not None:
+            msg["variant"] = variant
+        if arg is not None:
+            msg["arg"] = arg
+        self._call_soon(self.brain_send, msg)
+
+    def on_voice_heard(self, text: str, via: str) -> None:
+        self.panel.send_threadsafe({"t": "heard", "text": str(text), "via": via if via in ("grammar", "claude") else "grammar"})
+
+    def on_voice_dialog(self, msg: Dict[str, Any]) -> None:
+        """E's Claude clarify dialog (v-dlg-*) or its dialog_close → panel unchanged."""
+        if isinstance(msg, dict) and msg.get("t") in ("dialog", "dialog_close"):
+            self.panel.send_threadsafe(dict(msg))
 
     def on_voice_status(self, text: str, level: str = "status") -> None:
-        """E calls this (any thread) for mic/STT status lines."""
         self.panel.send_threadsafe({"t": "status", "text": str(text), "level": level if level in ("status", "alert") else "status"})
 
     def on_mic_state(self, open_: bool, reason: str = "") -> None:
-        """E calls this (any thread) when the mic actually opened/closed by itself (silence, cap, error)."""
-        if not open_:
-            self._call_soon(
-                self.brain_send,
-                {"t": "action", "action": "mic", "variant": "close", "source": "system", "now": self.clock()},
-            )
+        """The mic really opened/closed (E): brain `action mic` variant "opened"/"closed" (no reply)."""
+        self._call_soon(
+            self.brain_send,
+            {"t": "action", "action": "mic", "variant": "opened" if open_ else "closed", "source": "system", "now": self.clock()},
+        )
 
-    def _voice_call(self, name: str, *args) -> None:
+    def _voice_call(self, name: str, *args) -> Any:
         fn = getattr(self.voice, name, None) if self.voice is not None else None
         if fn is None:
-            return
+            return None
         try:
-            fn(*args)
+            return fn(*args)
         except Exception:
             log.exception("voice.%s failed", name)
+            return None
+
+
+#: src/desktop/krita.ts ACTION_TO_HOTKEY (action id → hotkey name).
+ACTION_TO_HOTKEY = {
+    "pen_toggle": "pen",
+    "pause": "pause",
+    "mic": "ptt_down",
+    "undo": "undo",
+    "redo": "redo",
+    "recenter": "recenter",
+    "other_hand": "other_hand",
+    "latch": "latch",
+}
+HOTKEY_KEYS = ("pen", "pause", "ptt_down", "undo", "redo", "recenter", "other_hand", "latch")
+
+_REFUSAL_TEXT = {
+    "krita_not_frontmost": "Krita is not the front app",
+    "outside_krita": "that point is outside Krita",
+    "outside_usable": "that point is on the menu bar or Dock",
+    "outside_panel": "while paused, clicks only land on the Steady panel",
+}
+
+
+def _refusal(code: str, button: str) -> Dict[str, Any]:
+    d: Dict[str, Any] = {"code": code, "button": button}
+    if code == "permission":
+        d["which"] = "accessibility"
+    elif code in _REFUSAL_TEXT:
+        d["message"] = _REFUSAL_TEXT[code]
+    return d
 
 
 def _is_rect(r: Any) -> bool:

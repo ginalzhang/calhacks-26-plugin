@@ -3,6 +3,7 @@
 #
 #   bash scripts/install-steady.sh            # install / update everything (safe to run again)
 #   bash scripts/install-steady.sh --dry-run  # print every step and what it would run; change nothing
+#   bash scripts/install-steady.sh --rebuild-tracker   # also rebuild Steady Tracker.app (see step 8)
 #
 # Steps: prerequisites -> npm install -> brain bundle -> tracker Python venv -> hand model
 #        -> plugin action table -> Krita plugin -> "Steady Tracker.app" -> next steps.
@@ -14,11 +15,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 DRY=0
+REBUILD=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run|-n) DRY=1 ;;
-    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "install-steady: unknown option $arg (use --dry-run or --help)" >&2; exit 2 ;;
+    --rebuild-tracker) REBUILD=1 ;;
+    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "install-steady: unknown option $arg (use --dry-run, --rebuild-tracker or --help)" >&2; exit 2 ;;
   esac
 done
 
@@ -92,6 +95,12 @@ else
   MISSING=1
 fi
 
+if xcrun --find clang >/dev/null 2>&1 || command -v cc >/dev/null 2>&1; then
+  ok "C compiler (Command Line Tools) for Steady Tracker's launcher"
+else
+  warn "no C compiler: run  xcode-select --install  (without it Steady Tracker gets a bash launcher and macOS may attribute the camera to the wrong app)"
+fi
+
 if [ "$MISSING" = 1 ]; then
   if [ "$DRY" = 1 ]; then
     warn "prerequisites missing (see MISSING lines above); a real run would stop here"
@@ -161,11 +170,25 @@ run bash scripts/krita-plugin-install.sh
 
 # ------------------------------------------------------------------ 8. tracker app
 step "Build and install \"Steady Tracker.app\" (the hidden camera/voice/pointer app the panel launches)"
+# The app is only a launcher for scripts/run-tracker.sh (repo path baked in), so tracker code changes do NOT
+# need a rebuild. It is ad-hoc signed and every rebuild changes the signature, which can make macOS forget the
+# Camera / Accessibility / Input Monitoring grants. So: build once, rebuild only when the build script or the
+# repo path changed, or with --rebuild-tracker.
+INSTALLED_APP="$HOME/Applications/Steady Tracker.app"
+APP_STAMP="$HOME/Library/Application Support/Steady/installed-tracker-app.sha"
 if [ -f scripts/build-tracker-app.sh ]; then
-  if grep -q -- '--install' scripts/build-tracker-app.sh; then
-    run bash scripts/build-tracker-app.sh --install
+  APP_SUM="$( { shasum scripts/build-tracker-app.sh | cut -d' ' -f1; echo "$ROOT"; } | shasum | cut -d' ' -f1)"
+  if [ "$REBUILD" = 0 ] && [ -d "$INSTALLED_APP" ] && [ -f "$APP_STAMP" ] && [ "$(cat "$APP_STAMP")" = "$APP_SUM" ]; then
+    skip "$INSTALLED_APP is up to date (not rebuilt, so macOS keeps its permissions; --rebuild-tracker forces it)"
   else
-    run bash scripts/build-tracker-app.sh
+    [ -d "$INSTALLED_APP" ] && echo "   note: rebuilding changes the app's signature; if Start then fails, re-grant \"Steady Tracker\" (NEEDS-HUMAN.md item 19)"
+    run bash scripts/build-tracker-app.sh --install
+    if [ "$DRY" = 1 ]; then
+      echo "   \$ echo <sha> > \"$APP_STAMP\""; echo "     (dry run: not executed)"
+    else
+      mkdir -p "$(dirname "$APP_STAMP")"; echo "$APP_SUM" > "$APP_STAMP"
+      [ -d "$INSTALLED_APP" ] && ok "$INSTALLED_APP" || missing_part "build-tracker-app.sh ran but $INSTALLED_APP is missing"
+    fi
   fi
 else
   missing_part "scripts/build-tracker-app.sh not present yet (agent C); the panel's Start button needs Steady Tracker.app"
@@ -175,7 +198,12 @@ fi
 step "API keys (optional)"
 for key in CARTESIA_API_KEY ANTHROPIC_API_KEY; do
   if [ -f .env.local ] && grep -Eq "^${key}=.+" .env.local; then ok "$key is set in .env.local"
-  else echo "   not set: $key (voice / the Claude fallback then run on mocks and the panel says \"key missing\")"; fi
+  else
+    case "$key" in
+      CARTESIA_API_KEY) echo "   not set: $key (voice is off; the panel says \"key missing\"; tiles, keys and the typed box still work)" ;;
+      *) echo "   not set: $key (unmatched commands go to a local mock instead of Claude; the panel says \"Claude key missing\")" ;;
+    esac
+  fi
 done
 [ -f .env.local ] || echo "   To add keys: cp .env.example .env.local, then fill in CARTESIA_API_KEY and ANTHROPIC_API_KEY."
 
@@ -196,13 +224,13 @@ cat <<'EOF'
 Next steps (in Krita):
   1. Krita › Preferences… (Settings › Configure Krita…) › Python Plugin Manager › tick "Steady" › OK.
      Skip this if Steady is already ticked.
-  2. Quit Krita (Cmd+Q) and open it again.
-  3. Settings › Dockers › Steady. The Steady panel appears; dock it at the side.
-  4. Press Start in the panel. It launches "Steady Tracker" (no Dock icon).
-  5. When macOS asks, allow Camera and Microphone for "Steady Tracker". Then, in System Settings ›
-     Privacy & Security, turn on "Steady Tracker" under Accessibility and under Input Monitoring.
-     The panel lists exactly which of these are still missing.
-  6. Pick your camera in the panel (Desk View if listed), press Calibrate, rest your hand, hold still
+  2. Quit Krita (Cmd+Q) and open it again (needed after every install: Krita loads plugins at start).
+  3. Settings › Dockers › Steady (or Tools › Steady › Show panel). Dock the panel at the side.
+  4. Press Start at the top of the panel. It launches "Steady Tracker" (no Dock icon).
+  5. When macOS asks, allow Camera and Microphone for "Steady Tracker". Then turn "Steady Tracker" on
+     under System Settings › Privacy & Security › Accessibility and › Input Monitoring (the panel's
+     "Open … settings" buttons go straight there). Press Stop, then Start.
+  6. Setup page: pick your camera (Desk View if listed), press Recalibrate, rest your hand, hold still
      to lower the pen, hold still again to lift it.
 Checklist: NEEDS-HUMAN.md. Step-by-step with System Settings links: scripts/human-setup.md.
 EOF

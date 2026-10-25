@@ -180,23 +180,14 @@ def build_app(args: argparse.Namespace, *, overrides: Optional[Dict[str, Any]] =
 
 
 def load_voice(app, keys: Dict[str, str]):
-    """Agent E's VoiceController (tracker/steadytracker/voice). Expected interface:
-        VoiceController(tracker=app, keys=keys)
-          .on_mic(open: bool, reason: str)      # brain `mic` (ptt | tile | quiet | dialog)
-          .speak(text: str)                      # brain `speak`
-          .resolve_text(text, state) -> Resolution dict | awaitable | None   # Claude fallback (optional)
-          .close()
-        and calls back app.on_transcript(text), app.on_voice_status(text, level), app.on_mic_state(open, reason).
-    Missing module → None (typed + tiles + F-keys still work)."""
+    """Agent E's VoiceController (tracker/steadytracker/voice/controller.py), wired with
+    app.voice_kwargs(keys). Missing/broken module → None (tiles, F-keys and the typed box still work)."""
     try:
-        from .voice import VoiceController  # type: ignore
+        from .voice import VoiceController  # lazy: importing never opens the mic
     except Exception as exc:
         log.info("voice module unavailable (%s); voice is off", type(exc).__name__)
         return None
-    try:
-        return VoiceController(tracker=app, keys=keys)
-    except TypeError:
-        return VoiceController()
+    return VoiceController(**app.voice_kwargs(keys))
 
 
 async def _run(app, install_signals: bool = True) -> None:

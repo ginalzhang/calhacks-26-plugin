@@ -7,7 +7,7 @@ Cite only the facts in README › Who it's for.
 
 Setup before judges arrive: Krita fills the screen with the **Steady panel docked at the side**
 (Settings › Dockers › Steady), a picture open, **Start** pressed (status says Tracking), iPhone wired and
-looking down at the desk (Desk View chosen in the panel), a rolled towel under the presenter's forearm.
+looking down at the desk (Desk View chosen on the panel's Setup page), a rolled towel under the presenter's forearm.
 Nothing else is on screen: no browser, no terminal. Fallback if the plugin build misbehaves: the website
 version (README › "Fallback: website version"; `npm run dev` + `npm run demo-chrome`) shows the same
 pipeline on its practice canvas with only Chrome and the camera.
@@ -20,8 +20,8 @@ pipeline on its practice canvas with only Chrome and the camera.
    Krita's canvas: the pen goes down. Draw a short wave in Krita. Hold still: the pen lifts.
    > "My hand is resting. I'm not holding anything. Holding still puts the pen down; holding still again
    > lifts it. Everything you see is inside Krita."
-2. **(0:20)** *(Only if the panel's Simulate tremor toggle works on the real Mac.)* Turn on **Simulate
-   tremor** in the panel. Draw again: the panel's live trace shows the raw path scribbling, the stroke in
+2. **(0:20)** *(Only if the panel's Simulate tremor works on the real Mac.)* On the panel's **Demo**
+   page turn on **Simulate tremor**. Draw again: the panel's live trace shows the raw path scribbling, the stroke in
    Krita stays clean; point at the deviation number.
    > "That shake is simulated and added before our filter. The faded line is what the camera sees; the ink
    > is what Krita gets."

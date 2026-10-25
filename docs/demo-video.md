@@ -12,7 +12,7 @@ Tracking) readable in every screen shot (zoom in during editing if needed).
 | 0:00 | B-roll: a hand struggling to grip a stylus, then setting it down and resting open on the desk, forearm on a rolled towel. | Caption: "What if you could paint without holding anything?" |
 | 0:12 | Title card with the recorded user quote from `docs/user-interview.md`. **If no quote was recorded,** use instead: *"To lose the ability to draw would be a catastrophic loss of myself" — Peter Dunlap-Shohl, cartoonist (PBS Independent Lens).* | Read the quote, or silence. |
 | 0:20 | Screen: Krita with the Steady panel. Press **Start**: status goes to **Tracking**, the camera preview shows the hand. Hold still over the canvas (pen down), draw a wave, hold still (pen lifts). | Caption: "A Krita plugin. The hand rests; holding still lowers and lifts the pen." |
-| 0:35 | *(Only if the panel's Simulate tremor works.)* Panel: **Simulate tremor** on; draw a line; the live trace shows the raw scribble (faded) under the clean stroke. Say **"steadier"**: the deviation number drops. | Caption: **"Simulated tremor"** · "Raw camera path (faded) vs what Krita receives" |
+| 0:35 | *(Only if the panel's Simulate tremor works.)* Panel › Demo › **Simulate tremor** on; draw a line; the live trace shows the raw scribble (faded) under the clean stroke. Say **"steadier"**: the deviation number drops. | Caption: **"Simulated tremor"** · "Raw camera path (faded) vs what Krita receives" |
 | 0:55 | Hands resting, voice only (hold F10): **"blue"**, **"bigger"**, **"new layer"**, paint a stroke, **"eraser"**, **"undo that"**, **"save"**. Keep "Heard: …" visible. | Natural speech. |
 | 1:05 | Type in the panel's box (or say) **"make it thinner and a bit softer"** → *Heard: smaller + airbrush*. Press **Undo** to reverse both. | Caption: "Unmatched phrases go to Claude as text; you see what it heard, Undo reverses it." |
 | 1:20 | *(Optional — only if it works on the real Mac.)* Dwell on an enlarged Krita toolbox button: it clicks. | Caption: "Dwell to click Krita's own buttons" |
@@ -34,9 +34,9 @@ keys (voice and Claude beats are left out). Total ≤ 1:30.
 | Time | Shot | Caption |
 |---|---|---|
 | 0:00 | B-roll: hand sets a stylus down and rests open on the desk. | "No stylus. No grip." |
-| 0:08 | Krita with the Steady panel: **Start**, then **Calibrate**. Hold still (3 s), draw an easy circle (4 s), move right then away (3 s). | "15-second calibration" |
+| 0:08 | Krita with the Steady panel: **Start**, then Setup › **Recalibrate**. Hold still (3 s), draw an easy circle (4 s), move right then away (3 s). | "15-second calibration" |
 | 0:22 | Hold still over the canvas (pen down), write a short word in Krita, hold still to lift. | "Hold still to lower, hold still to lift" |
-| 0:40 | *(If available.)* Panel: **Simulate tremor** on; draw a line; then Steadiness **+** twice and draw it again; the deviation drops. | **"Simulated tremor"** · "Steadiness is a slider: ability changes hour to hour" |
+| 0:40 | *(If available.)* Panel › Demo › **Simulate tremor** on; draw a line; then Steadier twice (Steady page) and draw it again; the deviation drops. | **"Simulated tremor"** · "Steadiness is a slider: ability changes hour to hour" |
 | 1:00 | **F7**: the stroke disappears (Undo). Cover the camera mid-stroke: the stroke ends cleanly, "Tracking lost", then "Tracking back. Pen is up." | "Lose the hand → the pen lifts" |
 | 1:15 | **F9** → the tile reads Resume; dwell on it. Team card. | "Built at Cal Hacks 13.0" |
 

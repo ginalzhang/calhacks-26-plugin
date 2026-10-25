@@ -68,19 +68,24 @@ Homebrew; if Python is missing it prints `brew install python@3.12`), then:
 2. `npm run brain:build` → `tracker/brain/dist/brain.mjs` (the tested TypeScript pipeline as one Node file);
 3. the tracker's Python 3.12 environment (`tracker/.venv`: MediaPipe, OpenCV, sounddevice, pyobjc);
 4. the MediaPipe hand model, downloaded once (`scripts/fetch-mediapipe.sh`), so tracking needs no network;
-5. the panel's action table, generated from `src/actions.ts`;
+5. the panel's action table, generated from `src/actions.ts` (`scripts/gen-plugin-actions.mjs`);
 6. the Krita plugin → `~/Library/Application Support/krita/pykrita/` (`scripts/krita-plugin-install.sh`);
-7. **Steady Tracker.app**, built and installed (`scripts/build-tracker-app.sh --install`);
+7. **Steady Tracker.app** → `~/Applications/Steady Tracker.app` (`scripts/build-tracker-app.sh --install`). The
+   app is a small launcher for `scripts/run-tracker.sh`, so tracker code updates need no rebuild; the
+   installer rebuilds it only when the build script changed or with `--rebuild-tracker`, because every
+   rebuild changes its ad-hoc signature and macOS may forget the permissions;
 8. it reports whether the API keys are in `.env.local`, and prints the steps below.
 
 Then, in Krita (once):
 
 1. **Krita › Preferences…** (Settings › Configure Krita…) › **Python Plugin Manager** › tick **Steady** › OK.
 2. **Quit Krita and open it again.**
-3. **Settings › Dockers › Steady.** Dock the panel at the side of the canvas.
-4. Press **Start** in the panel. macOS asks for **Camera** and **Microphone** for **"Steady Tracker"**: allow
-   both. Then turn **"Steady Tracker"** on under System Settings › Privacy & Security › **Accessibility** and
-   **Input Monitoring**. The panel lists exactly which permission is still missing, and for which app.
+3. **Settings › Dockers › Steady** (or **Tools › Steady › Show panel**). Dock the panel at the side of the canvas.
+4. Press **Start** at the top of the panel. macOS asks for **Camera** and **Microphone** for **"Steady
+   Tracker"**: allow both. Then turn **"Steady Tracker"** on under System Settings › Privacy & Security ›
+   **Accessibility** and **Input Monitoring**. Until then the panel shows "Steady Tracker needs permission",
+   one line per missing permission and an "Open … settings" button for each; afterwards press Stop, then Start.
+   Tracker log: `~/Library/Logs/Steady/tracker.log`.
 
 Before painting:
 
@@ -105,34 +110,46 @@ built), then the environment.
 Rest your forearm on the desk or a rolled towel, fingers curled loosely. Move from the elbow and shoulder;
 let the forearm slide; keep the wrist straight.
 
-- **Start / Stop.** Start launches Steady Tracker; Stop quits it (the mouse button is released first). The
-  status line and the tracking word (**Tracking** / **Weak** / **Lost**, a dot *and* a word) say what is happening;
-  the camera fps shows it is alive.
-- **Camera list and preview.** Pick the camera (Desk View is preferred when present). A small thumbnail shows
-  the camera with the tracked point drawn on it, so you can check the hand is in view.
-- **Calibrate.** About 15 s: hold still (3 s), draw an easy circle (4 s), move right then away (3 s). Steady
-  sets the active box and suggests a Steadiness and gain. Calibration is kept per hand.
+**The pinned header** (always visible):
+
+- **Start / Stop.** Start launches Steady Tracker; the tile then reads Stop, which quits it (the mouse button is
+  released first). Beside it: the tracking dot and word (**Tracking** / **Weak** / **Lost**: a dot *and* a word),
+  the fps, and whether the tracker and Krita are connected.
+- **Status, "Heard: …" and "Undo: …"** lines: what Steady heard, what it did, and what Undo would undo.
+- **Core tiles**, each with its key: **Pen** (F8), **Pause** (F9), **Mic** (F10, hold to talk), **Undo** (F7),
+  **Redo** (F6), **Recenter** (F5), **Other hand** (F4), **Latch** (F3). The keys are global while Krita is in
+  front and are remappable; a Mac may need "Use F1, F2, etc. keys as standard function keys". Any USB foot pedal
+  or switch programmed to send one of these keys works too (optional).
+- **Page tiles:** Steady · Presets · Modes · Setup · Input · Timing · Krita · Paint · Colour · View · Layers · Demo.
+
+**First run:** a Privacy box (the text under Privacy below) until you press **Got it**; a permissions box
+whenever Steady Tracker is missing a permission.
+
+**Pages:**
+
+- **Setup.** The camera **preview** (160×120, the tracked point drawn on it), the **Camera** list (Desk View is
+  preferred when present), **Mirror camera** / **Rotate camera**, **Recalibrate**, **Pointer point** (index
+  knuckle by default), **Use last setup**, and profiles (**Steady day**, **Shaky day**, **Save profile**).
+- **Recalibrate** takes about 15 s: hold still (3 s), draw an easy circle (4 s), move right then away (3 s); a
+  progress box shows each step on every page. Calibration is kept per hand.
 - **Rest hand → pointer.** The pointer follows the index knuckle (it moves only with the wrist and forearm).
 - **Dwell to lower, dwell to lift.** Hold still ~0.8 s over Krita's canvas: the pen goes down and you paint.
   Hold still more tightly ~1.2 s: the pen lifts. A slow, deliberate stroke never lifts; a resting hand never
-  leaves ink. Over the panel's own tiles (and Krita's buttons), a dwell is one left click.
-- **Keys** (global while Krita is in front; remappable):
-
-  | Key | Action | Key | Action |
-  |---|---|---|---|
-  | **F8** | pen down/up | **F6** | redo |
-  | **F9** | pause / resume | **F5** | recenter |
-  | **F10** | push-to-talk (hold) | **F4** | other hand |
-  | **F7** | undo | **F3** | Latch |
-
-  Any USB foot pedal or switch programmed to send one of these keys works too (optional).
+  leaves ink. Over the panel's tiles (and Krita's buttons), a dwell is one left click.
+- **Steady.** The Steadiness slider (with − and + tiles), **Steadier** / **Looser**, **Dots**, **Hatch**, **Quiet**.
+- **Presets.** Hand presets that describe what a hand does: *Sore joints, steady hand*, *Shakes when holding
+  still or reaching*, *Slow movements, shakes at rest*, *Hard to hold still*. Change any slider afterwards.
+- **Modes.** Smoothing presets **Sketch**, **Ink mode**, **Shade**; Hatch variants, **Dash**, **Repeat stroke**.
+- **Paint.** The **typed box** (Return or **Run**): the same grammar as voice, e.g. `blue`, `size 20`,
+  `new layer`; what the grammar can't match goes to Claude (below). Brush, Pencil, Ink, Airbrush, Eraser,
+  Bigger, Smaller, Size, Fade, Solid, Opacity, Line.
+- **Colour / View / Layers.** Colours, lighter/darker, swap, pick; zoom, fit, rotate, mirror, pan; new layer,
+  merge down, hide/show, delete/clear layer (these two ask for confirmation), save.
+- **Timing / Input / Krita.** Dwell times; turning each input (dwell, keys, camera, voice) on or off, spoken
+  replies, sounds; Krita-side settings.
+- **Demo.** **Simulate tremor**, **Next judge**, a live trace of the raw (faded) and drawn paths and the deviation.
 - **Mic.** Tap the Mic tile to open or close the microphone, or hold F10 to talk. Say "blue", "bigger",
   "new layer", "undo that", "steadier", "save". The status line always shows **"Heard: …"** and what Steady did.
-- **Typed box.** The same grammar as voice: type `blue`, `size 20`, `new layer`, or anything else; what the
-  grammar can't match goes to Claude (below).
-- **Presets.** Smoothing presets **Sketch**, **Ink mode** and **Shade**, and hand presets that describe what a hand
-  does (*Sore joints, steady hand*, *Shakes when holding still or reaching*, *Slow movements, shakes at rest*,
-  *Hard to hold still*). The Steadiness slider has − and + tiles; ability changes hour to hour.
 - **Pause / Resume.** F9, the Pause tile, or saying "pause". The button is released, the pointer is clamped to the
   Steady panel, so ink in Krita is impossible, and the tile becomes **Resume**, reachable by dwell alone.
 
@@ -194,19 +211,22 @@ still lifts in every mode, and a still hand never adds ink.
 
 ## Cartesia features used
 
-- **Ink 2 streaming speech-to-text** (`ink-2`, PCM 16 kHz from the Mac's microphone via sounddevice), opened
-  only while the mic is open (hold F10, or tap the Mic tile).
+- **Ink 2 streaming speech-to-text** (`ink-2`, `pcm_s16le` 16 kHz from the Mac's microphone via sounddevice),
+  opened only while the mic is open (hold F10, or tap the Mic tile).
 - **Keyterm biasing:** every voice phrase in the action table (≤ 100 terms, ≤ 1200 characters) so short
   commands like "blue", "bigger", "undo that" survive a loud hall.
 - **Manual finalize** for push-to-talk: on release the tracker sends `finalize` and reads transcripts until
   `flush_done`.
-- **Sonic 3.6 TTS** (`sonic-3.6`, raw PCM, streamed) for the few confirmations that can't be seen at a glance
+- **Access-token flow:** Steady Tracker mints a short-lived token (`POST /access-token`, STT + TTS grants, 1 h)
+  with the API key and opens the sockets with the token; it is re-minted after 45 min, only between utterances.
+  The key and token are never logged.
+- **Sonic 3.6 TTS** (`sonic-3.6`, raw PCM 24 kHz, streamed) for the few confirmations that can't be seen at a glance
   ("Saved", "New layer", "Didn't catch that"), a few words at most, never on pen toggles, never while the mic is
   open, off in quiet mode. *TODO: confirm with a real key on the real Mac (NEEDS-HUMAN.md); delete this bullet
   if TTS did not land in the plugin build.*
 
-The API key stays on this Mac: Steady Tracker reads it from `.env.local` and talks to Cartesia directly; there is
-no browser in the plugin build, so the website's short-lived access-token route is not needed.
+The API key stays on this Mac: Steady Tracker reads it from `.env.local`. Without it, voice is off and the panel
+says "Voice needs a Cartesia key (key missing). Use the tiles or type the command."
 
 ### Limitations (voice)
 - Accuracy on dysarthric or accented speech has **not been measured**; English only.
@@ -227,8 +247,9 @@ automatic, per the ASSETS 2024 recommendation); a 2.5 s timeout or invalid outpu
 with the two closest grammar matches as tiles. Calls are logged locally
 (`~/Library/Application Support/Steady/claude-log.jsonl`: latency, accepted / rejected / timeout).
 
-**Key missing:** without `ANTHROPIC_API_KEY` a mock returns realistic results and the panel says "key missing",
-so the flow can be shown, but nothing is sent anywhere.
+**Key missing:** without `ANTHROPIC_API_KEY` a local keyword mock answers instead and the panel says "Claude
+key missing", so the flow can be shown, but nothing is sent anywhere. With the key, Steady Tracker calls
+Anthropic directly (Python SDK; there is no server route in the plugin build).
 
 **Never used for:** the pointer path, audio, pen state, or anything without a visible "Heard:" and Undo.
 
@@ -247,7 +268,8 @@ Camera frames never leave this computer; the camera sees the desk, so papers on 
 
 *In the plugin build* "our server" is the Steady Tracker process on this Mac, which calls Anthropic's API
 directly, and "the helper" is Steady Tracker itself (it listens on `127.0.0.1:8767` for the panel; the Krita
-bridge listens on `127.0.0.1:8766`). Settings, calibration and the Claude log stay in
+bridge listens on `127.0.0.1:8766`). The panel's first-run Privacy box says it that way: "Steady Tracker and
+the Krita plugin listen on 127.0.0.1 only and send nothing else off the machine." Settings, calibration and the Claude log stay in
 `~/Library/Application Support/Steady/`.
 
 ## Pressure
@@ -281,10 +303,13 @@ hand unable to leave ink.
 - Steady Tracker is built locally and ad-hoc signed. macOS ties permissions to the app's signature, so after a
   rebuild macOS may ask again (or the old grant may silently stop working): remove "Steady Tracker" from
   Accessibility / Input Monitoring and add it again.
-- There is no dwell-ring overlay over the canvas in the plugin build unless NEEDS-HUMAN.md says otherwise; the
-  panel's status, tracking word and preview carry the feedback. *TODO: confirm against the tracker build.*
-- Head mode, eyebrow lift, the Colour cap tracker, the Photoshop profile and the Demo page (Simulate tremor,
-  metrics) exist in the **website version** only (below). *TODO: update if they are ported to the tracker.*
+- There is no dwell-ring overlay over the canvas in the plugin build: the panel's status, tracking word and
+  preview carry the feedback. *TODO: confirm against the final tracker build.*
+- The panel renders the whole shared action table, so it also shows tiles for **Head mode**, **Eyebrow lift**,
+  **Colour cap** / **Pick sticker colour**, **Lock exposure**, **Show numbers** / **Click number** and the
+  **Photoshop** app profile. At the time of writing Steady Tracker tracks the hand only (MediaPipe
+  HandLandmarker) and draws no overlay, so those work in the **website version** only (below).
+  *TODO: update if they are ported to the tracker.*
 - Camera angles from a wheelchair or a bed are untested.
 - MediaPipe's detection confidence can be lower for darker skin in low light; Steady surfaces the tracking
   word and a lighting warning, and better light is the fix.

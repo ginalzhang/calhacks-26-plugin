@@ -49,7 +49,8 @@ touchpad, and a free table with something to rest your forearm on (a book or a r
 ## 2. Open the Steady panel (1 min)
 
 1. Open or create a picture (**File › New**).
-2. Menu **Settings › Dockers › Steady**. The Steady panel appears.
+2. Menu **Settings › Dockers › Steady** (or **Tools › Steady › Show panel**). The Steady panel appears.
+   The first time, it shows a short Privacy note: read it and press **Got it**.
 3. Drag it to the left or right edge of the window so it docks beside the canvas.
 4. Follow `scripts/krita-setup.md` once (bigger toolbox icons, lock the dockers, a brush whose size follows
    **Speed** rather than Pressure).
@@ -59,20 +60,23 @@ touchpad, and a free table with something to rest your forearm on (a book or a r
 1. Put the camera in place first: plug the iPhone in **with a USB cable**, unlock it, and stand it so it
    looks **down at the desk** where your hand will rest. (No iPhone: the built-in camera, laptop screen tilted
    so it sees the desk.)
-2. In the Steady panel press **Start**.
+2. In the Steady panel press **Start** (top left of the panel). It changes to **Stop** while Steady runs.
 3. macOS asks: **"Steady Tracker" would like to access the camera** → **Allow**. Then the same for the
    **microphone** → **Allow**.
-4. Now the two permissions macOS does not ask for in a dialog. Open each link in Safari (or paste it into
-   any browser's address bar), or go to Apple menu  › System Settings › Privacy & Security:
+4. Now the two permissions macOS does not ask for in a dialog. The panel shows **"Steady Tracker needs
+   permission"** with an **Open … settings** button for each one that is missing: press it. Or open each link
+   below in Safari, or go to Apple menu  › System Settings › Privacy & Security:
    - **Accessibility** (lets Steady move the pointer):
      `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`
    - **Input Monitoring** (lets Steady hear the F-keys while Krita is in front):
      `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent`
 
-   In each list, switch **Steady Tracker** **on**. If it is not in the list, click **+**, find
-   **Steady Tracker** (the installer prints where it put it), click Open, then switch it on.
+   In each list, switch **Steady Tracker** **on**. If it is not in the list, click **+**, press
+   `⌘ ⇧ H` (your home folder), open **Applications**, choose **Steady Tracker**, click Open, then switch it on.
 5. Back in Krita, press **Stop**, then **Start** again so the new permissions take effect.
-   The panel shows which permissions are granted; if one is still missing, it says which, and for which app.
+   When everything is granted, the permissions box disappears. If one is still missing, the box says which.
+   If Start does nothing at all, the panel's status line says why (for example "Install the tracker: run
+   scripts/install-steady.sh"); write it down.
 
 ## 4. Switch off things that fight Steady (2 min)
 
@@ -90,13 +94,15 @@ If the pointer ever seems stuck, **click the physical mouse or touchpad once**. 
 
 ## 5. Pick the camera and paint (5 min)
 
-1. In the panel's **camera** list, look for an entry with **"Desk View"** in its name.
+Press the **Setup** page tile in the panel. It has the camera preview, the camera list and Recalibrate.
+
+1. In the **Camera** list, look for an entry with **"Desk View"** in its name.
    - **Listed:** choose it. Write "Desk View listed" in `NEEDS-HUMAN.md` item 5.
    - **Not listed:** choose the entry with your iPhone's name and aim the phone down at the desk yourself.
    - **No iPhone:** choose the built-in camera. Write down which one you used.
 2. The small preview shows your hand with a dot on the index knuckle. If moving your hand right moves the dot
-   or the pointer left, use the panel's **Mirror** setting; if it is upside down, **Rotate**.
-3. Press **Calibrate** and follow the panel: hold still (3 s), draw an easy circle (4 s), move right then
+   or the pointer left, press **Mirror camera**; if it is upside down, **Rotate camera**.
+3. Press **Recalibrate** and follow the panel: hold still (3 s), draw an easy circle (4 s), move right then
    away (3 s).
 4. Rest your forearm on the towel, fingers curled loosely. The pointer follows your hand.
 5. Hold still about a second over Krita's canvas: the pen goes **down**. Move: a stroke appears in Krita.

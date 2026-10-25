@@ -5,7 +5,7 @@
 - The first line that is not a JSON object (e.g. an HTTP request a web page aimed at this port), or a
   line over 1 MiB, closes that connection.
 - Requests with `id` get `{t:"ack", id, ok, error?}` after the handler ran (handlers run in order).
-- `send_state()` coalesces to ≤ 15 Hz and only sends on change.
+- `send_state()` coalesces to ≤ 15 Hz and only sends on change, nested: `{t:"state", state: PanelState}`.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ class PanelServer:
         data = json.dumps(st, sort_keys=True, separators=(",", ":"))
         if data == self._last_state_json:
             return
-        if self.send({"t": "state", **st}):
+        if self.send({"t": "state", "state": st}):
             self._last_state_json = data
             self._last_state_at = asyncio.get_running_loop().time()
             self.sent_states += 1
@@ -134,7 +134,7 @@ class PanelServer:
     def resend_state(self) -> None:
         """After a new hello: send the last known state at once."""
         if self._last_state_json is not None:
-            self.send({"t": "state", **json.loads(self._last_state_json)})
+            self.send({"t": "state", "state": json.loads(self._last_state_json)})
 
     def last_state(self) -> Optional[Dict[str, Any]]:
         return json.loads(self._last_state_json) if self._last_state_json else None
